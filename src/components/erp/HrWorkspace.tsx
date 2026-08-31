@@ -103,7 +103,12 @@ export function HrWorkspace({ mode }: { mode: "manager" | "admin" }) {
     if (result.ok) {
       setManagerData(result.data);
       setDraft(
-        Object.fromEntries(result.data.attendance.map((entry) => [entry.employeeId, entry.status])),
+        Object.fromEntries(
+          result.data.attendance.map((entry: { employeeId: string; status: AttendanceStatus }) => [
+            entry.employeeId,
+            entry.status,
+          ]),
+        ),
       );
       setError("");
     } else {
