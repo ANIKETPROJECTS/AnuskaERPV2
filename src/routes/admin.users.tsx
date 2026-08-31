@@ -76,6 +76,7 @@ function UserManagement() {
   const [users, setUsers] = useState<PublicUser[]>(result.users);
   const [editingUser, setEditingUser] = useState<PublicUser | null>(null);
   const [showCreator, setShowCreator] = useState(false);
+  const [closingUserForm, setClosingUserForm] = useState(false);
   const [form, setForm] = useState<UserFormState>(emptyForm);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -122,6 +123,7 @@ function UserManagement() {
   function openCreate() {
     setMessage("");
     setEditingUser(null);
+    setClosingUserForm(false);
     setForm(emptyForm());
     setShowCreator(true);
   }
@@ -130,6 +132,7 @@ function UserManagement() {
     setMessage("");
     setShowCreator(false);
     setEditingUser(user);
+    setClosingUserForm(false);
     setForm({
       name: user.name,
       email: user.email,
@@ -139,6 +142,18 @@ function UserManagement() {
       permissions: user.permissions,
       active: user.active,
     });
+  }
+
+  function closeUserForm() {
+    setClosingUserForm(true);
+    setMessage("");
+  }
+
+  function finishClosingUserForm() {
+    setClosingUserForm(false);
+    setShowCreator(false);
+    setEditingUser(null);
+    setForm(emptyForm());
   }
 
   function changePanel(panel: Panel) {
@@ -196,9 +211,7 @@ function UserManagement() {
           ? current.map((user) => (user.id === response.user.id ? response.user : user))
           : [response.user, ...current],
       );
-      setEditingUser(null);
-      setShowCreator(false);
-      setForm(emptyForm());
+      closeUserForm();
       await router.invalidate();
     } catch {
       setMessage("The user could not be saved. Please try again.");
@@ -218,7 +231,7 @@ function UserManagement() {
         return;
       }
       setUsers((current) => current.filter((item) => item.id !== user.id));
-      if (editingUser?.id === user.id) setEditingUser(null);
+      if (editingUser?.id === user.id) closeUserForm();
       await router.invalidate();
     } catch {
       setMessage("The user could not be deleted. Please try again.");
@@ -427,20 +440,18 @@ function UserManagement() {
         </div>
       </div>
 
-      {showCreator || editingUser ? (
+      {showCreator || editingUser || closingUserForm ? (
         <UserForm
           editing={Boolean(editingUser)}
+          closing={closingUserForm}
           form={form}
           busy={busy}
           onChange={setForm}
           onPanelChange={changePanel}
           onTogglePermission={togglePermission}
           onSubmit={submit}
-          onClose={() => {
-            setShowCreator(false);
-            setEditingUser(null);
-            setMessage("");
-          }}
+          onClose={closeUserForm}
+          onClosed={finishClosingUserForm}
         />
       ) : null}
       </div>
@@ -466,6 +477,7 @@ function Summary({ label, value, icon }: { label: string; value: string; icon: R
 
 function UserForm({
   editing,
+  closing,
   form,
   busy,
   onChange,
@@ -473,8 +485,10 @@ function UserForm({
   onTogglePermission,
   onSubmit,
   onClose,
+  onClosed,
 }: {
   editing: boolean;
+  closing: boolean;
   form: UserFormState;
   busy: boolean;
   onChange: (value: UserFormState) => void;
@@ -482,10 +496,26 @@ function UserForm({
   onTogglePermission: (permission: AccessSection) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onClose: () => void;
+  onClosed: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-black/20" role="dialog" aria-modal="true" aria-labelledby="user-form-title">
-      <form onSubmit={onSubmit} className="flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-border bg-card p-6 shadow-xl">
+    <div
+      className={`fixed inset-0 z-40 flex justify-end bg-black/20 ${
+        closing ? "user-drawer-backdrop-exit" : "user-drawer-backdrop-enter"
+      }`}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="user-form-title"
+    >
+      <form
+        onSubmit={onSubmit}
+        onAnimationEnd={(event) => {
+          if (closing && event.animationName === "user-drawer-exit") onClosed();
+        }}
+        className={`flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-border bg-card p-6 shadow-xl ${
+          closing ? "user-drawer-exit" : "user-drawer-enter"
+        }`}
+      >
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Access control</p>
