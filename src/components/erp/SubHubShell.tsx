@@ -37,7 +37,7 @@ export function SubHubShell({ actions, children }: { actions?: ReactNode; childr
           </div>
           <div className="leading-tight">
             <p className="text-sm font-semibold">SubHub Panel</p>
-            <p className="text-xs text-muted-foreground">Float ERP workspace</p>
+            <p className="truncate text-xs text-muted-foreground">{user?.subhubName ?? "Float ERP workspace"}</p>
           </div>
         </div>
         <nav className="flex-1 space-y-1 p-3" aria-label="SubHub navigation">

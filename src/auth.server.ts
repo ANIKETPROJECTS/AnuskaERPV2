@@ -31,6 +31,7 @@ export type PublicUser = {
   name: string;
   email: string;
   panel: Panel;
+  subhubName: string | undefined;
   role: UserRole;
   permissions: AccessSection[];
   databaseName: string;
@@ -43,6 +44,7 @@ type UserDocument = {
   email: string;
   passwordHash: string;
   panel: Panel;
+  subhubName: string | undefined;
   role: UserRole;
   permissions: AccessSection[];
   databaseName: string;
@@ -190,6 +192,7 @@ function toPublicUser(user: UserDocument): PublicUser {
     name: user.name,
     email: user.email,
     panel: user.panel,
+    subhubName: user.subhubName,
     role: user.role,
     permissions: user.permissions,
     databaseName: user.databaseName,
@@ -328,6 +331,7 @@ export async function bootstrapMasterAdmin(
     passwordHash: await hashPassword(password),
     panel: "admin",
     role: "master_admin",
+    subhubName: undefined,
     permissions: getAllPermissions(),
     databaseName,
     active: true,
@@ -371,6 +375,7 @@ export async function createManagedUser(input: {
   email: string;
   password: string;
   panel: Panel;
+  subhubName: string | undefined;
   permissions: AccessSection[];
 }): Promise<{ ok: true; user: PublicUser } | { ok: false; message: string }> {
   const current = await getUserBySession();
@@ -380,6 +385,10 @@ export async function createManagedUser(input: {
 
   if (input.password.length < 8) {
     return { ok: false, message: "Password must be at least 8 characters." };
+  }
+  const normalizedSubhubName = normalizeName(input.subhubName ?? "");
+  if (input.panel === "subhub" && normalizedSubhubName.length < 2) {
+    return { ok: false, message: "Enter the SubHub name or factory name." };
   }
 
   const db = await ensureControlPlane();
@@ -392,6 +401,7 @@ export async function createManagedUser(input: {
     email: normalizeEmail(input.email),
     passwordHash: await hashPassword(input.password),
     panel: input.panel,
+    subhubName: input.panel === "subhub" ? normalizedSubhubName : undefined,
     role: input.panel === "admin" ? "admin" : "subhub",
     permissions: sanitizePermissions(input.panel, input.permissions),
     databaseName,
@@ -423,6 +433,7 @@ export async function updateManagedUser(input: {
   name: string;
   email: string;
   panel: Panel;
+  subhubName: string | undefined;
   permissions: AccessSection[];
   active: boolean;
   password?: string | undefined;
@@ -436,6 +447,10 @@ export async function updateManagedUser(input: {
   }
   if (input.password !== undefined && input.password.length > 0 && input.password.length < 8) {
     return { ok: false, message: "New password must be at least 8 characters." };
+  }
+  const normalizedSubhubName = normalizeName(input.subhubName ?? "");
+  if (input.panel === "subhub" && normalizedSubhubName.length < 2) {
+    return { ok: false, message: "Enter the SubHub name or factory name." };
   }
 
   const db = await ensureControlPlane();
@@ -452,10 +467,13 @@ export async function updateManagedUser(input: {
     active: input.active,
     updatedAt: new Date(),
   };
+  if (input.panel === "subhub") update["subhubName"] = normalizedSubhubName;
   if (input.password) update["passwordHash"] = await hashPassword(input.password);
+  const updateDocument: { $set: Record<string, unknown>; $unset?: Record<string, ""> } = { $set: update };
+  if (input.panel === "admin") updateDocument.$unset = { subhubName: "" };
 
   try {
-    await db.collection<UserDocument>("users").updateOne({ _id: input.id }, { $set: update });
+    await db.collection<UserDocument>("users").updateOne({ _id: input.id }, updateDocument);
   } catch (error) {
     if (error instanceof Error && error.message.includes("E11000")) {
       return { ok: false, message: "That email is already registered." };

@@ -29,6 +29,7 @@ const managedUserSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(8).max(200),
   panel: z.enum(["admin", "subhub"]),
+  subhubName: z.string().trim().max(120).optional(),
   permissions: z.array(z.string()),
 });
 
@@ -37,6 +38,7 @@ const updateUserSchema = z.object({
   name: z.string().trim().min(2).max(80),
   email: z.string().trim().email(),
   panel: z.enum(["admin", "subhub"]),
+  subhubName: z.string().trim().max(120).optional(),
   permissions: z.array(z.string()),
   active: z.boolean(),
   password: z.string().max(200).optional(),
@@ -61,6 +63,7 @@ export const createManagedUserFn = createServerFn({ method: "POST" })
   .handler(({ data }) =>
     createManagedUser({
       ...data,
+      subhubName: data.subhubName,
       permissions: data.permissions as AccessSection[],
     }),
   );
@@ -70,6 +73,7 @@ export const updateManagedUserFn = createServerFn({ method: "POST" })
   .handler(({ data }) =>
     updateManagedUser({
       ...data,
+      subhubName: data.subhubName,
       permissions: data.permissions as AccessSection[],
     }),
   );
