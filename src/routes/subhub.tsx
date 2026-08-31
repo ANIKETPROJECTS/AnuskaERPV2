@@ -41,7 +41,7 @@ function SubHubOverview() {
       icon: PackageOpen,
       label: "Inventory Management",
       description: "Track current stock, batches, adjustments, and inventory value.",
-      detail: "8 products tracked",
+       detail: "Workspace-scoped stock records",
     },
     {
       permission: "hub-manager",
@@ -49,7 +49,7 @@ function SubHubOverview() {
       icon: ClipboardCheck,
       label: "Hub Manager",
       description: "Record daily production output and manage hub-level targets.",
-      detail: "6 active hubs",
+       detail: "Orders assigned by Admin",
     },
     {
       permission: "hub-reports",
@@ -57,7 +57,7 @@ function SubHubOverview() {
       icon: FileBarChart,
       label: "Hub Reports",
       description: "Review production performance and inventory movement reports.",
-      detail: "Reporting foundation ready",
+       detail: "Saved daily reports",
     },
   ];
 

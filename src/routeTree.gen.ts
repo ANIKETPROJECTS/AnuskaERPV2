@@ -21,6 +21,7 @@ import { Route as RawMaterialsRouteImport } from './routes/raw-materials'
 import { Route as ShortagesRouteImport } from './routes/shortages'
 import { Route as SubhubRouteImport } from './routes/subhub'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
+import { Route as BomCodeRouteImport } from './routes/bom.$code'
 import { Route as HubCodeRouteImport } from './routes/hub.$code'
 import { Route as InventoryAdjustmentRouteImport } from './routes/inventory.adjustment'
 import { Route as InventoryHistoryRouteImport } from './routes/inventory.history'
@@ -94,6 +95,11 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BomCodeRoute = BomCodeRouteImport.update({
+  id: '/$code',
+  path: '/$code',
+  getParentRoute: () => BomRoute,
+} as any)
 const HubCodeRoute = HubCodeRouteImport.update({
   id: '/hub/$code',
   path: '/hub/$code',
@@ -157,7 +163,7 @@ const SubhubParentCodeRoute = SubhubParentCodeRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/bom': typeof BomRoute
+  '/bom': typeof BomRouteWithChildren
   '/hubs': typeof HubsRoute
   '/inventory': typeof InventoryRouteWithChildren
   '/login': typeof LoginRoute
@@ -168,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
   '/admin/users': typeof AdminUsersRoute
+  '/bom/$code': typeof BomCodeRoute
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
   '/inventory/history': typeof InventoryHistoryRoute
@@ -183,7 +190,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/bom': typeof BomRoute
+  '/bom': typeof BomRouteWithChildren
   '/hubs': typeof HubsRoute
   '/inventory': typeof InventoryRouteWithChildren
   '/login': typeof LoginRoute
@@ -194,6 +201,7 @@ export interface FileRoutesByTo {
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
   '/admin/users': typeof AdminUsersRoute
+  '/bom/$code': typeof BomCodeRoute
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
   '/inventory/history': typeof InventoryHistoryRoute
@@ -210,7 +218,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/bom': typeof BomRoute
+  '/bom': typeof BomRouteWithChildren
   '/hubs': typeof HubsRoute
   '/inventory': typeof InventoryRouteWithChildren
   '/login': typeof LoginRoute
@@ -221,6 +229,7 @@ export interface FileRoutesById {
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
   '/admin/users': typeof AdminUsersRoute
+  '/bom/$code': typeof BomCodeRoute
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
   '/inventory/history': typeof InventoryHistoryRoute
@@ -249,6 +258,7 @@ export interface FileRouteTypes {
     | '/shortages'
     | '/subhub'
     | '/admin/users'
+    | '/bom/$code'
     | '/hub/$code'
     | '/inventory/adjustment'
     | '/inventory/history'
@@ -275,6 +285,7 @@ export interface FileRouteTypes {
     | '/shortages'
     | '/subhub'
     | '/admin/users'
+    | '/bom/$code'
     | '/hub/$code'
     | '/inventory/adjustment'
     | '/inventory/history'
@@ -301,6 +312,7 @@ export interface FileRouteTypes {
     | '/shortages'
     | '/subhub'
     | '/admin/users'
+    | '/bom/$code'
     | '/hub/$code'
     | '/inventory/adjustment'
     | '/inventory/history'
@@ -317,7 +329,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  BomRoute: typeof BomRoute
+  BomRoute: typeof BomRouteWithChildren
   HubsRoute: typeof HubsRoute
   InventoryRoute: typeof InventoryRouteWithChildren
   LoginRoute: typeof LoginRoute
@@ -421,6 +433,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bom/$code': {
+      id: '/bom/$code'
+      path: '/$code'
+      fullPath: '/bom/$code'
+      preLoaderRoute: typeof BomCodeRouteImport
+      parentRoute: typeof BomRoute
+    }
     '/hub/$code': {
       id: '/hub/$code'
       path: '/hub/$code'
@@ -508,6 +527,16 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface BomRouteChildren {
+  BomCodeRoute: typeof BomCodeRoute
+}
+
+const BomRouteChildren: BomRouteChildren = {
+  BomCodeRoute: BomCodeRoute,
+}
+
+const BomRouteWithChildren = BomRoute._addFileChildren(BomRouteChildren)
+
 interface InventoryRouteChildren {
   InventoryAdjustmentRoute: typeof InventoryAdjustmentRoute
   InventoryHistoryRoute: typeof InventoryHistoryRoute
@@ -543,7 +572,7 @@ const SubhubRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  BomRoute: BomRoute,
+  BomRoute: BomRouteWithChildren,
   HubsRoute: HubsRoute,
   InventoryRoute: InventoryRouteWithChildren,
   LoginRoute: LoginRoute,

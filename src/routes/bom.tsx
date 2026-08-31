@@ -1,9 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ArrowRight, Plus, X } from "lucide-react";
-import { useState } from "react";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { ImagePlus, Plus, Upload, X } from "lucide-react";
+import { ChangeEvent, FormEvent, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
-import { Panel } from "@/components/erp/bits";
-import { skus, subparts } from "@/lib/erp-data";
+import { useBomProducts, addBomProduct, rawPartCount, type NewProduct } from "@/lib/bom-store";
 
 export const Route = createFileRoute("/bom")({
   head: () => ({
@@ -20,23 +19,80 @@ export const Route = createFileRoute("/bom")({
   component: Bom,
 });
 
+const emptyProduct: NewProduct = { name: "", code: "", description: "", image: "" };
+
 function Bom() {
-  const [selectedCode, setSelectedCode] = useState<string | null>(null);
-  const selectedProduct = bomProducts.find((product) => product.code === selectedCode);
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const products = useBomProducts();
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [productForm, setProductForm] = useState(emptyProduct);
+  const [productError, setProductError] = useState("");
+
+  if (pathname !== "/bom") {
+    return <Outlet />;
+  }
+
+  function openProductForm() {
+    setProductForm(emptyProduct);
+    setProductError("");
+    setShowProductForm(true);
+  }
+
+  function closeProductForm() {
+    setShowProductForm(false);
+    setProductError("");
+  }
+
+  function handleImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setProductError("Choose an image file for the product.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setProductForm((current) => ({ ...current, image: String(reader.result) }));
+    reader.readAsDataURL(file);
+  }
+
+  function submitProduct(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = productForm.name.trim();
+    const code = productForm.code.trim().toUpperCase();
+    const description = productForm.description.trim();
+    if (!productForm.image) {
+      setProductError("Add a product image before saving.");
+      return;
+    }
+    if (name.length < 2 || code.length < 2 || description.length < 5) {
+      setProductError("Enter a product name, code, and description.");
+      return;
+    }
+    if (products.some((product) => product.code.toLowerCase() === code.toLowerCase())) {
+      setProductError("That product code is already in use.");
+      return;
+    }
+    addBomProduct({ name, code, description, image: productForm.image });
+    closeProductForm();
+  }
 
   return (
     <Shell
       title="Bills of Materials"
       subtitle="Parent assemblies and component structures for the Float product line"
       actions={
-        <button type="button" className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium">
+        <button
+          type="button"
+          onClick={openProductForm}
+          className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"
+        >
           <Plus className="size-4" /> Add product
         </button>
       }
     >
       <section className="space-y-6 p-6">
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          {bomProducts.map((product) => (
+          {products.map((product) => (
             <article key={product.code} className="panel overflow-hidden">
               <div className="flex h-36 items-center justify-center bg-white p-3">
                 <img src={product.image} alt={`${product.name} component assembly`} className="h-full w-full object-contain" />
@@ -48,88 +104,128 @@ function Bom() {
                 <div className="mt-4 grid grid-cols-2 border-t border-border pt-3 text-xs">
                   <div>
                     <p className="uppercase tracking-wide text-muted-foreground">Variants</p>
-                    <p className="mt-1 font-semibold">{product.variants}</p>
+                    <p className="mt-1 font-semibold">{product.variants.length}</p>
                   </div>
                   <div>
                     <p className="uppercase tracking-wide text-muted-foreground">Raw parts</p>
-                    <p className="mt-1 font-semibold">{product.rawParts}</p>
+                    <p className="mt-1 font-semibold">{rawPartCount(product)}</p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCode(product.code)}
+                <Link
+                  to="/bom/$code"
+                  params={{ code: product.code }}
                   className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-primary hover:underline"
                 >
-                  Open structure <ArrowRight className="size-3.5" />
-                </button>
+                  Open structure <span aria-hidden="true">→</span>
+                </Link>
               </div>
             </article>
           ))}
         </div>
-
-        {selectedProduct ? (
-          <Panel
-            title={`${selectedProduct.name} structure`}
-            description={`${selectedProduct.code} · ${selectedProduct.variants} product variants · ${selectedProduct.rawParts} raw parts`}
-            action={
-              <button type="button" onClick={() => setSelectedCode(null)} aria-label="Close structure" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted">
-                <X className="size-4" />
-              </button>
-            }
-          >
-            <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3">
-              {subparts
-                .filter((part) => part.bom[selectedProduct.skuId])
-                .map((part) => (
-                  <div key={part.code} className="rounded-md border border-border bg-background px-3 py-2.5">
-                    <p className="text-sm font-medium">{part.name}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{part.code} · {part.material}</p>
-                    <p className="mt-2 text-xs font-semibold text-primary">×{part.bom[selectedProduct.skuId]} per unit</p>
-                  </div>
-                ))}
-            </div>
-          </Panel>
-        ) : null}
       </section>
+
+      {showProductForm ? (
+        <ProductForm
+          form={productForm}
+          error={productError}
+          onChange={setProductForm}
+          onImage={handleImage}
+          onSubmit={submitProduct}
+          onClose={closeProductForm}
+        />
+      ) : null}
     </Shell>
   );
 }
 
-const bomProducts = [
-  {
-    code: "P-FLT",
-    name: "Float",
-    description: "Main parent assembly manufactured for multiple company variants.",
-    variants: 6,
-    rawParts: 11,
-    skuId: 1,
-    image: "/float-parent-parts.png",
-  },
-  {
-    code: "P-ARM",
-    name: "Float Arm",
-    description: "Parent definition for arm and pivot assemblies.",
-    variants: 3,
-    rawParts: 7,
-    skuId: 2,
-    image: "/float-arm-parent-parts.png",
-  },
-  {
-    code: "P-VAL",
-    name: "Valve",
-    description: "Parent definition for valve seat and seal assemblies.",
-    variants: 4,
-    rawParts: 9,
-    skuId: 5,
-    image: "/valve-parent-parts.png",
-  },
-  {
-    code: "P-CAP",
-    name: "Cover",
-    description: "Parent definition for cover and retainer assemblies.",
-    variants: 2,
-    rawParts: 5,
-    skuId: 4,
-    image: "/cover-parent-parts.png",
-  },
-] as const;
+function ProductForm({
+  form,
+  error,
+  onChange,
+  onImage,
+  onSubmit,
+  onClose,
+}: {
+  form: NewProduct;
+  error: string;
+  onChange: (value: NewProduct) => void;
+  onImage: (event: ChangeEvent<HTMLInputElement>) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/20 p-4" role="dialog" aria-modal="true" aria-labelledby="add-product-title">
+      <form onSubmit={onSubmit} className="w-full max-w-lg rounded-lg border border-border bg-card p-6 shadow-xl">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Product master</p>
+            <h2 id="add-product-title" className="mt-2 text-xl font-semibold">Add product</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Add an image and product details to create a new BOM product.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted">
+            <X className="size-5" />
+          </button>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          <label className="block text-sm font-medium">
+            Product image
+            <span className="mt-1.5 flex min-h-24 cursor-pointer items-center gap-3 rounded-md border border-dashed border-input bg-muted/20 px-3 py-3 text-sm font-normal hover:bg-muted/40">
+              {form.image ? (
+                <img src={form.image} alt="Product preview" className="size-16 rounded border border-border bg-white object-contain" />
+              ) : (
+                <span className="flex size-16 items-center justify-center rounded border border-border bg-background text-muted-foreground">
+                  <ImagePlus className="size-5" />
+                </span>
+              )}
+              <span className="flex-1 text-muted-foreground">{form.image ? "Replace product image" : "Choose a product image"}</span>
+              <Upload className="size-4 text-muted-foreground" />
+              <input type="file" accept="image/*" onChange={onImage} className="sr-only" />
+            </span>
+          </label>
+          <label className="block text-sm font-medium">
+            Product name
+            <input
+              required
+              value={form.name}
+              onChange={(event) => onChange({ ...form, name: event.target.value })}
+              placeholder="Pump"
+              className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary"
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Product code
+            <input
+              required
+              value={form.code}
+              onChange={(event) => onChange({ ...form, code: event.target.value })}
+              placeholder="P-PMP"
+              className="tabular mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary"
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Description
+            <textarea
+              required
+              value={form.description}
+              onChange={(event) => onChange({ ...form, description: event.target.value })}
+              placeholder="Pump assembly definition"
+              rows={3}
+              className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+            />
+          </label>
+          {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}
+        </div>
+
+        <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
+          <button type="button" onClick={onClose} className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted">
+            Cancel
+          </button>
+          <button type="submit" className="rule-header rounded-md px-4 py-2 text-sm font-medium">
+            Add product
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

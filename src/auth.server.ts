@@ -38,7 +38,7 @@ export type PublicUser = {
   active: boolean;
 };
 
-type UserDocument = {
+export type UserDocument = {
   _id: string;
   name: string;
   email: string;
@@ -117,6 +117,7 @@ async function ensureControlPlane(): Promise<Db> {
     db.collection<SessionDocument>("sessions").createIndex({ tokenHash: 1 }, { unique: true }),
     db.collection<SessionDocument>("sessions").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.collection<ProvisioningDocument>("provisioning").createIndex({ userId: 1 }, { unique: true }),
+    db.collection("production_orders").createIndex({ subhubUserId: 1, createdAt: -1 }),
   ]).then(() => undefined);
   await indexesPromise;
   return db;
@@ -350,6 +351,14 @@ async function getUserBySession(): Promise<UserDocument | null> {
   const user = await db.collection<UserDocument>("users").findOne({ _id: session.userId });
   if (!user?.active) return null;
   return user;
+}
+
+export async function getCurrentUserRecord(): Promise<UserDocument | null> {
+  return getUserBySession();
+}
+
+export async function getControlPlaneDatabase(): Promise<Db> {
+  return ensureControlPlane();
 }
 
 async function createSession(userId: string): Promise<void> {
@@ -594,6 +603,12 @@ export async function updateManagedUser(input: {
   try {
     await moveWorkspaceDatabase(existing.databaseName, databaseName);
     await db.collection<UserDocument>("users").updateOne({ _id: input.id }, updateDocument);
+    if (input.panel === "subhub") {
+      await db.collection("production_orders").updateMany(
+        { subhubUserId: input.id },
+        { $set: { subhubName: normalizedSubhubName, updatedAt: new Date() } },
+      );
+    }
     await provisionDatabase(db, input.id, databaseName);
   } catch (error) {
     if (error instanceof Error && error.message.includes("E11000")) {
@@ -624,6 +639,7 @@ export async function deleteManagedUser(id: string): Promise<{ ok: true } | { ok
     db.collection<UserDocument>("users").deleteOne({ _id: id }),
     db.collection<SessionDocument>("sessions").deleteMany({ userId: id }),
     db.collection<ProvisioningDocument>("provisioning").deleteOne({ userId: id }),
+    db.collection("production_orders").deleteMany({ subhubUserId: id }),
   ]);
   return { ok: true };
 }
