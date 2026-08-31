@@ -1,12 +1,9 @@
 import { useSyncExternalStore } from "react";
-import { skus, subparts } from "./erp-data";
+import { bomCatalog, type BomCatalogVariant } from "./bom-catalog";
+import { subparts } from "./erp-data";
 
-export type BomVariant = {
+export type BomVariant = Omit<BomCatalogVariant, "skuId"> & {
   id: string;
-  company: string;
-  name: string;
-  code: string;
-  parts: Record<string, number>;
 };
 
 export type BomProduct = {
@@ -26,60 +23,12 @@ export type NewProduct = {
 
 export type NewVariant = Omit<BomVariant, "id">;
 
-const productDefinitions = [
-  {
-    code: "P-FLT",
-    name: "Float",
-    description: "Main parent assembly manufactured for multiple company variants.",
-    skuIds: [1, 2, 3, 4, 5, 6],
-    image: "/float-parent-parts.png",
-  },
-  {
-    code: "P-ARM",
-    name: "Float Arm",
-    description: "Parent definition for arm and pivot assemblies.",
-    skuIds: [2, 3, 5],
-    image: "/float-arm-parent-parts.png",
-  },
-  {
-    code: "P-VAL",
-    name: "Valve",
-    description: "Parent definition for valve seat and seal assemblies.",
-    skuIds: [1, 2, 5, 6],
-    image: "/valve-parent-parts.png",
-  },
-  {
-    code: "P-CAP",
-    name: "Cover",
-    description: "Parent definition for cover and retainer assemblies.",
-    skuIds: [3, 4],
-    image: "/cover-parent-parts.png",
-  },
-] as const;
-
-function variantFromSku(skuId: number): BomVariant | undefined {
-  const sku = skus.find((item) => item.id === skuId);
-  if (!sku) return undefined;
-  return {
-    id: `seed-${sku.id}`,
-    company: sku.company,
-    name: sku.name,
-    code: sku.code,
-    parts: Object.fromEntries(
-      subparts.filter((part) => part.bom[sku.id]).map((part) => [part.code, part.bom[sku.id]!]),
-    ),
-  };
-}
-
-const initialProducts: BomProduct[] = productDefinitions.map((definition) => ({
+const initialProducts: BomProduct[] = bomCatalog.map((definition) => ({
   code: definition.code,
   name: definition.name,
   description: definition.description,
   image: definition.image,
-  variants: definition.skuIds.flatMap((skuId) => {
-    const variant = variantFromSku(skuId);
-    return variant ? [variant] : [];
-  }),
+  variants: definition.variants.map(({ skuId, ...variant }) => ({ ...variant, id: `seed-${skuId}` })),
 }));
 
 let products = initialProducts;

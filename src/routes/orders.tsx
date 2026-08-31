@@ -3,9 +3,10 @@ import { CalendarRange, Check, ClipboardList, Plus, RefreshCw, Search, X } from 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
+import { bomCatalog, type BomCatalogProduct } from "@/lib/bom-catalog";
 import { createProductionOrderFn, listAssignableSubhubsFn, listProductionOrdersFn } from "@/production";
 import type { AssignableSubhub, ProductionOrder } from "@/production.server";
-import { num, skus } from "@/lib/erp-data";
+import { num } from "@/lib/erp-data";
 
 export const Route = createFileRoute("/orders")({
   head: () => ({
@@ -54,7 +55,7 @@ function Orders() {
   const totalRemaining = orders.reduce((sum, order) => sum + order.remaining, 0);
   const completion = totalTarget ? Math.round((totalProduced / totalTarget) * 100) : 0;
 
-  async function saveOrder(input: { subhubUserId: string; skuId: number; target: number; dueDate: string; notes: string }) {
+  async function saveOrder(input: { subhubUserId: string; productCode: string; variantCode: string; target: number; dueDate: string; notes: string }) {
     const result = await createProductionOrderFn({ data: input });
     if (!result.ok) {
       setError(result.message);
@@ -123,7 +124,8 @@ function Orders() {
                         <p className="mt-1 text-xs text-muted-foreground">{order.subhubName}</p>
                       </td>
                       <td className="px-5 py-4">
-                        <p className="font-medium">{order.variantName}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{order.productName}</p>
+                        <p className="mt-1 font-medium">{order.variantName}</p>
                         <p className="tabular text-xs text-muted-foreground">{order.variantCode}</p>
                       </td>
                       <td className="tabular px-5 py-4 text-right font-semibold">{num(order.target)}</td>
@@ -151,15 +153,17 @@ function AssignTargetForm({
 }: {
   subhubs: AssignableSubhub[];
   onClose: () => void;
-  onSave: (input: { subhubUserId: string; skuId: number; target: number; dueDate: string; notes: string }) => Promise<void>;
+  onSave: (input: { subhubUserId: string; productCode: string; variantCode: string; target: number; dueDate: string; notes: string }) => Promise<void>;
 }) {
   const [subhubUserId, setSubhubUserId] = useState(subhubs[0]?.id ?? "");
-  const [skuId, setSkuId] = useState(String(skus[0]?.id ?? ""));
+  const [productCode, setProductCode] = useState(bomCatalog[0]?.code ?? "");
+  const [variantCode, setVariantCode] = useState(bomCatalog[0]?.variants[0]?.code ?? "");
   const [target, setTarget] = useState("");
   const [dueDate, setDueDate] = useState(today());
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const selectedProduct = bomCatalog.find((product) => product.code === productCode);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -172,8 +176,13 @@ function AssignTargetForm({
       setError("Enter a whole-number target greater than zero.");
       return;
     }
+    const product = bomCatalog.find((item) => item.code === productCode);
+    if (!product || !product.variants.some((variant) => variant.code === variantCode)) {
+      setError("Select a Float type and variant before assigning the target.");
+      return;
+    }
     setSaving(true);
-    await onSave({ subhubUserId, skuId: Number(skuId), target: parsedTarget, dueDate, notes });
+    await onSave({ subhubUserId, productCode, variantCode, target: parsedTarget, dueDate, notes });
     setSaving(false);
   }
 
@@ -195,7 +204,12 @@ function AssignTargetForm({
               {subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.subhubName} · {subhub.name}</option>)}
             </select>
           </label>
-          <FloatVariantPicker skuId={skuId} onChange={setSkuId} />
+          <FloatTypePicker productCode={productCode} onChange={(nextProductCode) => {
+            const nextProduct = bomCatalog.find((product) => product.code === nextProductCode);
+            setProductCode(nextProductCode);
+            setVariantCode(nextProduct?.variants[0]?.code ?? "");
+          }} />
+          {selectedProduct ? <FloatVariantPicker product={selectedProduct} variantCode={variantCode} onChange={setVariantCode} /> : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-sm font-medium">Target quantity
               <input required type="number" min="1" step="1" value={target} onChange={(event) => setTarget(event.target.value)} placeholder="1000" className="tabular mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" />
@@ -218,20 +232,47 @@ function AssignTargetForm({
   );
 }
 
-function FloatVariantPicker({ skuId, onChange }: { skuId: string; onChange: (id: string) => void }) {
+function FloatTypePicker({ productCode, onChange }: { productCode: string; onChange: (code: string) => void }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium">1. Float type</span>
+        <span className="text-xs text-muted-foreground">{bomCatalog.length} types</span>
+      </div>
+      <div className="mt-1.5 grid gap-2 sm:grid-cols-4">
+        {bomCatalog.map((product) => {
+          const selected = product.code === productCode;
+          return (
+            <button
+              key={product.code}
+              type="button"
+              onClick={() => onChange(product.code)}
+              className={`rounded-md border px-3 py-3 text-left transition-colors ${selected ? "border-primary bg-primary/10" : "border-input hover:border-primary/50 hover:bg-muted/50"}`}
+            >
+              <span className="block text-sm font-semibold">{product.name}</span>
+              <span className="tabular mt-1 block text-xs text-muted-foreground">{product.code} · {product.variants.length} variants</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function FloatVariantPicker({ product, variantCode, onChange }: { product: BomCatalogProduct; variantCode: string; onChange: (code: string) => void }) {
   const [query, setQuery] = useState("");
-  const filteredSkus = useMemo(() => {
+  const filteredVariants = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return skus;
-    return skus.filter((sku) => `${sku.name} ${sku.company} ${sku.code}`.toLowerCase().includes(normalizedQuery));
-  }, [query]);
-  const selectedSku = skus.find((sku) => String(sku.id) === skuId);
+    if (!normalizedQuery) return product.variants;
+    return product.variants.filter((variant) => `${variant.name} ${variant.company} ${variant.code}`.toLowerCase().includes(normalizedQuery));
+  }, [product, query]);
+  const selectedVariant = product.variants.find((variant) => variant.code === variantCode);
 
   return (
     <div>
       <div className="flex items-center justify-between gap-3">
-        <label htmlFor="float-variant-search" className="block text-sm font-medium">Float variant</label>
-        <span className="text-xs text-muted-foreground">{filteredSkus.length} of {skus.length} variants</span>
+        <label htmlFor="float-variant-search" className="block text-sm font-medium">2. Variant for {product.name}</label>
+        <span className="text-xs text-muted-foreground">{filteredVariants.length} of {product.variants.length} variants</span>
       </div>
       <div className="mt-1.5 overflow-hidden rounded-lg border border-input bg-background">
         <div className="relative border-b border-border bg-muted/20">
@@ -240,34 +281,34 @@ function FloatVariantPicker({ skuId, onChange }: { skuId: string; onChange: (id:
             id="float-variant-search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search all Float variants, companies, or codes…"
+            placeholder={`Search ${product.name} variants, companies, or codes…`}
             className="h-11 w-full bg-transparent pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground"
           />
         </div>
         <div role="listbox" aria-label="Float variants" className="grid max-h-72 gap-1 overflow-y-auto p-2 sm:grid-cols-2">
-          {filteredSkus.map((sku) => {
-            const selected = String(sku.id) === skuId;
+          {filteredVariants.map((variant) => {
+            const selected = variant.code === variantCode;
             return (
               <button
-                key={sku.id}
+                key={`${product.code}-${variant.code}`}
                 type="button"
                 role="option"
                 aria-selected={selected}
-                onClick={() => onChange(String(sku.id))}
+                onClick={() => onChange(variant.code)}
                 className={`flex min-h-16 items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors ${selected ? "border-primary bg-primary/10" : "border-transparent hover:border-border hover:bg-muted/60"}`}
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium">{sku.name}</span>
-                  <span className="mt-1 block truncate text-xs text-muted-foreground">{sku.company} · {sku.code}</span>
+                  <span className="block truncate text-sm font-medium">{variant.name}</span>
+                  <span className="mt-1 block truncate text-xs text-muted-foreground">{variant.company} · {variant.code}</span>
                 </span>
                 {selected ? <Check className="size-4 shrink-0 text-primary" /> : null}
               </button>
             );
           })}
-          {!filteredSkus.length ? <p className="col-span-full px-3 py-8 text-center text-sm text-muted-foreground">No Float variants match “{query}”.</p> : null}
+          {!filteredVariants.length ? <p className="col-span-full px-3 py-8 text-center text-sm text-muted-foreground">No {product.name} variants match “{query}”.</p> : null}
         </div>
       </div>
-      {selectedSku ? <p className="mt-2 text-xs text-muted-foreground">Selected: <span className="font-medium text-foreground">{selectedSku.name}</span> · {selectedSku.code}</p> : null}
+      {selectedVariant ? <p className="mt-2 text-xs text-muted-foreground">Selected: <span className="font-medium text-foreground">{selectedVariant.name}</span> · {selectedVariant.code}</p> : null}
     </div>
   );
 }

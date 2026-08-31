@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { getControlPlaneDatabase, getCurrentUserRecord, type UserDocument } from "./auth.server";
+import { bomCatalog } from "./lib/bom-catalog";
 import { getMongoDb } from "./mongodb.server";
-import { skus, subparts } from "./lib/erp-data";
+import { subparts } from "./lib/erp-data";
 
 export type AssignableSubhub = {
   id: string;
@@ -189,7 +190,8 @@ export async function listAssignableSubhubs(): Promise<
 
 export async function createProductionOrder(input: {
   subhubUserId: string;
-  skuId: number;
+  productCode: string;
+  variantCode: string;
   target: number;
   dueDate: string;
   notes: string;
@@ -201,17 +203,18 @@ export async function createProductionOrder(input: {
   if (!dueDate) return { ok: false, message: "Enter a valid target date." };
 
   const db = await getControlPlaneDatabase();
-  const [subhub, sku] = await Promise.all([
+  const [subhub, product] = await Promise.all([
     db.collection<UserDocument>("users").findOne({
       _id: input.subhubUserId,
       panel: "subhub",
       role: "subhub",
       active: true,
     }),
-    Promise.resolve(skus.find((item) => item.id === input.skuId)),
+    Promise.resolve(bomCatalog.find((item) => item.code === input.productCode)),
   ]);
   if (!subhub?.subhubName) return { ok: false, message: "Select an active SubHub manager." };
-  if (!sku) return { ok: false, message: "Select a valid product variant." };
+  const variant = product?.variants.find((item) => item.code === input.variantCode);
+  if (!product || !variant) return { ok: false, message: "Select a valid Float type and variant." };
 
   const now = new Date();
   const order: ProductionOrderDocument = {
@@ -219,10 +222,10 @@ export async function createProductionOrder(input: {
     orderNumber: `ORD-${now.getTime().toString().slice(-8)}`,
     subhubUserId: subhub._id,
     subhubName: subhub.subhubName,
-    productCode: "P-FLT",
-    productName: "Float",
-    variantCode: sku.code,
-    variantName: sku.name,
+    productCode: product.code,
+    productName: product.name,
+    variantCode: variant.code,
+    variantName: variant.name,
     target: input.target,
     dueDate,
     notes: input.notes.trim(),

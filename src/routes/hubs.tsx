@@ -144,7 +144,7 @@ function Hubs() {
                     <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
                       <td className="px-5 py-3">{order.subhubName}</td>
                       <td className="tabular px-5 py-3 font-medium">{order.orderNumber}</td>
-                      <td className="px-5 py-3"><span className="font-medium">{order.variantName}</span><span className="tabular ml-2 text-xs text-muted-foreground">{order.variantCode}</span></td>
+                      <td className="px-5 py-3"><span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">{order.productName}</span><span className="mt-1 block font-medium">{order.variantName}</span><span className="tabular text-xs text-muted-foreground">{order.variantCode}</span></td>
                       <td className="tabular px-5 py-3 text-right">{num(order.target)}</td>
                       <td className="tabular px-5 py-3 text-right font-semibold">{num(order.produced)}</td>
                       <td className="tabular px-5 py-3 text-right">{num(order.remaining)}</td>

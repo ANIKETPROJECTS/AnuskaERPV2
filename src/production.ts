@@ -11,7 +11,8 @@ import {
 
 const orderSchema = z.object({
   subhubUserId: z.string().min(1),
-  skuId: z.number().int().positive(),
+  productCode: z.string().min(1),
+  variantCode: z.string().min(1),
   target: z.number().int().positive(),
   dueDate: z.string().min(10),
   notes: z.string().max(500),
