@@ -2,12 +2,21 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { verifyMongoConnection } from "./server/mongodb";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
 };
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
+
+void verifyMongoConnection()
+  .then(() => {
+    console.info("[mongodb] connection established");
+  })
+  .catch(() => {
+    console.error("[mongodb] connection failed; check MONGODB_URI and MongoDB network access.");
+  });
 
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {

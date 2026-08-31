@@ -18,4 +18,8 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // The PM2 configuration targets the Node server output for VPS deployment.
+  nitro: {
+    preset: "node-server",
+  },
 });
