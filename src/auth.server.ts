@@ -135,27 +135,65 @@ function createLegacyDatabaseName(userId: string): string {
   return `float_erp_user_${safeId.slice(0, 22)}`;
 }
 
-function createSubhubSlug(subhubName: string): string {
-  const asciiName = subhubName.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
-  return (
-    asciiName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "_")
-      .replace(/^_+|_+$/g, "")
-      .slice(0, 21) || "subhub"
-  );
+function truncateDatabaseName(value: string, maxBytes = 38): string {
+  const characters = Array.from(value);
+  let result = value;
+  while (Buffer.byteLength(result, "utf8") > maxBytes) {
+    characters.pop();
+    result = characters.join("");
+  }
+  return result;
 }
 
-function createDatabaseName(userId: string, panel: Panel, subhubName?: string): string {
+function createSubhubDatabaseBaseName(subhubName: string): string {
+  // MongoDB rejects spaces and several punctuation characters in database
+  // names. Use the SubHub name as a readable, name-only slug.
+  const safeName = normalizeName(subhubName)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return truncateDatabaseName(safeName || "SubHub");
+}
+
+function createDatabaseName(userId: string): string {
+  return createLegacyDatabaseName(userId);
+}
+
+function createDuplicateDatabaseName(baseName: string, number: number): string {
+  const suffix = `_${number}`;
+  return `${truncateDatabaseName(baseName, 38 - Buffer.byteLength(suffix, "utf8"))}${suffix}`;
+}
+
+async function allocateWorkspaceDatabaseName(
+  db: Db,
+  userId: string,
+  panel: Panel,
+  subhubName: string | undefined,
+  currentDatabaseName?: string,
+): Promise<string> {
   if (panel !== "subhub" || !subhubName) {
     return createLegacyDatabaseName(userId);
   }
 
-  // MongoDB database names are limited to 38 bytes. The short ID suffix keeps
-  // separate users with the same factory name in separate workspaces.
-  const safeId = userId.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-  const uniqueSuffix = safeId.slice(-6);
-  return `float_erp_${createSubhubSlug(subhubName)}_${uniqueSuffix}`;
+  const baseName = createSubhubDatabaseBaseName(subhubName);
+  for (let duplicateNumber = 0; duplicateNumber < 1000; duplicateNumber += 1) {
+    const candidate = duplicateNumber === 0 ? baseName : createDuplicateDatabaseName(baseName, duplicateNumber + 1);
+    const usedByAnotherUser = await db.collection<UserDocument>("users").findOne(
+      { databaseName: candidate, _id: { $ne: userId } },
+      { projection: { _id: 1 } },
+    );
+    if (usedByAnotherUser) continue;
+
+    if (candidate !== currentDatabaseName) {
+      const collections = await (await getMongoDb(candidate)).listCollections({}, { nameOnly: true }).toArray();
+      if (collections.length > 0) continue;
+    }
+    return candidate;
+  }
+
+  throw new Error("Could not allocate a unique SubHub workspace database name.");
 }
 
 function sanitizePermissions(panel: Panel, permissions: AccessSection[]): AccessSection[] {
@@ -387,7 +425,7 @@ export async function bootstrapMasterAdmin(
   }
 
   const id = randomUUID().replace(/-/g, "");
-  const databaseName = createDatabaseName(id, "admin");
+  const databaseName = createDatabaseName(id);
   const now = new Date();
   const user: UserDocument = {
     _id: id,
@@ -458,7 +496,7 @@ export async function createManagedUser(input: {
 
   const db = await ensureControlPlane();
   const id = randomUUID().replace(/-/g, "");
-  const databaseName = createDatabaseName(id, input.panel, normalizedSubhubName);
+  const databaseName = await allocateWorkspaceDatabaseName(db, id, input.panel, normalizedSubhubName);
   const now = new Date();
   const user: UserDocument = {
     _id: id,
@@ -540,7 +578,13 @@ export async function updateManagedUser(input: {
     active: input.active,
     updatedAt: new Date(),
   };
-  const databaseName = createDatabaseName(input.id, input.panel, normalizedSubhubName);
+  const databaseName = await allocateWorkspaceDatabaseName(
+    db,
+    input.id,
+    input.panel,
+    normalizedSubhubName,
+    existing.databaseName,
+  );
   if (input.panel === "subhub") update["subhubName"] = normalizedSubhubName;
   update["databaseName"] = databaseName;
   if (input.password) update["passwordHash"] = await hashPassword(input.password);
