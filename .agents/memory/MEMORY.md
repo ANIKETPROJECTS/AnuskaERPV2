@@ -1,1 +1,2 @@
 - [Replit Vite preview hosts](replit-vite-preview-hosts.md) — allow generated `*.replit.dev` hosts in Vite for proxied preview access.
+- [TanStack Node server output](tanstack-node-server-entry.md) — keep Nitro's default server entry; custom server wrappers can collide with generated SSR modules.

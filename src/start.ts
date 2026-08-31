@@ -1,6 +1,12 @@
-import { createStart, createCsrfMiddleware, createMiddleware } from "@tanstack/react-start";
+import {
+  createStart,
+  createCsrfMiddleware,
+  createMiddleware,
+  createIsomorphicFn,
+} from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
+import { verifyMongoConnection } from "./mongodb.server";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -23,6 +29,18 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
 const csrfMiddleware = createCsrfMiddleware({
   filter: (ctx) => ctx.handlerType === "serverFn",
 });
+
+const verifyMongoConnectionByEnvironment = createIsomorphicFn()
+  .client(() => Promise.resolve())
+  .server(async () => {
+    await verifyMongoConnection();
+    console.info("[mongodb] connection established");
+  });
+
+void verifyMongoConnectionByEnvironment()
+  .catch(() => {
+    console.error("[mongodb] connection failed; check MONGODB_URI and MongoDB network access.");
+  });
 
 export const startInstance = createStart(() => ({
   requestMiddleware: [errorMiddleware, csrfMiddleware],
