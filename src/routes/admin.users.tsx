@@ -208,7 +208,7 @@ function UserManagement() {
   }
 
   async function removeUser(user: PublicUser) {
-    if (!window.confirm(`Delete ${user.name}? Their database will be retained as an archive.`)) return;
+    if (!window.confirm(`Delete ${user.name}? This permanently deletes their MongoDB workspace database and cannot be undone.`)) return;
     setBusy(true);
     setMessage("");
     try {

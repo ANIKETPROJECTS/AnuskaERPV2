@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID, scrypt as nodeScrypt, timingSafeEqual } from "node:crypto";
 import { deleteCookie, getCookie, setCookie } from "@tanstack/react-start/server";
 import type { Db } from "mongodb";
-import { getMongoDb } from "./mongodb.server";
+import { getMongoClient, getMongoDb } from "./mongodb.server";
 
 const CONTROL_DATABASE = process.env["MONGODB_CONTROL_DATABASE"] ?? "float_erp_control";
 const SESSION_COOKIE = "float_erp_session";
@@ -130,11 +130,32 @@ function normalizeName(name: string): string {
   return name.trim().replace(/\s+/g, " ");
 }
 
-function createDatabaseName(userId: string): string {
-  // MongoDB database names are limited to 38 bytes. Keep the requested
-  // workspace prefix and use enough of the UUID suffix to stay within it.
+function createLegacyDatabaseName(userId: string): string {
   const safeId = userId.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   return `float_erp_user_${safeId.slice(0, 22)}`;
+}
+
+function createSubhubSlug(subhubName: string): string {
+  const asciiName = subhubName.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  return (
+    asciiName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 21) || "subhub"
+  );
+}
+
+function createDatabaseName(userId: string, panel: Panel, subhubName?: string): string {
+  if (panel !== "subhub" || !subhubName) {
+    return createLegacyDatabaseName(userId);
+  }
+
+  // MongoDB database names are limited to 38 bytes. The short ID suffix keeps
+  // separate users with the same factory name in separate workspaces.
+  const safeId = userId.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const uniqueSuffix = safeId.slice(-6);
+  return `float_erp_${createSubhubSlug(subhubName)}_${uniqueSuffix}`;
 }
 
 function sanitizePermissions(panel: Panel, permissions: AccessSection[]): AccessSection[] {
@@ -233,6 +254,50 @@ async function provisionDatabase(
   );
 }
 
+async function moveWorkspaceDatabase(fromDatabaseName: string, toDatabaseName: string): Promise<void> {
+  if (fromDatabaseName === toDatabaseName) return;
+
+  const client = await getMongoClient();
+  const sourceDb = client.db(fromDatabaseName);
+  const targetDb = client.db(toDatabaseName);
+  const collections = await sourceDb.listCollections({}, { nameOnly: true }).toArray();
+  const targetCollections = await targetDb.listCollections({}, { nameOnly: true }).toArray();
+  if (collections.length === 0) {
+    if (targetCollections.length > 0) return;
+    return;
+  }
+  if (targetCollections.length > 0) {
+    throw new Error("The destination workspace database already contains data.");
+  }
+
+  for (const collectionInfo of collections) {
+    if (collectionInfo.name.startsWith("system.")) continue;
+
+    const sourceCollection = sourceDb.collection(collectionInfo.name);
+    const targetCollection = targetDb.collection(collectionInfo.name);
+    const documents = await sourceCollection.find({}).toArray();
+    if (documents.length > 0) {
+      await targetCollection.insertMany(documents, { ordered: true });
+    }
+
+    const indexes = await sourceCollection.listIndexes().toArray();
+    for (const index of indexes) {
+      if (index.name === "_id_") continue;
+      await targetCollection.createIndex(index.key, {
+        name: index.name,
+        unique: index.unique,
+        sparse: index.sparse,
+      });
+    }
+  }
+
+  await sourceDb.dropDatabase();
+}
+
+async function deleteWorkspaceDatabase(databaseName: string): Promise<void> {
+  await (await getMongoDb(databaseName)).dropDatabase();
+}
+
 async function getUserBySession(): Promise<UserDocument | null> {
   const token = getCookie(SESSION_COOKIE);
   if (!token) return null;
@@ -322,7 +387,7 @@ export async function bootstrapMasterAdmin(
   }
 
   const id = randomUUID().replace(/-/g, "");
-  const databaseName = createDatabaseName(id);
+  const databaseName = createDatabaseName(id, "admin");
   const now = new Date();
   const user: UserDocument = {
     _id: id,
@@ -393,7 +458,7 @@ export async function createManagedUser(input: {
 
   const db = await ensureControlPlane();
   const id = randomUUID().replace(/-/g, "");
-  const databaseName = createDatabaseName(id);
+  const databaseName = createDatabaseName(id, input.panel, normalizedSubhubName);
   const now = new Date();
   const user: UserDocument = {
     _id: id,
@@ -458,22 +523,34 @@ export async function updateManagedUser(input: {
   if (!existing || existing.role === "master_admin") {
     return { ok: false, message: "The selected user cannot be edited here." };
   }
+  const normalizedEmail = normalizeEmail(input.email);
+  const emailOwner = await db.collection<UserDocument>("users").findOne({
+    email: normalizedEmail,
+    _id: { $ne: input.id },
+  });
+  if (emailOwner) {
+    return { ok: false, message: "That email is already registered." };
+  }
   const update: Record<string, unknown> = {
     name: normalizeName(input.name),
-    email: normalizeEmail(input.email),
+    email: normalizedEmail,
     panel: input.panel,
     role: input.panel === "admin" ? "admin" : "subhub",
     permissions: sanitizePermissions(input.panel, input.permissions),
     active: input.active,
     updatedAt: new Date(),
   };
+  const databaseName = createDatabaseName(input.id, input.panel, normalizedSubhubName);
   if (input.panel === "subhub") update["subhubName"] = normalizedSubhubName;
+  update["databaseName"] = databaseName;
   if (input.password) update["passwordHash"] = await hashPassword(input.password);
   const updateDocument: { $set: Record<string, unknown>; $unset?: Record<string, ""> } = { $set: update };
   if (input.panel === "admin") updateDocument.$unset = { subhubName: "" };
 
   try {
+    await moveWorkspaceDatabase(existing.databaseName, databaseName);
     await db.collection<UserDocument>("users").updateOne({ _id: input.id }, updateDocument);
+    await provisionDatabase(db, input.id, databaseName);
   } catch (error) {
     if (error instanceof Error && error.message.includes("E11000")) {
       return { ok: false, message: "That email is already registered." };
@@ -498,13 +575,11 @@ export async function deleteManagedUser(id: string): Promise<{ ok: true } | { ok
   if (!user || user.role === "master_admin") {
     return { ok: false, message: "The selected user cannot be deleted." };
   }
+  await deleteWorkspaceDatabase(user.databaseName);
   await Promise.all([
     db.collection<UserDocument>("users").deleteOne({ _id: id }),
     db.collection<SessionDocument>("sessions").deleteMany({ userId: id }),
-    db.collection<ProvisioningDocument>("provisioning").updateOne(
-      { userId: id },
-      { $set: { status: "archived", updatedAt: new Date() } },
-    ),
+    db.collection<ProvisioningDocument>("provisioning").deleteOne({ userId: id }),
   ]);
   return { ok: true };
 }
