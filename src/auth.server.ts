@@ -129,7 +129,10 @@ function normalizeName(name: string): string {
 }
 
 function createDatabaseName(userId: string): string {
-  return `float_erp_user_${userId.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()}`;
+  // MongoDB database names are limited to 38 bytes. Keep the requested
+  // workspace prefix and use enough of the UUID suffix to stay within it.
+  const safeId = userId.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  return `float_erp_user_${safeId.slice(0, 22)}`;
 }
 
 function sanitizePermissions(panel: Panel, permissions: AccessSection[]): AccessSection[] {
