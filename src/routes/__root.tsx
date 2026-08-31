@@ -82,16 +82,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Float ERP — Production & Stock Management" },
+      { title: "Gadsons ERP — Production & Stock Management" },
       {
         name: "description",
-        content: "Industrial ERP for Float product line: BOM, orders, hub stock, shortages and workforce output.",
+        content: "Industrial ERP for Gadsons water purifier parts: BOM, orders, hub stock, shortages and workforce output.",
       },
       { name: "author", content: "Airavata Technologies" },
-      { property: "og:title", content: "Float ERP — Production & Stock Management" },
+      { property: "og:title", content: "Gadsons ERP — Production & Stock Management" },
       {
         property: "og:description",
-        content: "Industrial ERP for Float product line: BOM, orders, hub stock, shortages and workforce output.",
+        content: "Industrial ERP for Gadsons water purifier parts: BOM, orders, hub stock, shortages and workforce output.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -107,7 +107,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/gadsons-mark.svg", type: "image/svg+xml" },
     ],
   }),
 
@@ -174,12 +174,14 @@ function sectionForPath(pathname: string): string | null {
   if (pathname.startsWith("/shortages")) return "shortages";
   if (pathname.startsWith("/procurement")) return "procurement";
   if (pathname.startsWith("/production")) return "production";
+  if (pathname.startsWith("/hr")) return "hr";
   if (pathname.startsWith("/inventory")) return "inventory";
   if (pathname.startsWith("/subhub/raw-materials")) return "raw-materials";
   if (pathname.startsWith("/subhub/parent")) return "bom";
   if (pathname.startsWith("/subhub/float-parent")) return "bom";
   if (pathname.startsWith("/subhub/reports")) return "hub-reports";
   if (pathname.startsWith("/subhub/production")) return "hub-manager";
+  if (pathname.startsWith("/subhub/hr")) return "hr";
   if (pathname.startsWith("/subhub/")) return "hub-manager";
   return null;
 }

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BomRouteImport } from './routes/bom'
+import { Route as HrRouteImport } from './routes/hr'
 import { Route as HubsRouteImport } from './routes/hubs'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as LoginRouteImport } from './routes/login'
@@ -29,6 +30,7 @@ import { Route as PartCodeRouteImport } from './routes/part.$code'
 import { Route as PoIdRouteImport } from './routes/po.$id'
 import { Route as SkuCodeRouteImport } from './routes/sku.$code'
 import { Route as SubhubFloatParentRouteImport } from './routes/subhub.float-parent'
+import { Route as SubhubHrRouteImport } from './routes/subhub.hr'
 import { Route as SubhubProductionRouteImport } from './routes/subhub.production'
 import { Route as SubhubRawMaterialsRouteImport } from './routes/subhub.raw-materials'
 import { Route as SubhubReportsRouteImport } from './routes/subhub.reports'
@@ -43,6 +45,11 @@ const IndexRoute = IndexRouteImport.update({
 const BomRoute = BomRouteImport.update({
   id: '/bom',
   path: '/bom',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HrRoute = HrRouteImport.update({
+  id: '/hr',
+  path: '/hr',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HubsRoute = HubsRouteImport.update({
@@ -135,6 +142,11 @@ const SubhubFloatParentRoute = SubhubFloatParentRouteImport.update({
   path: '/float-parent',
   getParentRoute: () => SubhubRoute,
 } as any)
+const SubhubHrRoute = SubhubHrRouteImport.update({
+  id: '/hr',
+  path: '/hr',
+  getParentRoute: () => SubhubRoute,
+} as any)
 const SubhubProductionRoute = SubhubProductionRouteImport.update({
   id: '/production',
   path: '/production',
@@ -164,6 +176,7 @@ const SubhubParentCodeRoute = SubhubParentCodeRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/bom': typeof BomRouteWithChildren
+  '/hr': typeof HrRoute
   '/hubs': typeof HubsRoute
   '/inventory': typeof InventoryRouteWithChildren
   '/login': typeof LoginRoute
@@ -182,6 +195,7 @@ export interface FileRoutesByFullPath {
   '/po/$id': typeof PoIdRoute
   '/sku/$code': typeof SkuCodeRoute
   '/subhub/float-parent': typeof SubhubFloatParentRoute
+  '/subhub/hr': typeof SubhubHrRoute
   '/subhub/production': typeof SubhubProductionRoute
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
   '/subhub/reports': typeof SubhubReportsRoute
@@ -191,6 +205,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/bom': typeof BomRouteWithChildren
+  '/hr': typeof HrRoute
   '/hubs': typeof HubsRoute
   '/inventory': typeof InventoryRouteWithChildren
   '/login': typeof LoginRoute
@@ -209,6 +224,7 @@ export interface FileRoutesByTo {
   '/po/$id': typeof PoIdRoute
   '/sku/$code': typeof SkuCodeRoute
   '/subhub/float-parent': typeof SubhubFloatParentRoute
+  '/subhub/hr': typeof SubhubHrRoute
   '/subhub/production': typeof SubhubProductionRoute
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
   '/subhub/reports': typeof SubhubReportsRoute
@@ -219,6 +235,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/bom': typeof BomRouteWithChildren
+  '/hr': typeof HrRoute
   '/hubs': typeof HubsRoute
   '/inventory': typeof InventoryRouteWithChildren
   '/login': typeof LoginRoute
@@ -237,6 +254,7 @@ export interface FileRoutesById {
   '/po/$id': typeof PoIdRoute
   '/sku/$code': typeof SkuCodeRoute
   '/subhub/float-parent': typeof SubhubFloatParentRoute
+  '/subhub/hr': typeof SubhubHrRoute
   '/subhub/production': typeof SubhubProductionRoute
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
   '/subhub/reports': typeof SubhubReportsRoute
@@ -248,6 +266,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/bom'
+    | '/hr'
     | '/hubs'
     | '/inventory'
     | '/login'
@@ -266,6 +285,7 @@ export interface FileRouteTypes {
     | '/po/$id'
     | '/sku/$code'
     | '/subhub/float-parent'
+    | '/subhub/hr'
     | '/subhub/production'
     | '/subhub/raw-materials'
     | '/subhub/reports'
@@ -275,6 +295,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/bom'
+    | '/hr'
     | '/hubs'
     | '/inventory'
     | '/login'
@@ -293,6 +314,7 @@ export interface FileRouteTypes {
     | '/po/$id'
     | '/sku/$code'
     | '/subhub/float-parent'
+    | '/subhub/hr'
     | '/subhub/production'
     | '/subhub/raw-materials'
     | '/subhub/reports'
@@ -302,6 +324,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/bom'
+    | '/hr'
     | '/hubs'
     | '/inventory'
     | '/login'
@@ -320,6 +343,7 @@ export interface FileRouteTypes {
     | '/po/$id'
     | '/sku/$code'
     | '/subhub/float-parent'
+    | '/subhub/hr'
     | '/subhub/production'
     | '/subhub/raw-materials'
     | '/subhub/reports'
@@ -330,6 +354,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BomRoute: typeof BomRouteWithChildren
+  HrRoute: typeof HrRoute
   HubsRoute: typeof HubsRoute
   InventoryRoute: typeof InventoryRouteWithChildren
   LoginRoute: typeof LoginRoute
@@ -361,6 +386,13 @@ declare module '@tanstack/react-router' {
       path: '/bom'
       fullPath: '/bom'
       preLoaderRoute: typeof BomRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hr': {
+      id: '/hr'
+      path: '/hr'
+      fullPath: '/hr'
+      preLoaderRoute: typeof HrRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hubs': {
@@ -489,6 +521,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SubhubFloatParentRouteImport
       parentRoute: typeof SubhubRoute
     }
+    '/subhub/hr': {
+      id: '/subhub/hr'
+      path: '/hr'
+      fullPath: '/subhub/hr'
+      preLoaderRoute: typeof SubhubHrRouteImport
+      parentRoute: typeof SubhubRoute
+    }
     '/subhub/production': {
       id: '/subhub/production'
       path: '/production'
@@ -553,6 +592,7 @@ const InventoryRouteWithChildren = InventoryRoute._addFileChildren(
 
 interface SubhubRouteChildren {
   SubhubFloatParentRoute: typeof SubhubFloatParentRoute
+  SubhubHrRoute: typeof SubhubHrRoute
   SubhubProductionRoute: typeof SubhubProductionRoute
   SubhubRawMaterialsRoute: typeof SubhubRawMaterialsRoute
   SubhubReportsRoute: typeof SubhubReportsRoute
@@ -561,6 +601,7 @@ interface SubhubRouteChildren {
 
 const SubhubRouteChildren: SubhubRouteChildren = {
   SubhubFloatParentRoute: SubhubFloatParentRoute,
+  SubhubHrRoute: SubhubHrRoute,
   SubhubProductionRoute: SubhubProductionRoute,
   SubhubRawMaterialsRoute: SubhubRawMaterialsRoute,
   SubhubReportsRoute: SubhubReportsRoute,
@@ -573,6 +614,7 @@ const SubhubRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BomRoute: BomRouteWithChildren,
+  HrRoute: HrRoute,
   HubsRoute: HubsRoute,
   InventoryRoute: InventoryRouteWithChildren,
   LoginRoute: LoginRoute,

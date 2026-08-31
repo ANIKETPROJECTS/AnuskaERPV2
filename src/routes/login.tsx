@@ -7,8 +7,8 @@ import { useAuth } from "@/components/auth/AuthContext";
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "Sign in — Float ERP" },
-      { name: "description", content: "Secure access to the Float ERP workspace." },
+      { title: "Sign in — Gadsons ERP" },
+      { name: "description", content: "Secure access to the Gadsons water purifier parts ERP workspace." },
     ],
   }),
   component: LoginPage,
@@ -75,10 +75,10 @@ function LoginPage() {
           style={{ backgroundImage: "var(--gradient-header)" }}
         >
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-md bg-white/15 font-mono font-bold">FA</div>
+            <img src="/gadsons-mark.svg" alt="Gadsons" className="size-10 rounded-md" />
             <div>
-              <p className="font-semibold">Float ERP</p>
-              <p className="text-xs text-primary-foreground/70">Airavata Technologies</p>
+              <p className="font-semibold">Gadsons</p>
+              <p className="text-xs text-primary-foreground/70">Water Purifier Parts ERP</p>
             </div>
           </div>
           <div className="mt-auto">
@@ -98,10 +98,10 @@ function LoginPage() {
 
         <section className="p-7 sm:p-10">
           <div className="flex items-center gap-3 lg:hidden">
-            <div className="rule-header flex size-9 items-center justify-center rounded-md font-mono text-sm font-bold">FA</div>
+            <img src="/gadsons-mark.svg" alt="Gadsons" className="size-9 rounded-md" />
             <div>
-              <p className="text-sm font-semibold">Float ERP</p>
-              <p className="text-xs text-muted-foreground">Airavata Technologies</p>
+              <p className="text-sm font-semibold">Gadsons</p>
+              <p className="text-xs text-muted-foreground">Water Purifier Parts ERP</p>
             </div>
           </div>
           <div className="mt-8 max-w-md lg:mt-2">

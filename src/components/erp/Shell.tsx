@@ -13,6 +13,7 @@ import {
   LogOut,
   Database,
   UserCog,
+  UserRoundCog,
 } from "lucide-react";
 import { useRouter } from "@tanstack/react-router";
 import { logoutFn } from "@/auth";
@@ -28,6 +29,7 @@ const nav = [
   { to: "/procurement", label: "Procurement", icon: Truck, permission: "procurement" },
   { to: "/production", label: "Production & Workforce", icon: Users, permission: "production" },
   { to: "/admin/users", label: "User Management", icon: UserCog, permission: "user-management" },
+  { to: "/hr", label: "HR & Attendance", icon: UserRoundCog, permission: "hr" },
 ] as const;
 
 export function Shell({
@@ -62,12 +64,10 @@ export function Shell({
     <div className="flex min-h-screen">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
         <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-4">
-          <div className="rule-header flex size-9 items-center justify-center rounded-md font-mono text-sm font-bold">
-            FA
-          </div>
+          <img src="/gadsons-mark.svg" alt="Gadsons" className="size-9 rounded-md" />
           <div className="leading-tight">
-            <p className="text-sm font-semibold">Float ERP</p>
-            <p className="text-xs text-muted-foreground">Airavata Technologies</p>
+            <p className="text-sm font-semibold">Gadsons</p>
+            <p className="text-xs text-muted-foreground">Water Purifier Parts ERP</p>
           </div>
         </div>
 

@@ -24,6 +24,7 @@ const permissionGroups: Array<{ label: string; panel: Panel; items: Array<{ valu
       { value: "shortages", label: "Shortages" },
       { value: "procurement", label: "Procurement" },
       { value: "production", label: "Production & Workforce" },
+      { value: "hr", label: "HR & Attendance" },
     ],
   },
   {
@@ -33,6 +34,7 @@ const permissionGroups: Array<{ label: string; panel: Panel; items: Array<{ valu
       { value: "inventory", label: "Inventory Management" },
       { value: "hub-manager", label: "Hub Manager" },
       { value: "hub-reports", label: "Hub Reports" },
+      { value: "hr", label: "HR & Attendance" },
     ],
   },
 ];

@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { Boxes, ClipboardCheck, FileBarChart, LogOut, PackageOpen } from "lucide-react";
+import { Boxes, ClipboardCheck, FileBarChart, LogOut, PackageOpen, UserRoundCog } from "lucide-react";
 import type { ReactNode } from "react";
 import { logoutFn } from "@/auth";
 import { canAccess, useAuth } from "@/components/auth/AuthContext";
@@ -8,6 +8,7 @@ const subhubNav = [
   { to: "/inventory", label: "Inventory Management", permission: "inventory", icon: PackageOpen },
   { to: "/subhub/production", label: "Hub Manager", permission: "hub-manager", icon: ClipboardCheck },
   { to: "/subhub/reports", label: "Hub Reports", permission: "hub-reports", icon: FileBarChart },
+  { to: "/subhub/hr", label: "HR & Attendance", permission: "hr", icon: UserRoundCog },
 ] as const;
 
 export function SubHubShell({ actions, children }: { actions?: ReactNode; children: ReactNode }) {

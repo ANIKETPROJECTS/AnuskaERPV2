@@ -1,12 +1,12 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { ArrowUpRight, ClipboardCheck, FileBarChart, PackageOpen } from "lucide-react";
+import { ArrowUpRight, ClipboardCheck, FileBarChart, PackageOpen, UserRoundCog } from "lucide-react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { canAccess, useAuth } from "@/components/auth/AuthContext";
 
 export const Route = createFileRoute("/subhub")({
   head: () => ({
     meta: [
-      { title: "SubHub Panel — Float ERP" },
+      { title: "SubHub Panel — Gadsons ERP" },
       { name: "description", content: "SubHub workspace for hub operations, inventory, and reports." },
     ],
   }),
@@ -58,6 +58,14 @@ function SubHubOverview() {
       label: "Hub Reports",
       description: "Review production performance and inventory movement reports.",
        detail: "Saved daily reports",
+    },
+    {
+      permission: "hr",
+      to: "/subhub/hr",
+      icon: UserRoundCog,
+      label: "HR & Attendance",
+      description: "Mark daily attendance, manage shifts, and prepare monthly payroll reports.",
+      detail: "Simple daily status entry",
     },
   ];
 
