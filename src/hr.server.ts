@@ -328,7 +328,9 @@ export async function createShift(input: {
   const startTime = normalizeTime(input.startTime);
   const endTime = normalizeTime(input.endTime);
   if (name.length < 2 || name.length > 80) return { ok: false, message: "Shift name must be between 2 and 80 characters." };
-  if (!startTime || !endTime || startTime >= endTime) return { ok: false, message: "Enter valid times, with the end time after the start time." };
+  if (!startTime || !endTime || startTime === endTime) {
+    return { ok: false, message: "Enter valid times, with different start and end times." };
+  }
   const db = await getMongoDb(current.databaseName);
   await ensureHrIndexes(db);
   const now = new Date();

@@ -40,6 +40,76 @@ function currentDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function formatTime12(value: string) {
+  const [rawHour = Number.NaN, rawMinute = Number.NaN] = value.split(":").map(Number);
+  if (!Number.isFinite(rawHour) || !Number.isFinite(rawMinute)) return value;
+  const period = rawHour >= 12 ? "PM" : "AM";
+  const hour = rawHour % 12 || 12;
+  return `${hour}:${String(rawMinute).padStart(2, "0")} ${period}`;
+}
+
+function ShiftTimeField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [rawHour = Number.NaN, rawMinute = Number.NaN] = value.split(":").map(Number);
+  const hour24 = Number.isFinite(rawHour) ? rawHour : 9;
+  const minute = Number.isFinite(rawMinute) ? rawMinute : 0;
+  const hour12 = hour24 % 12 || 12;
+  const period = hour24 >= 12 ? "PM" : "AM";
+  const updateTime = (nextHour: number, nextMinute: number, nextPeriod: string) => {
+    const hour = nextPeriod === "PM" ? (nextHour % 12) + 12 : nextHour % 12;
+    onChange(`${String(hour).padStart(2, "0")}:${String(nextMinute).padStart(2, "0")}`);
+  };
+
+  return (
+    <fieldset className="min-w-0">
+      <legend className="text-sm font-medium">{label}</legend>
+      <div className="mt-1.5 flex gap-1.5">
+        <select
+          aria-label={`${label} hour`}
+          value={String(hour12)}
+          onChange={(event) => updateTime(Number(event.target.value), minute, period)}
+          className="h-10 min-w-0 flex-1 rounded-md border border-input bg-white px-2 text-sm"
+        >
+          {Array.from({ length: 12 }, (_, index) => index + 1).map((hour) => (
+            <option key={hour} value={hour}>
+              {hour}
+            </option>
+          ))}
+        </select>
+        <span className="flex h-10 items-center text-sm text-muted-foreground">:</span>
+        <select
+          aria-label={`${label} minute`}
+          value={String(minute).padStart(2, "0")}
+          onChange={(event) => updateTime(hour12, Number(event.target.value), period)}
+          className="h-10 min-w-0 flex-1 rounded-md border border-input bg-white px-2 text-sm"
+        >
+          {Array.from({ length: 60 }, (_, minuteValue) => (
+            <option key={minuteValue} value={String(minuteValue).padStart(2, "0")}>
+              {String(minuteValue).padStart(2, "0")}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label={`${label} AM or PM`}
+          value={period}
+          onChange={(event) => updateTime(hour12, minute, event.target.value)}
+          className="h-10 rounded-md border border-input bg-white px-2 text-sm"
+        >
+          <option value="AM">AM</option>
+          <option value="PM">PM</option>
+        </select>
+      </div>
+    </fieldset>
+  );
+}
+
 function csvCell(value: string | number): string {
   return `"${String(value).replaceAll('"', '""')}"`;
 }
@@ -456,13 +526,13 @@ function SubhubHr() {
             <section className="panel">
               <div className="border-b border-border px-5 py-4">
                 <h2 className="font-semibold">Define a shift</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Use simple start and end times.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Choose AM or PM. An earlier end time is treated as overnight.</p>
               </div>
               <form onSubmit={(event) => void addShift(event)} className="space-y-4 p-5">
                 <label className="block text-sm font-medium">Shift name<input required value={shiftName} onChange={(event) => setShiftName(event.target.value)} placeholder="Morning shift" className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm" /></label>
                 <div className="grid grid-cols-2 gap-3">
-                  <label className="block text-sm font-medium">Starts<input required type="time" value={startTime} onChange={(event) => setStartTime(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-2 text-sm" /></label>
-                  <label className="block text-sm font-medium">Ends<input required type="time" value={endTime} onChange={(event) => setEndTime(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-2 text-sm" /></label>
+                  <ShiftTimeField label="Starts" value={startTime} onChange={setStartTime} />
+                  <ShiftTimeField label="Ends (next day if earlier)" value={endTime} onChange={setEndTime} />
                 </div>
                 <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><Plus className="size-4" /> {saving ? "Saving…" : "Add shift"}</button>
               </form>
@@ -480,7 +550,8 @@ function SubhubHr() {
                       {data.shifts.map((shift) => (
                         <label key={shift.id} className="inline-flex items-center gap-1.5 rounded-md border border-input px-2 py-1.5 text-xs">
                           <input type="checkbox" checked={shift.assignedEmployeeIds.includes(employee.id)} disabled={saving} onChange={(event) => void assign(shift.id, employee.id, event.target.checked)} />
-                          {shift.name}
+                          {shift.name} · {formatTime12(shift.startTime)}–{formatTime12(shift.endTime)}
+                          {shift.endTime < shift.startTime ? " · next day" : ""}
                         </label>
                       ))}
                     </div>
