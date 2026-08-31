@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CalendarRange, ClipboardList, Plus, RefreshCw, X } from "lucide-react";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { CalendarRange, Check, ClipboardList, Plus, RefreshCw, Search, X } from "lucide-react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
 import { createProductionOrderFn, listAssignableSubhubsFn, listProductionOrdersFn } from "@/production";
@@ -178,13 +178,13 @@ function AssignTargetForm({
   }
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/20 p-4" role="dialog" aria-modal="true" aria-labelledby="assign-target-title">
-      <form onSubmit={submit} className="w-full max-w-lg rounded-lg border border-border bg-card p-6 shadow-xl">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-3 backdrop-blur-[2px] sm:p-6" role="dialog" aria-modal="true" aria-labelledby="assign-target-title">
+      <form onSubmit={submit} className="flex max-h-[calc(100vh-1.5rem)] w-full max-w-3xl flex-col overflow-y-auto rounded-xl border border-border bg-card p-5 shadow-2xl sm:max-h-[calc(100vh-3rem)] sm:p-7">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Master Admin</p>
             <h2 id="assign-target-title" className="mt-2 text-xl font-semibold">Assign production target</h2>
-            <p className="mt-1 text-sm text-muted-foreground">This target will appear in the selected SubHub Manager’s daily production module.</p>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">This target will appear in the selected SubHub Manager’s daily production module. Choose from the complete Float variant catalog below.</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"><X className="size-5" /></button>
         </div>
@@ -195,11 +195,7 @@ function AssignTargetForm({
               {subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.subhubName} · {subhub.name}</option>)}
             </select>
           </label>
-          <label className="block text-sm font-medium">Product variant
-            <select required value={skuId} onChange={(event) => setSkuId(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary">
-              {skus.map((sku) => <option key={sku.id} value={sku.id}>{sku.name} · {sku.code}</option>)}
-            </select>
-          </label>
+          <FloatVariantPicker skuId={skuId} onChange={setSkuId} />
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-sm font-medium">Target quantity
               <input required type="number" min="1" step="1" value={target} onChange={(event) => setTarget(event.target.value)} placeholder="1000" className="tabular mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" />
@@ -218,6 +214,60 @@ function AssignTargetForm({
           <button type="submit" disabled={saving || !subhubs.length} className="rule-header rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50">{saving ? "Assigning…" : "Assign target"}</button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function FloatVariantPicker({ skuId, onChange }: { skuId: string; onChange: (id: string) => void }) {
+  const [query, setQuery] = useState("");
+  const filteredSkus = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return skus;
+    return skus.filter((sku) => `${sku.name} ${sku.company} ${sku.code}`.toLowerCase().includes(normalizedQuery));
+  }, [query]);
+  const selectedSku = skus.find((sku) => String(sku.id) === skuId);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor="float-variant-search" className="block text-sm font-medium">Float variant</label>
+        <span className="text-xs text-muted-foreground">{filteredSkus.length} of {skus.length} variants</span>
+      </div>
+      <div className="mt-1.5 overflow-hidden rounded-lg border border-input bg-background">
+        <div className="relative border-b border-border bg-muted/20">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            id="float-variant-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search all Float variants, companies, or codes…"
+            className="h-11 w-full bg-transparent pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+        <div role="listbox" aria-label="Float variants" className="grid max-h-72 gap-1 overflow-y-auto p-2 sm:grid-cols-2">
+          {filteredSkus.map((sku) => {
+            const selected = String(sku.id) === skuId;
+            return (
+              <button
+                key={sku.id}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() => onChange(String(sku.id))}
+                className={`flex min-h-16 items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors ${selected ? "border-primary bg-primary/10" : "border-transparent hover:border-border hover:bg-muted/60"}`}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium">{sku.name}</span>
+                  <span className="mt-1 block truncate text-xs text-muted-foreground">{sku.company} · {sku.code}</span>
+                </span>
+                {selected ? <Check className="size-4 shrink-0 text-primary" /> : null}
+              </button>
+            );
+          })}
+          {!filteredSkus.length ? <p className="col-span-full px-3 py-8 text-center text-sm text-muted-foreground">No Float variants match “{query}”.</p> : null}
+        </div>
+      </div>
+      {selectedSku ? <p className="mt-2 text-xs text-muted-foreground">Selected: <span className="font-medium text-foreground">{selectedSku.name}</span> · {selectedSku.code}</p> : null}
     </div>
   );
 }
