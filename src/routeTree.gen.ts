@@ -13,11 +13,14 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as BomRouteImport } from './routes/bom'
 import { Route as HubsRouteImport } from './routes/hubs'
 import { Route as InventoryRouteImport } from './routes/inventory'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as ProcurementRouteImport } from './routes/procurement'
 import { Route as ProductionRouteImport } from './routes/production'
+import { Route as RawMaterialsRouteImport } from './routes/raw-materials'
 import { Route as ShortagesRouteImport } from './routes/shortages'
 import { Route as SubhubRouteImport } from './routes/subhub'
+import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as HubCodeRouteImport } from './routes/hub.$code'
 import { Route as InventoryAdjustmentRouteImport } from './routes/inventory.adjustment'
 import { Route as InventoryHistoryRouteImport } from './routes/inventory.history'
@@ -27,6 +30,7 @@ import { Route as SkuCodeRouteImport } from './routes/sku.$code'
 import { Route as SubhubFloatParentRouteImport } from './routes/subhub.float-parent'
 import { Route as SubhubProductionRouteImport } from './routes/subhub.production'
 import { Route as SubhubRawMaterialsRouteImport } from './routes/subhub.raw-materials'
+import { Route as SubhubReportsRouteImport } from './routes/subhub.reports'
 import { Route as WorkerIdRouteImport } from './routes/worker.$id'
 import { Route as SubhubParentCodeRouteImport } from './routes/subhub.parent.$code'
 
@@ -50,6 +54,11 @@ const InventoryRoute = InventoryRouteImport.update({
   path: '/inventory',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OrdersRoute = OrdersRouteImport.update({
   id: '/orders',
   path: '/orders',
@@ -65,6 +74,11 @@ const ProductionRoute = ProductionRouteImport.update({
   path: '/production',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RawMaterialsRoute = RawMaterialsRouteImport.update({
+  id: '/raw-materials',
+  path: '/raw-materials',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShortagesRoute = ShortagesRouteImport.update({
   id: '/shortages',
   path: '/shortages',
@@ -73,6 +87,11 @@ const ShortagesRoute = ShortagesRouteImport.update({
 const SubhubRoute = SubhubRouteImport.update({
   id: '/subhub',
   path: '/subhub',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HubCodeRoute = HubCodeRouteImport.update({
@@ -120,6 +139,11 @@ const SubhubRawMaterialsRoute = SubhubRawMaterialsRouteImport.update({
   path: '/raw-materials',
   getParentRoute: () => SubhubRoute,
 } as any)
+const SubhubReportsRoute = SubhubReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => SubhubRoute,
+} as any)
 const WorkerIdRoute = WorkerIdRouteImport.update({
   id: '/worker/$id',
   path: '/worker/$id',
@@ -136,11 +160,14 @@ export interface FileRoutesByFullPath {
   '/bom': typeof BomRoute
   '/hubs': typeof HubsRoute
   '/inventory': typeof InventoryRouteWithChildren
+  '/login': typeof LoginRoute
   '/orders': typeof OrdersRoute
   '/procurement': typeof ProcurementRoute
   '/production': typeof ProductionRoute
+  '/raw-materials': typeof RawMaterialsRoute
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
+  '/admin/users': typeof AdminUsersRoute
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
   '/inventory/history': typeof InventoryHistoryRoute
@@ -150,6 +177,7 @@ export interface FileRoutesByFullPath {
   '/subhub/float-parent': typeof SubhubFloatParentRoute
   '/subhub/production': typeof SubhubProductionRoute
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
+  '/subhub/reports': typeof SubhubReportsRoute
   '/worker/$id': typeof WorkerIdRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
 }
@@ -158,11 +186,14 @@ export interface FileRoutesByTo {
   '/bom': typeof BomRoute
   '/hubs': typeof HubsRoute
   '/inventory': typeof InventoryRouteWithChildren
+  '/login': typeof LoginRoute
   '/orders': typeof OrdersRoute
   '/procurement': typeof ProcurementRoute
   '/production': typeof ProductionRoute
+  '/raw-materials': typeof RawMaterialsRoute
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
+  '/admin/users': typeof AdminUsersRoute
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
   '/inventory/history': typeof InventoryHistoryRoute
@@ -172,6 +203,7 @@ export interface FileRoutesByTo {
   '/subhub/float-parent': typeof SubhubFloatParentRoute
   '/subhub/production': typeof SubhubProductionRoute
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
+  '/subhub/reports': typeof SubhubReportsRoute
   '/worker/$id': typeof WorkerIdRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
 }
@@ -181,11 +213,14 @@ export interface FileRoutesById {
   '/bom': typeof BomRoute
   '/hubs': typeof HubsRoute
   '/inventory': typeof InventoryRouteWithChildren
+  '/login': typeof LoginRoute
   '/orders': typeof OrdersRoute
   '/procurement': typeof ProcurementRoute
   '/production': typeof ProductionRoute
+  '/raw-materials': typeof RawMaterialsRoute
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
+  '/admin/users': typeof AdminUsersRoute
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
   '/inventory/history': typeof InventoryHistoryRoute
@@ -195,6 +230,7 @@ export interface FileRoutesById {
   '/subhub/float-parent': typeof SubhubFloatParentRoute
   '/subhub/production': typeof SubhubProductionRoute
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
+  '/subhub/reports': typeof SubhubReportsRoute
   '/worker/$id': typeof WorkerIdRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
 }
@@ -205,11 +241,14 @@ export interface FileRouteTypes {
     | '/bom'
     | '/hubs'
     | '/inventory'
+    | '/login'
     | '/orders'
     | '/procurement'
     | '/production'
+    | '/raw-materials'
     | '/shortages'
     | '/subhub'
+    | '/admin/users'
     | '/hub/$code'
     | '/inventory/adjustment'
     | '/inventory/history'
@@ -219,6 +258,7 @@ export interface FileRouteTypes {
     | '/subhub/float-parent'
     | '/subhub/production'
     | '/subhub/raw-materials'
+    | '/subhub/reports'
     | '/worker/$id'
     | '/subhub/parent/$code'
   fileRoutesByTo: FileRoutesByTo
@@ -227,11 +267,14 @@ export interface FileRouteTypes {
     | '/bom'
     | '/hubs'
     | '/inventory'
+    | '/login'
     | '/orders'
     | '/procurement'
     | '/production'
+    | '/raw-materials'
     | '/shortages'
     | '/subhub'
+    | '/admin/users'
     | '/hub/$code'
     | '/inventory/adjustment'
     | '/inventory/history'
@@ -241,6 +284,7 @@ export interface FileRouteTypes {
     | '/subhub/float-parent'
     | '/subhub/production'
     | '/subhub/raw-materials'
+    | '/subhub/reports'
     | '/worker/$id'
     | '/subhub/parent/$code'
   id:
@@ -249,11 +293,14 @@ export interface FileRouteTypes {
     | '/bom'
     | '/hubs'
     | '/inventory'
+    | '/login'
     | '/orders'
     | '/procurement'
     | '/production'
+    | '/raw-materials'
     | '/shortages'
     | '/subhub'
+    | '/admin/users'
     | '/hub/$code'
     | '/inventory/adjustment'
     | '/inventory/history'
@@ -263,6 +310,7 @@ export interface FileRouteTypes {
     | '/subhub/float-parent'
     | '/subhub/production'
     | '/subhub/raw-materials'
+    | '/subhub/reports'
     | '/worker/$id'
     | '/subhub/parent/$code'
   fileRoutesById: FileRoutesById
@@ -272,11 +320,14 @@ export interface RootRouteChildren {
   BomRoute: typeof BomRoute
   HubsRoute: typeof HubsRoute
   InventoryRoute: typeof InventoryRouteWithChildren
+  LoginRoute: typeof LoginRoute
   OrdersRoute: typeof OrdersRoute
   ProcurementRoute: typeof ProcurementRoute
   ProductionRoute: typeof ProductionRoute
+  RawMaterialsRoute: typeof RawMaterialsRoute
   ShortagesRoute: typeof ShortagesRoute
   SubhubRoute: typeof SubhubRouteWithChildren
+  AdminUsersRoute: typeof AdminUsersRoute
   HubCodeRoute: typeof HubCodeRoute
   PartCodeRoute: typeof PartCodeRoute
   PoIdRoute: typeof PoIdRoute
@@ -314,6 +365,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InventoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/orders': {
       id: '/orders'
       path: '/orders'
@@ -335,6 +393,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/raw-materials': {
+      id: '/raw-materials'
+      path: '/raw-materials'
+      fullPath: '/raw-materials'
+      preLoaderRoute: typeof RawMaterialsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shortages': {
       id: '/shortages'
       path: '/shortages'
@@ -347,6 +412,13 @@ declare module '@tanstack/react-router' {
       path: '/subhub'
       fullPath: '/subhub'
       preLoaderRoute: typeof SubhubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hub/$code': {
@@ -412,6 +484,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SubhubRawMaterialsRouteImport
       parentRoute: typeof SubhubRoute
     }
+    '/subhub/reports': {
+      id: '/subhub/reports'
+      path: '/reports'
+      fullPath: '/subhub/reports'
+      preLoaderRoute: typeof SubhubReportsRouteImport
+      parentRoute: typeof SubhubRoute
+    }
     '/worker/$id': {
       id: '/worker/$id'
       path: '/worker/$id'
@@ -447,6 +526,7 @@ interface SubhubRouteChildren {
   SubhubFloatParentRoute: typeof SubhubFloatParentRoute
   SubhubProductionRoute: typeof SubhubProductionRoute
   SubhubRawMaterialsRoute: typeof SubhubRawMaterialsRoute
+  SubhubReportsRoute: typeof SubhubReportsRoute
   SubhubParentCodeRoute: typeof SubhubParentCodeRoute
 }
 
@@ -454,6 +534,7 @@ const SubhubRouteChildren: SubhubRouteChildren = {
   SubhubFloatParentRoute: SubhubFloatParentRoute,
   SubhubProductionRoute: SubhubProductionRoute,
   SubhubRawMaterialsRoute: SubhubRawMaterialsRoute,
+  SubhubReportsRoute: SubhubReportsRoute,
   SubhubParentCodeRoute: SubhubParentCodeRoute,
 }
 
@@ -465,11 +546,14 @@ const rootRouteChildren: RootRouteChildren = {
   BomRoute: BomRoute,
   HubsRoute: HubsRoute,
   InventoryRoute: InventoryRouteWithChildren,
+  LoginRoute: LoginRoute,
   OrdersRoute: OrdersRoute,
   ProcurementRoute: ProcurementRoute,
   ProductionRoute: ProductionRoute,
+  RawMaterialsRoute: RawMaterialsRoute,
   ShortagesRoute: ShortagesRoute,
   SubhubRoute: SubhubRouteWithChildren,
+  AdminUsersRoute: AdminUsersRoute,
   HubCodeRoute: HubCodeRoute,
   PartCodeRoute: PartCodeRoute,
   PoIdRoute: PoIdRoute,

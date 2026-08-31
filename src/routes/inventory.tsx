@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useRouterState } from "@tanstack/react-router";
-import { ArrowDownCircle, ArrowUpCircle, Boxes, Check, ClipboardCheck, Clock3, Database, Layers3, LogOut, Package, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
-import { ReactNode, useMemo, useState } from "react";
+import { ArrowDownCircle, ArrowUpCircle, Check, ChevronRight, Clock3, Package, RefreshCw, Search, SlidersHorizontal, X } from "lucide-react";
+import { useMemo, useState } from "react";
 import { num } from "@/lib/erp-data";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
+import { SubHubShell } from "@/components/erp/SubHubShell";
 
 export type View = "inventory" | "history" | "adjustment";
 type InventoryRow = { name: string; category: string; unit: string; quantity: number; batches: number; expiry: string; price: number; status: "Available" | "Low stock" | "Out of stock" };
@@ -42,12 +43,12 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
   const title = view === "inventory" ? "Inventory" : view === "history" ? "Inventory History" : "Stock Adjustment";
 
   return (
-    <SubHubInventoryShell actions={view === "inventory" ? <Link to="/inventory/adjustment" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><SlidersHorizontal className="size-4" /> Adjust stock</Link> : null}>
+    <SubHubShell actions={view === "inventory" ? <Link to="/inventory/adjustment" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><SlidersHorizontal className="size-4" /> Adjust stock</Link> : null}>
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-white px-6 py-4"><div><p className="mb-1 text-xs font-semibold text-muted-foreground">SubHub / Inventory Management</p><h1 className="text-xl font-semibold">{title}</h1><p className="text-sm text-muted-foreground">{view === "inventory" ? "Track current stock, batches, expiry dates, and inventory value." : view === "history" ? "Review every stock movement across products and batches." : "Add stock, remove stock, and record a clear reason for every adjustment."}</p></div></header>
       {view === "inventory" ? <InventoryTable products={filteredProducts} query={query} setQuery={setQuery} /> : null}
       {view === "history" ? <HistoryTable /> : null}
       {view === "adjustment" ? <Adjustment onSaved={() => {}} /> : null}
-    </SubHubInventoryShell>
+    </SubHubShell>
   );
 }
 
@@ -57,10 +58,6 @@ export function InventoryHistoryPage() {
 
 export function InventoryAdjustmentPage() {
   return <InventoryManagement initialView="adjustment" />;
-}
-
-function SubHubInventoryShell({ actions, children }: { actions?: ReactNode; children: ReactNode }) {
-  return <div className="flex min-h-screen bg-white"><aside className="flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-white"><div className="flex h-[65px] shrink-0 items-center gap-3 border-b border-sidebar-border px-5"><div className="rule-header flex size-9 items-center justify-center rounded-md"><Boxes className="size-4" /></div><div className="leading-tight"><p className="text-sm font-semibold">SubHub</p><p className="text-xs text-muted-foreground">Float ERP workspace</p></div></div><nav className="flex-1 p-3"><p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Modules</p><Link to="/subhub" className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-primary"><Layers3 className="size-4" /> Bills of Materials</Link><Link to="/subhub/raw-materials" className="mt-1 flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-primary"><Database className="size-4" /> Raw Materials</Link><div className="group"><Link to="/inventory" className="mt-1 flex items-center gap-3 rounded-md bg-sidebar-accent px-3 py-2 text-sm font-medium text-sidebar-primary"><Package className="size-4" /> Inventory Management</Link><div className="hidden pl-9 group-hover:block"><Link to="/inventory" className="block py-1.5 text-xs text-muted-foreground hover:text-sidebar-primary">Inventory</Link><Link to="/inventory/history" className="block py-1.5 text-xs text-muted-foreground hover:text-sidebar-primary">History</Link><Link to="/inventory/adjustment" className="block py-1.5 text-xs text-muted-foreground hover:text-sidebar-primary">Stock Adjustment</Link></div></div><div className="group"><Link to="/subhub/production" className="mt-1 flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-primary"><ClipboardCheck className="size-4" /> Hub Manager</Link><div className="hidden pl-9 group-hover:block"><Link to="/subhub/production" className="block py-1.5 text-xs text-muted-foreground hover:text-sidebar-primary">Production</Link></div></div></nav><div className="border-t border-sidebar-border p-3"><div className="flex items-center gap-3 rounded-md px-2 py-2"><div className="flex size-8 items-center justify-center rounded-full bg-secondary font-mono text-xs font-semibold">AD</div><div className="min-w-0 flex-1 leading-tight"><p className="text-sm font-medium">Admin</p><p className="text-xs text-muted-foreground">SubHub owner</p></div><LogOut className="size-4 text-muted-foreground" /></div></div></aside><main className="min-w-0 flex-1"><div className="flex items-center justify-end border-b border-border bg-white px-6 py-3">{actions}</div>{children}</main></div>;
 }
 
 function Overview({ totalUnits, stockValue, lowStock, setView }: { totalUnits: number; stockValue: number; lowStock: number; setView: (view: View) => void }) {
@@ -75,11 +72,11 @@ function HistoryTable() {
   return <Panel title="Inventory History" description="Review every stock movement across products and hubs" action={<button type="button" className="inline-flex items-center gap-2 rounded-md border border-input px-3 py-2 text-xs"><RefreshCw className="size-3.5" /> Refresh</button>}><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">Movement</th><th className="px-5 py-3 font-medium">Product</th><th className="px-5 py-3 font-medium">Hub</th><th className="px-5 py-3 font-medium">Reference</th><th className="px-5 py-3 text-right font-medium">Change</th><th className="px-5 py-3 text-right font-medium">Balance</th></tr></thead><tbody>{movements.map((movement) => <tr key={movement.reference} className="border-b border-border/70 last:border-0"><td className="whitespace-nowrap px-5 py-3 text-xs text-muted-foreground">{movement.date}</td><td className="px-5 py-3">{movement.change > 0 ? <ArrowUpCircle className="mr-2 inline size-4 text-success" /> : <ArrowDownCircle className="mr-2 inline size-4 text-destructive" />}{movement.type}</td><td className="px-5 py-3 font-medium">{movement.product}</td><td className="px-5 py-3">{movement.hub}</td><td className="tabular px-5 py-3 text-muted-foreground">{movement.reference}</td><td className={`tabular px-5 py-3 text-right font-semibold ${movement.change > 0 ? "text-success" : "text-destructive"}`}>{movement.change > 0 ? "+" : ""}{movement.change}</td><td className="tabular px-5 py-3 text-right">{num(movement.balance)}</td></tr>)}</tbody></table></div></Panel>;
 }
 
-function Adjustment({ onSaved }: { onSaved?: () => void }) {
-  return <Panel title="Stock adjustment" description="Add stock, remove stock, and record a clear reason for every adjustment"><AdjustmentForm onSaved={onSaved} /></Panel>;
+function Adjustment({ onSaved }: { onSaved?: (() => void) | undefined }) {
+  return <Panel title="Stock adjustment" description="Add stock, remove stock, and record a clear reason for every adjustment"><AdjustmentForm {...(onSaved ? { onSaved } : {})} /></Panel>;
 }
 
-function AdjustmentForm({ onSaved }: { onSaved?: () => void }) {
+function AdjustmentForm({ onSaved }: { onSaved?: (() => void) | undefined }) {
   const [product, setProduct] = useState("");
   const [quantity, setQuantity] = useState("");
   return <div className="p-5"><div className="grid gap-4 md:grid-cols-2"><label className="text-sm font-medium">Product<select value={product} onChange={(event) => setProduct(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="">Select product</option>{products.map((item) => <option key={item.name}>{item.name}</option>)}</select></label><label className="text-sm font-medium">Action<select className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option>Add stock</option><option>Remove stock</option></select></label><label className="text-sm font-medium">Quantity<input required type="number" min="1" value={quantity} onChange={(event) => setQuantity(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input px-3 text-sm" /></label><label className="text-sm font-medium">Reason<input defaultValue="New stock received" className="mt-1.5 h-10 w-full rounded-md border border-input px-3 text-sm" /></label><label className="text-sm font-medium md:col-span-2">Notes<textarea rows={3} placeholder="Write notes here..." className="mt-1.5 w-full resize-none rounded-md border border-input px-3 py-2 text-sm" /></label></div><div className="mt-5 flex justify-end border-t border-border pt-4"><button type="button" disabled={!product || !quantity} onClick={onSaved} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><Check className="size-4" /> Save adjustment</button></div></div>;

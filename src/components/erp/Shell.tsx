@@ -10,19 +10,24 @@ import {
   Users,
   Bell,
   Search,
-  Settings,
-  Boxes,
+  LogOut,
+  Database,
+  UserCog,
 } from "lucide-react";
+import { useRouter } from "@tanstack/react-router";
+import { logoutFn } from "@/auth";
+import { canAccess, useAuth } from "@/components/auth/AuthContext";
 
 const nav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/bom", label: "Bill of Materials", icon: Layers },
-  { to: "/orders", label: "Orders & Targets", icon: ClipboardList },
-  { to: "/hubs", label: "Hubs & Stock", icon: Factory },
-  { to: "/shortages", label: "Shortages", icon: AlertTriangle },
-  { to: "/procurement", label: "Procurement", icon: Truck },
-  { to: "/production", label: "Production & Workforce", icon: Users },
-  { to: "/subhub", label: "SubHub", icon: Boxes },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, permission: "dashboard" },
+  { to: "/bom", label: "Bill of Materials", icon: Layers, permission: "bom" },
+  { to: "/raw-materials", label: "Raw Materials", icon: Database, permission: "raw-materials" },
+  { to: "/orders", label: "Orders & Targets", icon: ClipboardList, permission: "orders" },
+  { to: "/hubs", label: "Hubs & Stock", icon: Factory, permission: "hubs" },
+  { to: "/shortages", label: "Shortages", icon: AlertTriangle, permission: "shortages" },
+  { to: "/procurement", label: "Procurement", icon: Truck, permission: "procurement" },
+  { to: "/production", label: "Production & Workforce", icon: Users, permission: "production" },
+  { to: "/admin/users", label: "User Management", icon: UserCog, permission: "user-management" },
 ] as const;
 
 export function Shell({
@@ -37,6 +42,21 @@ export function Shell({
   children: ReactNode;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const router = useRouter();
+  const { user } = useAuth();
+  const visibleNav = nav.filter((item) => canAccess(user, item.permission));
+  const initials = user?.name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "FA";
+
+  async function signOut() {
+    await logoutFn();
+    await router.invalidate();
+    await router.navigate({ to: "/login" });
+  }
 
   return (
     <div className="flex min-h-screen">
@@ -55,7 +75,7 @@ export function Shell({
           <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             Modules
           </p>
-          {nav.map((item) => {
+          {visibleNav.map((item) => {
             const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
             return (
               <Link
@@ -80,10 +100,20 @@ export function Shell({
               AR
             </div>
             <div className="min-w-0 leading-tight">
-              <p className="truncate text-sm font-medium">Aniket Rane</p>
-              <p className="text-xs text-muted-foreground">Admin · All hubs</p>
+              <p className="truncate text-sm font-medium">{user?.name}</p>
+              <p className="text-xs capitalize text-muted-foreground">
+                {user?.role === "master_admin" ? "Master Admin" : user?.role} · Secure session
+              </p>
             </div>
-            <Settings className="ml-auto size-4 text-muted-foreground" />
+            <button
+              type="button"
+              aria-label="Sign out"
+              title="Sign out"
+              onClick={signOut}
+              className="ml-auto rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+            >
+              <LogOut className="size-4" />
+            </button>
           </div>
         </div>
       </aside>
@@ -107,7 +137,7 @@ export function Shell({
             {actions}
           </div>
           <nav className="flex gap-1 overflow-x-auto border-t border-border px-4 py-2 lg:hidden">
-            {nav.map((item) => (
+            {visibleNav.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}

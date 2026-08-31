@@ -2,8 +2,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
   Link,
+  Navigate,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -11,6 +13,8 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { getAuthStateFn } from "../auth";
+import { AuthProvider, canAccess } from "../components/auth/AuthContext";
 
 function NotFoundComponent() {
   return (
@@ -73,6 +77,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  loader: () => getAuthStateFn(),
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -128,11 +133,53 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const auth = Route.useLoaderData();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const isSubHubPath = pathname.startsWith("/subhub") || pathname.startsWith("/inventory");
+  const isAdminPath = !isSubHubPath && pathname !== "/login";
+  const requiredSection = sectionForPath(pathname);
+
+  if (!auth.user && pathname !== "/login") {
+    return <Navigate to="/login" replace />;
+  }
+  if (auth.user && pathname === "/login") {
+    return <Navigate to={auth.user.panel === "subhub" ? "/subhub" : "/"} replace />;
+  }
+  if (auth.user?.role === "subhub" && isAdminPath) {
+    return <Navigate to="/subhub" replace />;
+  }
+  if (auth.user?.role === "admin" && isSubHubPath) {
+    return <Navigate to="/" replace />;
+  }
+  if (auth.user && requiredSection && !canAccess(auth.user, requiredSection)) {
+    return <Navigate to={auth.user.panel === "subhub" ? "/subhub" : "/"} replace />;
+  }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
-    </QueryClientProvider>
+    <AuthProvider value={auth}>
+      <QueryClientProvider client={queryClient}>
+        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+        <Outlet />
+      </QueryClientProvider>
+    </AuthProvider>
   );
+}
+
+function sectionForPath(pathname: string): string | null {
+  if (pathname.startsWith("/admin/users")) return "user-management";
+  if (pathname.startsWith("/raw-materials")) return "raw-materials";
+  if (pathname.startsWith("/bom")) return "bom";
+  if (pathname.startsWith("/orders")) return "orders";
+  if (pathname.startsWith("/hubs")) return "hubs";
+  if (pathname.startsWith("/shortages")) return "shortages";
+  if (pathname.startsWith("/procurement")) return "procurement";
+  if (pathname.startsWith("/production")) return "production";
+  if (pathname.startsWith("/inventory")) return "inventory";
+  if (pathname.startsWith("/subhub/raw-materials")) return "raw-materials";
+  if (pathname.startsWith("/subhub/parent")) return "bom";
+  if (pathname.startsWith("/subhub/float-parent")) return "bom";
+  if (pathname.startsWith("/subhub/reports")) return "hub-reports";
+  if (pathname.startsWith("/subhub/production")) return "hub-manager";
+  if (pathname.startsWith("/subhub/")) return "hub-manager";
+  return null;
 }
