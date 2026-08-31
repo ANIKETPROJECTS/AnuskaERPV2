@@ -277,7 +277,7 @@ export async function getAuthState(): Promise<{ setupRequired: boolean; user: Pu
   };
 }
 
-export async function loginUser(email: string, password: string): Promise<
+export async function loginUser(email: string, password: string, requestedPanel?: Panel): Promise<
   { ok: true; user: PublicUser } | { ok: false; message: string }
 > {
   const db = await ensureControlPlane();
@@ -286,6 +286,12 @@ export async function loginUser(email: string, password: string): Promise<
   });
   if (!user || !user.active || !(await verifyPassword(password, user.passwordHash))) {
     return { ok: false, message: "The email or password is incorrect." };
+  }
+  if (requestedPanel && user.panel !== requestedPanel) {
+    return {
+      ok: false,
+      message: `These credentials belong to the ${user.panel === "admin" ? "Master Admin" : "SubHub Manager"} login.`,
+    };
   }
 
   await createSession(user._id);

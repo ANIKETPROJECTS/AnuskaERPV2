@@ -9,6 +9,7 @@ import {
 } from "@/auth";
 import type { AccessSection, Panel, PublicUser } from "@/auth.server";
 import { useAuth } from "@/components/auth/AuthContext";
+import { Shell } from "@/components/erp/Shell";
 
 const permissionGroups: Array<{ label: string; panel: Panel; items: Array<{ value: AccessSection; label: string }> }> = [
   {
@@ -80,11 +81,13 @@ function UserManagement() {
 
   if (auth.user?.role !== "master_admin") {
     return (
-      <div className="panel mx-auto max-w-2xl p-8 text-center">
-        <ShieldCheck className="mx-auto size-8 text-muted-foreground" />
-        <h1 className="mt-4 text-lg font-semibold">Master Admin access required</h1>
-        <p className="mt-2 text-sm text-muted-foreground">User Management is reserved for the Master Admin.</p>
-      </div>
+      <Shell title="User Management" subtitle="Admin Panel access control">
+        <div className="panel mx-auto max-w-2xl p-8 text-center">
+          <ShieldCheck className="mx-auto size-8 text-muted-foreground" />
+          <h1 className="mt-4 text-lg font-semibold">Master Admin access required</h1>
+          <p className="mt-2 text-sm text-muted-foreground">User Management is reserved for the Master Admin.</p>
+        </div>
+      </Shell>
     );
   }
 
@@ -193,15 +196,10 @@ function UserManagement() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Admin Panel</p>
-          <h1 className="mt-2 text-2xl font-semibold">User Management</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Control who can enter each panel and which operational sections they can use.
-          </p>
-        </div>
+    <Shell
+      title="User Management"
+      subtitle="Control who can enter each panel and which operational sections they can use."
+      actions={
         <button
           type="button"
           onClick={openCreate}
@@ -209,7 +207,9 @@ function UserManagement() {
         >
           <Plus className="size-4" /> Add user
         </button>
-      </div>
+      }
+    >
+      <div className="space-y-6">
 
       {message ? (
         <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">
@@ -323,7 +323,8 @@ function UserManagement() {
           }}
         />
       ) : null}
-    </div>
+      </div>
+    </Shell>
   );
 }
 

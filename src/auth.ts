@@ -15,6 +15,7 @@ import type { AccessSection } from "./auth.server";
 const loginSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(1),
+  panel: z.enum(["admin", "subhub"]).optional(),
 });
 
 const bootstrapSchema = z.object({
@@ -45,7 +46,7 @@ export const getAuthStateFn = createServerFn({ method: "GET" }).handler(() => ge
 
 export const loginFn = createServerFn({ method: "POST" })
   .validator(loginSchema)
-  .handler(({ data }) => loginUser(data.email, data.password));
+  .handler(({ data }) => loginUser(data.email, data.password, data.panel));
 
 export const bootstrapMasterAdminFn = createServerFn({ method: "POST" })
   .validator(bootstrapSchema)

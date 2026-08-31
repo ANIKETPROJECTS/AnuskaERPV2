@@ -97,7 +97,7 @@ export function Shell({
         <div className="border-t border-sidebar-border p-3">
           <div className="flex items-center gap-3 rounded-md px-2 py-2">
             <div className="flex size-8 items-center justify-center rounded-full bg-secondary font-mono text-xs font-semibold">
-              AR
+              {initials}
             </div>
             <div className="min-w-0 leading-tight">
               <p className="truncate text-sm font-medium">{user?.name}</p>
