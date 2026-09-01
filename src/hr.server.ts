@@ -242,7 +242,10 @@ async function ensureDefaultShifts(db: Db): Promise<void> {
 
   for (const shift of defaults) {
     const matches = existing
-      .filter((candidate) => shift.names.includes(candidate.normalizedName.toLowerCase()))
+      .filter((candidate) => {
+        const candidateName = candidate.normalizedName?.toLowerCase() ?? normalizeName(candidate.name).toLowerCase();
+        return shift.names.includes(candidateName);
+      })
       .sort((left, right) => Number(right.normalizedName === shift.normalizedName) - Number(left.normalizedName === shift.normalizedName));
     const canonical = matches[0];
     if (canonical) {
@@ -286,7 +289,8 @@ async function ensureDefaultShifts(db: Db): Promise<void> {
     const canonicalId = canonicalByDefault.get(shift.normalizedName);
     if (canonicalId) {
       const canonical = existing.find((shift) => shift._id === canonicalId);
-      const isLegacyName = canonical?.normalizedName.toLowerCase() !== shift.normalizedName;
+      const canonicalName = canonical?.normalizedName?.toLowerCase() ?? (canonical ? normalizeName(canonical.name).toLowerCase() : "");
+      const isLegacyName = canonicalName !== shift.normalizedName;
       await db.collection<ShiftDocument>("hr_shifts").updateOne(
         { _id: canonicalId },
         {
