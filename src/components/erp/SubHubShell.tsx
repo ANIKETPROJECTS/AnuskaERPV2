@@ -7,11 +7,11 @@ import { NotificationBell } from "./HeaderTools";
 
 const subhubNav = [
   { to: "/inventory", label: "Inventory Management", permission: "inventory", icon: PackageOpen },
-  { to: "/subhub/bom", label: "Bill of Materials", permission: "bom", icon: Layers },
-  { to: "/subhub/raw-materials", label: "Raw Materials", permission: "raw-materials", icon: Database },
   { to: "/subhub/production", label: "Hub Manager", permission: "hub-manager", icon: ClipboardCheck },
   { to: "/subhub/reports", label: "Hub Reports", permission: "hub-reports", icon: FileBarChart },
   { to: "/subhub/hr", label: "HR & Attendance", permission: "hr", icon: UserRoundCog },
+  { to: "/subhub/bom", label: "Bill of Materials", permission: "bom", icon: Layers },
+  { to: "/subhub/raw-materials", label: "Raw Materials", permission: "raw-materials", icon: Database },
 ] as const;
 
 export function SubHubShell({
