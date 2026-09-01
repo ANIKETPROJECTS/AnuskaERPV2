@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { assignEmployeeToShift, createEmployee, createShift, getAdminHrData, getManagerHrData, saveAttendance, updateEmployee } from "./hr.server";
+import { assignEmployeeToShift, createEmployee, createShift, getAdminHrData, getManagerHrData, saveAttendance, updateEmployee, updateShift } from "./hr.server";
 import { ATTENDANCE_STATUSES } from "./hr.server";
 
 const managerSchema = z.object({ month: z.string(), date: z.string().optional() });
@@ -16,6 +16,7 @@ export const updateEmployeeFn = createServerFn({ method: "POST" })
   .handler(({ data }) => updateEmployee(data));
 export const saveAttendanceFn = createServerFn({ method: "POST" }).validator(z.object({ employeeId: z.string(), date: z.string(), status: z.enum(ATTENDANCE_STATUSES) })).handler(({ data }) => saveAttendance(data));
 export const createShiftFn = createServerFn({ method: "POST" }).validator(z.object({ name: z.string(), startTime: z.string(), endTime: z.string() })).handler(({ data }) => createShift(data));
+export const updateShiftFn = createServerFn({ method: "POST" }).validator(z.object({ id: z.string(), startTime: z.string(), endTime: z.string() })).handler(({ data }) => updateShift(data));
 export const assignEmployeeToShiftFn = createServerFn({ method: "POST" }).validator(z.object({ employeeId: z.string(), shiftId: z.string(), assigned: z.boolean() })).handler(({ data }) => assignEmployeeToShift(data));
 
 // Compatibility adapters keep the main branch's reusable HrWorkspace available

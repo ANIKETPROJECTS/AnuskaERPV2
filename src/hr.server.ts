@@ -285,9 +285,18 @@ async function ensureDefaultShifts(db: Db): Promise<void> {
   for (const shift of defaults) {
     const canonicalId = canonicalByDefault.get(shift.normalizedName);
     if (canonicalId) {
+      const canonical = existing.find((shift) => shift._id === canonicalId);
+      const isLegacyName = canonical?.normalizedName.toLowerCase() !== shift.normalizedName;
       await db.collection<ShiftDocument>("hr_shifts").updateOne(
         { _id: canonicalId },
-        { $set: { name: shift.name, normalizedName: shift.normalizedName, startTime: shift.startTime, endTime: shift.endTime, updatedAt: now } },
+        {
+          $set: {
+            name: shift.name,
+            normalizedName: shift.normalizedName,
+            ...(isLegacyName ? { startTime: shift.startTime, endTime: shift.endTime } : {}),
+            updatedAt: now,
+          },
+        },
       );
       continue;
     }
@@ -469,6 +478,46 @@ export async function createShift(input: {
   const current = await getCurrentUserRecord("subhub");
   if (!isSubhub(current)) return { ok: false, message: "Only SubHub Managers can create shifts." };
   return { ok: false, message: "Only the default Day shift and Night shift are available." };
+}
+
+export async function updateShift(input: {
+  id: string;
+  startTime: string;
+  endTime: string;
+}): Promise<{ ok: true; shift: HrShift } | { ok: false; message: string }> {
+  const current = await getCurrentUserRecord("subhub");
+  if (!isSubhub(current)) return { ok: false, message: "Only SubHub Managers can edit shifts." };
+  const startTime = normalizeTime(input.startTime);
+  const endTime = normalizeTime(input.endTime);
+  if (!startTime || !endTime || startTime === endTime) {
+    return { ok: false, message: "Enter valid times, with different start and end times." };
+  }
+
+  const db = await getMongoDb(current.databaseName);
+  await ensureHrIndexes(db);
+  const shift = await db.collection<ShiftDocument>("hr_shifts").findOne({
+    _id: input.id,
+    normalizedName: { $in: ["day shift", "night shift"] },
+  });
+  if (!shift) return { ok: false, message: "Only the Day shift and Night shift timings can be edited." };
+
+  const now = new Date();
+  const result = await db.collection<ShiftDocument>("hr_shifts").findOneAndUpdate(
+    { _id: shift._id },
+    { $set: { startTime, endTime, updatedAt: now } },
+    { returnDocument: "after" },
+  );
+  if (!result) return { ok: false, message: "Shift timing could not be saved." };
+  return {
+    ok: true,
+    shift: {
+      id: result._id,
+      name: result.name,
+      startTime: result.startTime,
+      endTime: result.endTime,
+      assignedEmployeeIds: [],
+    },
+  };
 }
 
 export async function assignEmployeeToShift(input: {

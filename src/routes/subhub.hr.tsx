@@ -7,6 +7,7 @@ import {
   createEmployeeFn,
   getManagerHrDataFn,
   saveDailyAttendanceFn,
+  updateShiftFn,
   updateEmployeeFn,
 } from "@/hr";
 import type { AttendanceStatus, HrEmployee, ManagerHrData } from "@/hr.server";
@@ -47,6 +48,68 @@ function formatTime12(value: string) {
   return `${hour}:${String(rawMinute).padStart(2, "0")} ${period}`;
 }
 
+function TimeSelect({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [rawHour = Number.NaN, rawMinute = Number.NaN] = value.split(":").map(Number);
+  const hour24 = Number.isFinite(rawHour) ? rawHour : 9;
+  const minute = Number.isFinite(rawMinute) ? rawMinute : 0;
+  const hour12 = hour24 % 12 || 12;
+  const period = hour24 >= 12 ? "PM" : "AM";
+  const updateTime = (nextHour: number, nextMinute: number, nextPeriod: string) => {
+    const hour = nextPeriod === "PM" ? (nextHour % 12) + 12 : nextHour % 12;
+    onChange(`${String(hour).padStart(2, "0")}:${String(nextMinute).padStart(2, "0")}`);
+  };
+
+  return (
+    <fieldset className="min-w-0">
+      <legend className="text-xs font-medium text-muted-foreground">{label}</legend>
+      <div className="mt-1.5 flex gap-1.5">
+        <select
+          aria-label={`${label} hour`}
+          value={String(hour12)}
+          onChange={(event) => updateTime(Number(event.target.value), minute, period)}
+          className="h-9 min-w-0 flex-1 rounded-md border border-input bg-white px-2 text-sm"
+        >
+          {Array.from({ length: 12 }, (_, index) => index + 1).map((hour) => (
+            <option key={hour} value={hour}>
+              {hour}
+            </option>
+          ))}
+        </select>
+        <span className="flex h-9 items-center text-sm text-muted-foreground">:</span>
+        <select
+          aria-label={`${label} minute`}
+          value={String(minute).padStart(2, "0")}
+          onChange={(event) => updateTime(hour12, Number(event.target.value), period)}
+          className="h-9 min-w-0 flex-1 rounded-md border border-input bg-white px-2 text-sm"
+        >
+          {Array.from({ length: 60 }, (_, minuteValue) => (
+            <option key={minuteValue} value={String(minuteValue).padStart(2, "0")}>
+              {String(minuteValue).padStart(2, "0")}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label={`${label} AM or PM`}
+          value={period}
+          onChange={(event) => updateTime(hour12, minute, event.target.value)}
+          className="h-9 rounded-md border border-input bg-white px-2 text-sm"
+        >
+          <option value="AM">AM</option>
+          <option value="PM">PM</option>
+        </select>
+      </div>
+    </fieldset>
+  );
+}
+
 function csvCell(value: string | number): string {
   return `"${String(value).replaceAll('"', '""')}"`;
 }
@@ -77,6 +140,8 @@ function SubhubHr() {
   const [employeeName, setEmployeeName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [selectedShiftId, setSelectedShiftId] = useState("");
+  const [editingShiftId, setEditingShiftId] = useState("");
+  const [editingShiftTimes, setEditingShiftTimes] = useState({ startTime: "", endTime: "" });
   const [editingId, setEditingId] = useState("");
   const [editingName, setEditingName] = useState("");
   const [editingPhone, setEditingPhone] = useState("");
@@ -278,6 +343,33 @@ function SubhubHr() {
     await assign(shiftId, employeeId, true);
   }
 
+  function openShiftEditor(shift: { id: string; startTime: string; endTime: string }) {
+    setEditingShiftId(shift.id);
+    setEditingShiftTimes({ startTime: shift.startTime, endTime: shift.endTime });
+    setError("");
+    setNotice("");
+  }
+
+  async function saveShift(shift: { id: string }) {
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await updateShiftFn({ data: { id: shift.id, ...editingShiftTimes } });
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      setEditingShiftId("");
+      setNotice("Shift timing saved.");
+      await load();
+    } catch {
+      setError("Shift timing could not be saved. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function changeDate(value: string) {
     setSelectedDate(value);
     setDraft(
@@ -424,7 +516,45 @@ function SubhubHr() {
                 <label className="block text-sm font-medium">Assign shift<select value={selectedShiftId} onChange={(event) => setSelectedShiftId(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="">No shift selected</option>{data.shifts.map((shift) => <option key={shift.id} value={shift.id}>{shift.name} · {formatTime12(shift.startTime)}–{formatTime12(shift.endTime)}{shift.endTime < shift.startTime ? " · next day" : ""}</option>)}</select></label>
                 <button type="submit" disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><Plus className="size-4" /> {saving ? "Saving…" : "Register"}</button>
               </form>
-              <p className="border-t border-border px-5 py-3 text-xs text-muted-foreground">Available shifts: Day shift 9:00 AM–5:00 PM and Night shift 6:00 PM–3:00 AM next day.</p>
+              <div className="border-t border-border px-5 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold">Available shift timings</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">Edit the timing for Day shift or Night shift. These values are saved to this SubHub.</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Only two shifts are available.</p>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {data.shifts.map((shift) => (
+                    <div key={shift.id} className="rounded-lg border border-border bg-background p-3">
+                      {editingShiftId === shift.id ? (
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium">{shift.name}</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <TimeSelect label="Starts" value={editingShiftTimes.startTime} onChange={(startTime) => setEditingShiftTimes((current) => ({ ...current, startTime }))} />
+                            <TimeSelect label="Ends" value={editingShiftTimes.endTime} onChange={(endTime) => setEditingShiftTimes((current) => ({ ...current, endTime }))} />
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button type="button" onClick={() => setEditingShiftId("")} className="rounded-md border border-input px-3 py-1.5 text-xs font-medium hover:bg-muted">Cancel</button>
+                            <button type="button" disabled={saving} onClick={() => void saveShift(shift)} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"><Save className="size-3.5" /> Save timing</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium">{shift.name}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {formatTime12(shift.startTime)}–{formatTime12(shift.endTime)}
+                              {shift.endTime < shift.startTime ? " · next day" : ""}
+                            </p>
+                          </div>
+                          <button type="button" onClick={() => openShiftEditor(shift)} className="inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium hover:bg-muted"><Pencil className="size-3.5" /> Edit timing</button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </section>
             <section className="panel overflow-hidden">
               <div className="border-b border-border px-5 py-4">

@@ -1,4 +1,4 @@
-import { createFileRoute, Navigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { ArrowLeft, ArrowRight, Boxes, LockKeyhole, ShieldCheck, UserRound } from "lucide-react";
 import { bootstrapMasterAdminFn, loginFn } from "@/auth";
@@ -16,7 +16,6 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const auth = useAuth();
-  const router = useRouter();
   const [flow, setFlow] = useState<"selection" | "login" | "setup">(auth.setupRequired ? "setup" : "selection");
   const [panel, setPanel] = useState<"admin" | "subhub" | null>(auth.setupRequired ? "admin" : null);
   const [name, setName] = useState("");
@@ -42,8 +41,7 @@ function LoginPage() {
         setMessage(result.message);
         return;
       }
-      await router.invalidate();
-      await router.navigate({ to: result.user.panel === "subhub" ? "/subhub" : "/" });
+      window.location.assign(result.user.panel === "subhub" ? "/subhub" : "/");
     } catch {
       setMessage("Unable to reach the authentication service. Please try again.");
     } finally {
