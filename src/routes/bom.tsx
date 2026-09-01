@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { ImagePlus, Plus, Upload, X } from "lucide-react";
-import { ChangeEvent, FormEvent, useState } from "react";
+import { ImagePlus, Plus, Search, Upload, X } from "lucide-react";
+import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { useAuth } from "@/components/auth/AuthContext";
@@ -35,9 +35,18 @@ function Bom() {
 
 export function BomPage({ readOnly }: { readOnly: boolean }) {
   const products = useBomProducts();
+  const [productSearch, setProductSearch] = useState("");
   const [showProductForm, setShowProductForm] = useState(false);
   const [productForm, setProductForm] = useState(emptyProduct);
   const [productError, setProductError] = useState("");
+  const filteredProducts = useMemo(() => {
+    const query = productSearch.trim().toLowerCase();
+    if (!query) return products;
+    return products.filter((product) =>
+      [product.code, product.name, product.description, ...product.variants.flatMap((variant) => [variant.code, variant.name, variant.company])]
+        .some((value) => value.toLowerCase().includes(query)),
+    );
+  }, [productSearch, products]);
 
   function openProductForm() {
     setProductForm(emptyProduct);
@@ -85,8 +94,24 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
 
   const content = (
       <section className="space-y-6 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">Parent assemblies</p>
+            <p className="mt-1 text-xs text-muted-foreground">Search product names, product codes, companies, or variant codes.</p>
+          </div>
+          <label className="relative block w-full max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={productSearch}
+              onChange={(event) => setProductSearch(event.target.value)}
+              placeholder="Search BOM products"
+              aria-label="Search BOM products"
+              className="h-9 w-full rounded-md border border-input bg-card pl-9 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+          </label>
+        </div>
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          {products.map((product) => (
+          {filteredProducts.map((product) => (
             <article key={product.code} className="panel overflow-hidden">
               <div className="flex h-36 items-center justify-center bg-white p-3">
                 <img src={product.image} alt={`${product.name} component assembly`} className="h-full w-full object-contain" />
@@ -118,6 +143,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
             </article>
           ))}
         </div>
+        {!filteredProducts.length ? <p className="rounded-md border border-dashed border-border px-5 py-12 text-center text-sm text-muted-foreground">No BOM products or variants match “{productSearch}”.</p> : null}
       </section>
   );
 

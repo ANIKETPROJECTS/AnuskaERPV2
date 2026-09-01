@@ -101,7 +101,7 @@ export function GlobalSearch({ panel }: { panel: "admin" | "subhub" }) {
       {open && query.trim().length >= 2 ? (
         <div className="absolute right-0 top-full z-50 mt-2 w-[min(24rem,80vw)] overflow-hidden rounded-lg border border-border bg-card shadow-xl">
           {loading ? <p className="px-4 py-3 text-sm text-muted-foreground">Searching workspace…</p> : null}
-          {!loading && !results.length ? <p className="px-4 py-3 text-sm text-muted-foreground">No matching parts, hubs, or orders.</p> : null}
+          {!loading && !results.length ? <p className="px-4 py-3 text-sm text-muted-foreground">No matching records in this workspace.</p> : null}
           {!loading && results.length ? (
             <div className="max-h-80 overflow-y-auto py-1">
               {results.map((result) => {
