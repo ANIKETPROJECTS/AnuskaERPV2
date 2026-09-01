@@ -49,6 +49,7 @@ const reassignSchema = z.object({
 
 const searchSchema = z.object({
   query: z.string().max(100),
+  panel: z.enum(["admin", "subhub"]),
 });
 
 const panelSchema = z.enum(["admin", "subhub"]);
@@ -62,5 +63,5 @@ export const saveDailyProductionFn = createServerFn({ method: "POST" }).validato
 export const setHubCapacityFn = createServerFn({ method: "POST" }).validator(capacitySchema).handler(({ data }) => setHubCapacity(data));
 export const getProductionOrderActivityFn = createServerFn({ method: "POST" }).validator(activitySchema).handler(({ data }) => getProductionOrderActivity(data.orderId, data.panel));
 export const reassignProductionOrderFn = createServerFn({ method: "POST" }).validator(reassignSchema).handler(({ data }) => reassignProductionOrder(data));
-export const searchWorkspaceFn = createServerFn({ method: "POST" }).validator(searchSchema).handler(({ data }) => searchWorkspace(data.query));
+export const searchWorkspaceFn = createServerFn({ method: "POST" }).validator(searchSchema).handler(({ data }) => searchWorkspace(data.query, data.panel));
 export const getOrderNotificationsFn = createServerFn({ method: "POST" }).validator(panelSchema).handler(({ data }) => getOrderNotifications(data));

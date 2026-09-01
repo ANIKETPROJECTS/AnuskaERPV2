@@ -12,7 +12,7 @@ function resultIcon(kind: WorkspaceSearchResult["kind"]) {
   return FileText;
 }
 
-export function GlobalSearch() {
+export function GlobalSearch({ panel }: { panel: "admin" | "subhub" }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<WorkspaceSearchResult[]>([]);
@@ -53,7 +53,7 @@ export function GlobalSearch() {
     setLoading(true);
     const timeout = window.setTimeout(async () => {
       try {
-        const response = await searchWorkspaceFn({ data: { query: trimmed } });
+        const response = await searchWorkspaceFn({ data: { query: trimmed, panel } });
         if (!cancelled) setResults(response.ok ? response.results : []);
       } catch {
         if (!cancelled) setResults([]);
@@ -65,7 +65,7 @@ export function GlobalSearch() {
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [query]);
+  }, [panel, query]);
 
   async function openResult(result: WorkspaceSearchResult) {
     setOpen(false);

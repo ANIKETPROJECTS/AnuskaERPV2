@@ -13,18 +13,6 @@ import {
   X,
 } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { Shell } from "@/components/erp/Shell";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
 import { bomCatalog, type BomCatalogProduct } from "@/lib/bom-catalog";
@@ -383,79 +371,61 @@ function ActivityTimeline({ activities, loading }: { activities: ProductionOrder
   );
 }
 
-const chartColors = ["#2563eb", "#16a34a", "#ea580c", "#9333ea", "#0891b2", "#db2777", "#65a30d", "#c2410c"];
-
 function ProductionCharts({ dashboard }: { dashboard: AdminProductionDashboard }) {
-  const chartStyle = {
-    borderRadius: 8,
-    border: "1px solid var(--color-border)",
-    background: "var(--color-card)",
-    fontSize: 12,
-  };
+  const productionPoints = dashboard.dailyProduction.length ? dashboard.dailyProduction : dashboard.weeklyProduction;
+  const hubTotals = dashboard.chartHubs.map((hub) => ({
+    label: hub.subhubName,
+    value: productionPoints.reduce((total, point) => total + Number(point[hub.key] ?? 0), 0),
+  }));
+  const maxHubTotal = Math.max(...hubTotals.map((hub) => hub.value), 1);
+  const weeklyPoints = dashboard.weeklyProduction.slice(-6);
+  const maxWeeklyTotal = Math.max(...weeklyPoints.map((point) => Number(point.total)), 1);
 
   return (
     <div className="grid gap-6 xl:grid-cols-2">
-      <Panel title="Daily production by hub" description="Finished units reported by each SubHub for every production day.">
-        {dashboard.dailyProduction.length === 0 ? (
-          <div className="flex h-72 items-center justify-center px-6 text-center text-sm text-muted-foreground">
-            No daily production reports are available yet.
+      <Panel title="Production by SubHub" description="Finished units reported in the current period.">
+        {hubTotals.length === 0 || hubTotals.every((hub) => hub.value === 0) ? (
+          <div className="flex h-56 items-center justify-center px-6 text-center text-sm text-muted-foreground">
+            No production reports are available yet.
           </div>
         ) : (
-          <div className="h-72 p-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dashboard.dailyProduction} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                <XAxis dataKey="label" stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} />
-                <YAxis stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={chartStyle} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                {dashboard.chartHubs.map((hub, index) => (
-                  <Bar
-                    key={hub.key}
-                    dataKey={hub.key}
-                    name={hub.subhubName}
-                    stackId="production"
-                    fill={chartColors[index % chartColors.length]}
-                    {...(index === dashboard.chartHubs.length - 1 ? { radius: [4, 4, 0, 0] as [number, number, number, number] } : {})}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="space-y-5 p-5">
+            {hubTotals.map((hub) => (
+              <SimpleProductionBar key={hub.label} label={hub.label} value={hub.value} max={maxHubTotal} />
+            ))}
           </div>
         )}
       </Panel>
 
-      <Panel title="Weekly production trend by hub" description="Compare output trends across all hubs, grouped Monday through Sunday.">
-        {dashboard.weeklyProduction.length === 0 ? (
-          <div className="flex h-72 items-center justify-center px-6 text-center text-sm text-muted-foreground">
+      <Panel title="Weekly production totals" description="Total finished units across all SubHubs.">
+        {weeklyPoints.length === 0 ? (
+          <div className="flex h-56 items-center justify-center px-6 text-center text-sm text-muted-foreground">
             No weekly production reports are available yet.
           </div>
         ) : (
-          <div className="h-72 p-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={dashboard.weeklyProduction} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                <XAxis dataKey="label" stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} />
-                <YAxis stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={chartStyle} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                {dashboard.chartHubs.map((hub, index) => (
-                  <Line
-                    key={hub.key}
-                    type="monotone"
-                    dataKey={hub.key}
-                    name={hub.subhubName}
-                    stroke={chartColors[index % chartColors.length]}
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    activeDot={{ r: 5 }}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
+          <div className="space-y-5 p-5">
+            {weeklyPoints.map((point) => (
+              <SimpleProductionBar key={point.date} label={point.label} value={Number(point.total)} max={maxWeeklyTotal} />
+            ))}
           </div>
         )}
       </Panel>
+    </div>
+  );
+}
+
+function SimpleProductionBar({ label, value, max }: { label: string; value: number; max: number }) {
+  const percentage = value === 0 ? 0 : Math.max(4, Math.round((value / max) * 100));
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-4 text-sm">
+        <span className="truncate font-medium">{label}</span>
+        <span className="tabular shrink-0 font-semibold">{num(value)} units</span>
+      </div>
+      <div className="h-3 overflow-hidden rounded-full bg-secondary" role="img" aria-label={`${label}: ${num(value)} units`}>
+        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${percentage}%` }} />
+      </div>
     </div>
   );
 }

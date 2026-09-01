@@ -802,15 +802,15 @@ export async function getProductionOrderActivity(orderId: string, panel: Panel):
   return { ok: true, activities: activities.map(serializeOrderActivity) };
 }
 
-export async function searchWorkspace(query: string): Promise<
+export async function searchWorkspace(query: string, panel: Panel): Promise<
   { ok: true; results: WorkspaceSearchResult[] } | { ok: false; results: WorkspaceSearchResult[]; message: string }
 > {
   const [adminCurrent, subhubCurrent] = await Promise.all([
     getCurrentUserRecord("admin"),
     getCurrentUserRecord("subhub"),
   ]);
-  const admin = isAdmin(adminCurrent) ? adminCurrent : null;
-  const subhub = isSubhub(subhubCurrent) ? subhubCurrent : null;
+  const admin = panel === "admin" && isAdmin(adminCurrent) ? adminCurrent : null;
+  const subhub = panel === "subhub" && isSubhub(subhubCurrent) ? subhubCurrent : null;
   const current = admin ?? subhub;
   if (!current) {
     return { ok: false, results: [], message: "You do not have access to workspace search." };
@@ -836,7 +836,7 @@ export async function searchWorkspace(query: string): Promise<
       kind: "order",
       title: `${order.orderNumber} · ${order.variantName}`,
       subtitle: `${order.subhubName} · due ${order.dueDate}`,
-      href: subhub ? "/subhub/production" : "/orders",
+       href: panel === "subhub" ? "/subhub/production" : "/orders",
     }));
 
   const users = await allSubhubUsers();

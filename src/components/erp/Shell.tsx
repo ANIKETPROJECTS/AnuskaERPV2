@@ -124,7 +124,7 @@ export function Shell({
               <h1 className="truncate text-xl font-semibold">{title}</h1>
               {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
             </div>
-            <GlobalSearch />
+            <GlobalSearch panel="admin" />
             <NotificationBell panel="admin" />
             {actions}
           </div>
