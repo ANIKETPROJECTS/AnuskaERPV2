@@ -1,5 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
   AlertTriangle,
   ArrowRight,
   CalendarRange,
@@ -377,55 +387,62 @@ function ProductionCharts({ dashboard }: { dashboard: AdminProductionDashboard }
     label: hub.subhubName,
     value: productionPoints.reduce((total, point) => total + Number(point[hub.key] ?? 0), 0),
   }));
-  const maxHubTotal = Math.max(...hubTotals.map((hub) => hub.value), 1);
-  const weeklyPoints = dashboard.weeklyProduction.slice(-6);
-  const maxWeeklyTotal = Math.max(...weeklyPoints.map((point) => Number(point.total)), 1);
+  const weeklyPoints = dashboard.weeklyProduction.slice(-6).map((point) => ({
+    label: point.label.replace("Week of ", ""),
+    value: Number(point.total),
+  }));
+  const chartStyle = {
+    borderRadius: 8,
+    border: "1px solid var(--color-border)",
+    background: "var(--color-card)",
+    fontSize: 12,
+  };
 
   return (
     <div className="grid gap-6 xl:grid-cols-2">
       <Panel title="Production by SubHub" description="Finished units reported in the current period.">
         {hubTotals.length === 0 || hubTotals.every((hub) => hub.value === 0) ? (
-          <div className="flex h-56 items-center justify-center px-6 text-center text-sm text-muted-foreground">
+          <div className="flex h-72 items-center justify-center px-6 text-center text-sm text-muted-foreground">
             No production reports are available yet.
           </div>
         ) : (
-          <div className="space-y-5 p-5">
-            {hubTotals.map((hub) => (
-              <SimpleProductionBar key={hub.label} label={hub.label} value={hub.value} max={maxHubTotal} />
-            ))}
+          <div className="h-72 p-4" role="img" aria-label="Column chart showing production by SubHub">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={hubTotals} margin={{ top: 24, right: 12, left: 0, bottom: 8 }}>
+                <CartesianGrid stroke="var(--color-border)" vertical={false} />
+                <XAxis dataKey="label" stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={chartStyle} formatter={(value) => [`${num(Number(value))} units`, "Produced"]} />
+                <Bar dataKey="value" name="Produced" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={72}>
+                  <LabelList dataKey="value" position="top" />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         )}
       </Panel>
 
       <Panel title="Weekly production totals" description="Total finished units across all SubHubs.">
         {weeklyPoints.length === 0 ? (
-          <div className="flex h-56 items-center justify-center px-6 text-center text-sm text-muted-foreground">
+          <div className="flex h-72 items-center justify-center px-6 text-center text-sm text-muted-foreground">
             No weekly production reports are available yet.
           </div>
         ) : (
-          <div className="space-y-5 p-5">
-            {weeklyPoints.map((point) => (
-              <SimpleProductionBar key={point.date} label={point.label} value={Number(point.total)} max={maxWeeklyTotal} />
-            ))}
+          <div className="h-72 p-4" role="img" aria-label="Column chart showing weekly production totals">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weeklyPoints} margin={{ top: 24, right: 12, left: 0, bottom: 8 }}>
+                <CartesianGrid stroke="var(--color-border)" vertical={false} />
+                <XAxis dataKey="label" stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={chartStyle} formatter={(value) => [`${num(Number(value))} units`, "Produced"]} />
+                <Bar dataKey="value" name="Produced" fill="#16a34a" radius={[6, 6, 0, 0]} maxBarSize={72}>
+                  <LabelList dataKey="value" position="top" />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         )}
       </Panel>
-    </div>
-  );
-}
-
-function SimpleProductionBar({ label, value, max }: { label: string; value: number; max: number }) {
-  const percentage = value === 0 ? 0 : Math.max(4, Math.round((value / max) * 100));
-
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between gap-4 text-sm">
-        <span className="truncate font-medium">{label}</span>
-        <span className="tabular shrink-0 font-semibold">{num(value)} units</span>
-      </div>
-      <div className="h-3 overflow-hidden rounded-full bg-secondary" role="img" aria-label={`${label}: ${num(value)} units`}>
-        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${percentage}%` }} />
-      </div>
     </div>
   );
 }
