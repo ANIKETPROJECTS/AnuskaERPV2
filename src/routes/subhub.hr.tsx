@@ -5,7 +5,6 @@ import { SubHubShell } from "@/components/erp/SubHubShell";
 import {
   assignEmployeeToShiftFn,
   createEmployeeFn,
-  createShiftFn,
   getManagerHrDataFn,
   saveDailyAttendanceFn,
   updateEmployeeFn,
@@ -48,68 +47,6 @@ function formatTime12(value: string) {
   return `${hour}:${String(rawMinute).padStart(2, "0")} ${period}`;
 }
 
-function ShiftTimeField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const [rawHour = Number.NaN, rawMinute = Number.NaN] = value.split(":").map(Number);
-  const hour24 = Number.isFinite(rawHour) ? rawHour : 9;
-  const minute = Number.isFinite(rawMinute) ? rawMinute : 0;
-  const hour12 = hour24 % 12 || 12;
-  const period = hour24 >= 12 ? "PM" : "AM";
-  const updateTime = (nextHour: number, nextMinute: number, nextPeriod: string) => {
-    const hour = nextPeriod === "PM" ? (nextHour % 12) + 12 : nextHour % 12;
-    onChange(`${String(hour).padStart(2, "0")}:${String(nextMinute).padStart(2, "0")}`);
-  };
-
-  return (
-    <fieldset className="min-w-0">
-      <legend className="text-sm font-medium">{label}</legend>
-      <div className="mt-1.5 flex gap-1.5">
-        <select
-          aria-label={`${label} hour`}
-          value={String(hour12)}
-          onChange={(event) => updateTime(Number(event.target.value), minute, period)}
-          className="h-10 min-w-0 flex-1 rounded-md border border-input bg-white px-2 text-sm"
-        >
-          {Array.from({ length: 12 }, (_, index) => index + 1).map((hour) => (
-            <option key={hour} value={hour}>
-              {hour}
-            </option>
-          ))}
-        </select>
-        <span className="flex h-10 items-center text-sm text-muted-foreground">:</span>
-        <select
-          aria-label={`${label} minute`}
-          value={String(minute).padStart(2, "0")}
-          onChange={(event) => updateTime(hour12, Number(event.target.value), period)}
-          className="h-10 min-w-0 flex-1 rounded-md border border-input bg-white px-2 text-sm"
-        >
-          {Array.from({ length: 60 }, (_, minuteValue) => (
-            <option key={minuteValue} value={String(minuteValue).padStart(2, "0")}>
-              {String(minuteValue).padStart(2, "0")}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label={`${label} AM or PM`}
-          value={period}
-          onChange={(event) => updateTime(hour12, minute, event.target.value)}
-          className="h-10 rounded-md border border-input bg-white px-2 text-sm"
-        >
-          <option value="AM">AM</option>
-          <option value="PM">PM</option>
-        </select>
-      </div>
-    </fieldset>
-  );
-}
-
 function csvCell(value: string | number): string {
   return `"${String(value).replaceAll('"', '""')}"`;
 }
@@ -138,14 +75,11 @@ function SubhubHr() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [employeeName, setEmployeeName] = useState("");
-  const [employeeNumber, setEmployeeNumber] = useState("");
-  const [selectedShiftIds, setSelectedShiftIds] = useState<string[]>([]);
-  const [shiftName, setShiftName] = useState("");
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("17:00");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [selectedShiftId, setSelectedShiftId] = useState("");
   const [editingId, setEditingId] = useState("");
   const [editingName, setEditingName] = useState("");
-  const [editingNumber, setEditingNumber] = useState("");
+  const [editingPhone, setEditingPhone] = useState("");
   const [pendingChanges, setPendingChanges] = useState<AttendanceChange[]>([]);
 
   async function load(showNotice = false) {
@@ -261,14 +195,14 @@ function SubhubHr() {
     setError("");
     setNotice("");
     try {
-      const result = await createEmployeeFn({ data: { name: employeeName, employeeNumber, shiftIds: selectedShiftIds } });
+      const result = await createEmployeeFn({ data: { name: employeeName, phoneNumber, shiftIds: selectedShiftId ? [selectedShiftId] : [] } });
       if (!result.ok) {
         setError(result.message);
         return;
       }
       setEmployeeName("");
-      setEmployeeNumber("");
-      setSelectedShiftIds([]);
+      setPhoneNumber("");
+      setSelectedShiftId("");
       setNotice("Employee added to this workspace.");
       await load();
     } catch {
@@ -283,7 +217,7 @@ function SubhubHr() {
     setError("");
     try {
       const result = await updateEmployeeFn({
-        data: { id: employee.id, name: editingName, employeeNumber: editingNumber, active: employee.active },
+        data: { id: employee.id, name: editingName, phoneNumber: editingPhone, active: employee.active },
       });
       if (!result.ok) setError(result.message);
       else {
@@ -303,7 +237,7 @@ function SubhubHr() {
     setError("");
     try {
       const result = await updateEmployeeFn({
-        data: { id: employee.id, name: employee.name, employeeNumber: employee.employeeNumber, active: !employee.active },
+        data: { id: employee.id, name: employee.name, phoneNumber: employee.phoneNumber, active: !employee.active },
       });
       if (!result.ok) setError(result.message);
       else {
@@ -312,28 +246,6 @@ function SubhubHr() {
       }
     } catch {
       setError("Employee status could not be saved. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function addShift(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSaving(true);
-    setError("");
-    setNotice("");
-    try {
-      const result = await createShiftFn({ data: { name: shiftName, startTime, endTime } });
-      if (!result.ok) {
-        setError(result.message);
-        return;
-      }
-      setShiftName("");
-      setSelectedShiftIds((current) => [...new Set([...current, result.shift.id])]);
-      setNotice("Shift created and selected for the next employee registration.");
-      await load();
-    } catch {
-      setError("Shift could not be saved. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -354,6 +266,16 @@ function SubhubHr() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function changeEmployeeShift(employeeId: string, shiftId: string) {
+    const currentShift = data.shifts.find((shift) => shift.assignedEmployeeIds.includes(employeeId));
+    if (!shiftId) {
+      if (currentShift) await assign(currentShift.id, employeeId, false);
+      return;
+    }
+    if (currentShift?.id === shiftId) return;
+    await assign(shiftId, employeeId, true);
   }
 
   function changeDate(value: string) {
@@ -459,7 +381,7 @@ function SubhubHr() {
                   <div key={employee.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
                     <div>
                       <p className="font-medium">{employee.name}</p>
-                      {employee.employeeNumber ? <p className="mt-0.5 font-mono text-xs text-muted-foreground">{employee.employeeNumber}</p> : null}
+                    {employee.phoneNumber ? <p className="mt-0.5 font-mono text-xs text-muted-foreground">{employee.phoneNumber}</p> : null}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {statuses.map((status) => (
@@ -491,61 +413,19 @@ function SubhubHr() {
 
         {tab === "registration" ? (
           <div className="space-y-6">
-            <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
             <section className="panel">
               <div className="border-b border-border px-5 py-4">
                 <h2 className="font-semibold">Register employee</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Add the employee’s details and select their shift.</p>
+                <p className="mt-1 text-sm text-muted-foreground">Add the employee’s name, Indian mobile number, and shift.</p>
               </div>
-              <form onSubmit={(event) => void addEmployee(event)} className="space-y-4 p-5">
+              <form onSubmit={(event) => void addEmployee(event)} className="grid gap-4 p-5 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end">
                 <label className="block text-sm font-medium">Employee name<input required value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} placeholder="Full name" className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm" /></label>
-                <label className="block text-sm font-medium">Employee number<input required value={employeeNumber} onChange={(event) => setEmployeeNumber(event.target.value)} placeholder="Example: NORTH-HUB-01" className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm" /></label>
-                <div>
-                  <p className="text-sm font-medium">Assign shift</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Select one or more shifts for this employee.</p>
-                  <div className="mt-2 space-y-2">
-                    {data.shifts.map((shift) => (
-                      <label key={shift.id} className="flex items-start gap-2 rounded-md border border-input px-3 py-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={selectedShiftIds.includes(shift.id)}
-                          disabled={saving}
-                          onChange={(event) =>
-                            setSelectedShiftIds((current) =>
-                              event.target.checked ? [...current, shift.id] : current.filter((id) => id !== shift.id),
-                            )
-                          }
-                        />
-                        <span>
-                          <span className="font-medium">{shift.name}</span>
-                          <span className="block text-xs text-muted-foreground">
-                            {formatTime12(shift.startTime)}–{formatTime12(shift.endTime)}
-                            {shift.endTime < shift.startTime ? " · next day" : ""}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                    {!data.shifts.length ? <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">Create a shift on the right before registering an employee.</p> : null}
-                  </div>
-                </div>
-                <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><Plus className="size-4" /> {saving ? "Saving…" : "Register employee"}</button>
+                <label className="block text-sm font-medium">Mobile number<input required type="tel" inputMode="numeric" maxLength={10} pattern="[6-9][0-9]{9}" value={phoneNumber} onChange={(event) => setPhoneNumber(event.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="10-digit Indian number" className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm" /></label>
+                <label className="block text-sm font-medium">Assign shift<select value={selectedShiftId} onChange={(event) => setSelectedShiftId(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="">No shift selected</option>{data.shifts.map((shift) => <option key={shift.id} value={shift.id}>{shift.name} · {formatTime12(shift.startTime)}–{formatTime12(shift.endTime)}{shift.endTime < shift.startTime ? " · next day" : ""}</option>)}</select></label>
+                <button type="submit" disabled={saving} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><Plus className="size-4" /> {saving ? "Saving…" : "Register"}</button>
               </form>
+              <p className="border-t border-border px-5 py-3 text-xs text-muted-foreground">Available shifts: Day shift 9:00 AM–5:00 PM and Night shift 6:00 PM–3:00 AM next day.</p>
             </section>
-            <section className="panel">
-              <div className="border-b border-border px-5 py-4">
-                <h2 className="font-semibold">Create shift timing</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Create a one-time shift timing, then select it during registration.</p>
-              </div>
-              <form onSubmit={(event) => void addShift(event)} className="space-y-4 p-5">
-                <label className="block text-sm font-medium">Shift name<input required value={shiftName} onChange={(event) => setShiftName(event.target.value)} placeholder="Night shift" className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm" /></label>
-                <div className="grid grid-cols-2 gap-3">
-                  <ShiftTimeField label="Starts" value={startTime} onChange={setStartTime} />
-                  <ShiftTimeField label="Ends (next day if earlier)" value={endTime} onChange={setEndTime} />
-                </div>
-                <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><Plus className="size-4" /> {saving ? "Saving…" : "Create shift"}</button>
-              </form>
-            </section>
-            </div>
             <section className="panel overflow-hidden">
               <div className="border-b border-border px-5 py-4">
                 <h2 className="font-semibold">Registered employees</h2>
@@ -557,7 +437,7 @@ function SubhubHr() {
                     {editingId === employee.id ? (
                       <>
                         <input autoFocus value={editingName} onChange={(event) => setEditingName(event.target.value)} className="h-9 min-w-40 flex-1 rounded-md border border-input px-2 text-sm" aria-label="Employee name" />
-                        <input value={editingNumber} onChange={(event) => setEditingNumber(event.target.value)} className="h-9 min-w-36 flex-1 rounded-md border border-input px-2 font-mono text-sm" aria-label="Employee number" />
+                        <input value={editingPhone} onChange={(event) => setEditingPhone(event.target.value.replace(/\D/g, "").slice(0, 10))} maxLength={10} inputMode="numeric" className="h-9 min-w-36 flex-1 rounded-md border border-input px-2 font-mono text-sm" aria-label="Mobile number" />
                         <button type="button" disabled={saving} onClick={() => void saveEmployee(employee)} className="rounded-md p-1.5 text-success hover:bg-success/10" aria-label="Save employee details"><Save className="size-4" /></button>
                         <button type="button" onClick={() => setEditingId("")} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label="Cancel edit"><X className="size-4" /></button>
                       </>
@@ -565,15 +445,19 @@ function SubhubHr() {
                       <>
                         <div className={`min-w-0 flex-1 ${employee.active ? "" : "text-muted-foreground"}`}>
                           <p className={`truncate text-sm ${employee.active ? "font-medium" : "line-through"}`}>{employee.name}</p>
-                          <p className="font-mono text-xs text-muted-foreground">{employee.employeeNumber || "Number not assigned"}</p>
+                          <p className="font-mono text-xs text-muted-foreground">{employee.phoneNumber || "Mobile number not assigned"}</p>
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {data.shifts
-                            .filter((shift) => shift.assignedEmployeeIds.includes(employee.id))
-                            .map((shift) => shift.name)
-                            .join(", ") || "No shift"}
-                        </div>
-                        <button type="button" onClick={() => { setEditingId(employee.id); setEditingName(employee.name); setEditingNumber(employee.employeeNumber); }} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label={`Edit ${employee.name}`}><Pencil className="size-4" /></button>
+                        <select
+                          value={data.shifts.find((shift) => shift.assignedEmployeeIds.includes(employee.id))?.id ?? ""}
+                          onChange={(event) => void changeEmployeeShift(employee.id, event.target.value)}
+                          disabled={saving || !employee.active}
+                          className="h-9 max-w-56 rounded-md border border-input bg-white px-2 text-xs"
+                          aria-label={`Shift for ${employee.name}`}
+                        >
+                          <option value="">No shift</option>
+                          {data.shifts.map((shift) => <option key={shift.id} value={shift.id}>{shift.name} · {formatTime12(shift.startTime)}–{formatTime12(shift.endTime)}</option>)}
+                        </select>
+                        <button type="button" onClick={() => { setEditingId(employee.id); setEditingName(employee.name); setEditingPhone(employee.phoneNumber); }} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label={`Edit ${employee.name}`}><Pencil className="size-4" /></button>
                         <button type="button" disabled={saving} onClick={() => void toggleEmployee(employee)} className="rounded-md border border-input px-2 py-1 text-xs hover:bg-muted">{employee.active ? "Deactivate" : "Reactivate"}</button>
                       </>
                     )}

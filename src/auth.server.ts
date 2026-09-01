@@ -4,7 +4,11 @@ import type { Db } from "mongodb";
 import { getMongoClient, getMongoDb } from "./mongodb.server";
 
 const CONTROL_DATABASE = process.env["MONGODB_CONTROL_DATABASE"] ?? "float_erp_control";
-const SESSION_COOKIE = "float_erp_session";
+const LEGACY_SESSION_COOKIE = "float_erp_session";
+const SESSION_COOKIES: Record<Panel, string> = {
+  admin: "float_erp_admin_session",
+  subhub: "float_erp_subhub_session",
+};
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 
 export const ACCESS_SECTIONS = [
@@ -343,10 +347,7 @@ async function deleteWorkspaceDatabase(databaseName: string): Promise<void> {
   await (await getMongoDb(databaseName)).dropDatabase();
 }
 
-async function getUserBySession(): Promise<UserDocument | null> {
-  const token = getCookie(SESSION_COOKIE);
-  if (!token) return null;
-
+async function getUserForToken(token: string, panel?: Panel): Promise<UserDocument | null> {
   const db = await ensureControlPlane();
   const session = await db.collection<SessionDocument>("sessions").findOne({
     tokenHash: hashSessionToken(token),
@@ -355,19 +356,42 @@ async function getUserBySession(): Promise<UserDocument | null> {
   if (!session) return null;
 
   const user = await db.collection<UserDocument>("users").findOne({ _id: session.userId });
-  if (!user?.active) return null;
+  if (!user?.active || (panel && user.panel !== panel)) return null;
   return user;
 }
 
-export async function getCurrentUserRecord(): Promise<UserDocument | null> {
-  return getUserBySession();
+async function getUserBySession(panel?: Panel): Promise<UserDocument | null> {
+  if (!panel) return null;
+
+  const panelToken = getCookie(SESSION_COOKIES[panel]);
+  if (panelToken) return getUserForToken(panelToken, panel);
+
+  // Migrate the old single-cookie session only when it belongs to the panel
+  // being requested. It must never authenticate the other panel.
+  const legacyToken = getCookie(LEGACY_SESSION_COOKIE);
+  if (!legacyToken) return null;
+  const user = await getUserForToken(legacyToken, panel);
+  if (user) {
+    setCookie(SESSION_COOKIES[panel], legacyToken, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env["NODE_ENV"] === "production",
+      path: "/",
+      maxAge: SESSION_TTL_SECONDS,
+    });
+  }
+  return user;
+}
+
+export async function getCurrentUserRecord(panel: Panel): Promise<UserDocument | null> {
+  return getUserBySession(panel);
 }
 
 export async function getControlPlaneDatabase(): Promise<Db> {
   return ensureControlPlane();
 }
 
-async function createSession(userId: string): Promise<void> {
+async function createSession(userId: string, panel: Panel): Promise<void> {
   const token = randomBytes(32).toString("hex");
   const now = new Date();
   const db = await ensureControlPlane();
@@ -377,7 +401,7 @@ async function createSession(userId: string): Promise<void> {
     createdAt: now,
     expiresAt: new Date(now.getTime() + SESSION_TTL_SECONDS * 1000),
   });
-  setCookie(SESSION_COOKIE, token, {
+  setCookie(SESSION_COOKIES[panel], token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env["NODE_ENV"] === "production",
@@ -386,11 +410,11 @@ async function createSession(userId: string): Promise<void> {
   });
 }
 
-export async function getAuthState(): Promise<{ setupRequired: boolean; user: PublicUser | null }> {
+export async function getAuthState(panel?: Panel): Promise<{ setupRequired: boolean; user: PublicUser | null }> {
   const db = await ensureControlPlane();
   const [masterAdminCount, user] = await Promise.all([
     db.collection<UserDocument>("users").countDocuments({ role: "master_admin" }),
-    getUserBySession(),
+    getUserBySession(panel),
   ]);
   return {
     setupRequired: masterAdminCount === 0,
@@ -415,17 +439,32 @@ export async function loginUser(email: string, password: string, requestedPanel?
     };
   }
 
-  await createSession(user._id);
+  await createSession(user._id, user.panel);
   return { ok: true, user: toPublicUser(user) };
 }
 
-export async function logoutUser(): Promise<{ ok: true }> {
-  const token = getCookie(SESSION_COOKIE);
-  if (token) {
-    const db = await ensureControlPlane();
-    await db.collection<SessionDocument>("sessions").deleteOne({ tokenHash: hashSessionToken(token) });
+export async function logoutUser(panel: Panel): Promise<{ ok: true }> {
+  const panelToken = getCookie(SESSION_COOKIES[panel]);
+  const legacyToken = getCookie(LEGACY_SESSION_COOKIE);
+  const db = await ensureControlPlane();
+
+  if (panelToken) {
+    await db.collection<SessionDocument>("sessions").deleteOne({ tokenHash: hashSessionToken(panelToken) });
   }
-  deleteCookie(SESSION_COOKIE, { httpOnly: true, sameSite: "lax", path: "/" });
+
+  let shouldClearLegacyCookie = legacyToken !== undefined && legacyToken === panelToken;
+  if (legacyToken && legacyToken !== panelToken) {
+    const legacyUser = await getUserForToken(legacyToken);
+    shouldClearLegacyCookie = legacyUser?.panel === panel;
+    if (shouldClearLegacyCookie) {
+      await db.collection<SessionDocument>("sessions").deleteOne({ tokenHash: hashSessionToken(legacyToken) });
+    }
+  }
+
+  deleteCookie(SESSION_COOKIES[panel], { httpOnly: true, sameSite: "lax", path: "/" });
+  if (shouldClearLegacyCookie) {
+    deleteCookie(LEGACY_SESSION_COOKIE, { httpOnly: true, sameSite: "lax", path: "/" });
+  }
   return { ok: true };
 }
 
@@ -472,14 +511,14 @@ export async function bootstrapMasterAdmin(
     throw error;
   }
 
-  await createSession(id);
+  await createSession(id, "admin");
   return { ok: true, user: toPublicUser(user) };
 }
 
 export async function listUsers(): Promise<
   { ok: true; users: PublicUser[] } | { ok: false; users: PublicUser[]; message: string }
 > {
-  const current = await getUserBySession();
+  const current = await getUserBySession("admin");
   if (current?.role !== "master_admin") {
     return { ok: false, users: [], message: "Only the Master Admin can manage users." };
   }
@@ -496,7 +535,7 @@ export async function createManagedUser(input: {
   subhubName: string | undefined;
   permissions: AccessSection[];
 }): Promise<{ ok: true; user: PublicUser } | { ok: false; message: string }> {
-  const current = await getUserBySession();
+  const current = await getUserBySession("admin");
   if (current?.role !== "master_admin") {
     return { ok: false, message: "Only the Master Admin can create users." };
   }
@@ -556,7 +595,7 @@ export async function updateManagedUser(input: {
   active: boolean;
   password?: string | undefined;
 }): Promise<{ ok: true; user: PublicUser } | { ok: false; message: string }> {
-  const current = await getUserBySession();
+  const current = await getUserBySession("admin");
   if (current?.role !== "master_admin") {
     return { ok: false, message: "Only the Master Admin can edit users." };
   }
@@ -627,7 +666,7 @@ export async function updateManagedUser(input: {
 }
 
 export async function deleteManagedUser(id: string): Promise<{ ok: true } | { ok: false; message: string }> {
-  const current = await getUserBySession();
+  const current = await getUserBySession("admin");
   if (current?.role !== "master_admin") {
     return { ok: false, message: "Only the Master Admin can delete users." };
   }

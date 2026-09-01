@@ -24,7 +24,7 @@ export function SubHubShell({ actions, children }: { actions?: ReactNode; childr
   const visibleNav = subhubNav.filter((item) => canAccess(user, item.permission));
 
   async function signOut() {
-    await logoutFn();
+    await logoutFn({ data: { panel: "subhub" } });
     await router.invalidate();
     await router.navigate({ to: "/login" });
   }

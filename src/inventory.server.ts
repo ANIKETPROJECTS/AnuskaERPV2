@@ -59,7 +59,7 @@ function emptyData(): SubhubInventoryData {
 export async function getSubhubInventory(): Promise<
   { ok: true; data: SubhubInventoryData } | { ok: false; data: SubhubInventoryData; message: string }
 > {
-  const user = await getCurrentUserRecord();
+  const user = await getCurrentUserRecord("subhub");
   if (user?.panel !== "subhub" || user.role !== "subhub") return { ok: false, data: emptyData(), message: "Only SubHub Managers can view workspace inventory." };
   const db = await getMongoDb(user.databaseName);
   const records = await db.collection<InventoryItemDocument>("inventory_items").find().toArray();
@@ -99,7 +99,7 @@ export async function adjustSubhubInventory(input: {
   reason: string;
   notes: string;
 }): Promise<{ ok: true; data: SubhubInventoryData } | { ok: false; message: string }> {
-  const user = await getCurrentUserRecord();
+  const user = await getCurrentUserRecord("subhub");
   if (user?.panel !== "subhub" || user.role !== "subhub") return { ok: false, message: "Only SubHub Managers can adjust workspace inventory." };
   const part = subparts.find((item) => item.code === input.code);
   if (!part) return { ok: false, message: "Select a valid raw material." };

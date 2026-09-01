@@ -177,7 +177,7 @@ async function allSubhubUsers() {
 export async function listAssignableSubhubs(): Promise<
   { ok: true; subhubs: AssignableSubhub[] } | { ok: false; subhubs: AssignableSubhub[]; message: string }
 > {
-  const current = await getCurrentUserRecord();
+  const current = await getCurrentUserRecord("admin");
   if (!isAdmin(current)) return { ok: false, subhubs: [], message: "Only Admin users can assign production orders." };
   const users = await allSubhubUsers();
   return {
@@ -196,7 +196,7 @@ export async function createProductionOrder(input: {
   dueDate: string;
   notes: string;
 }): Promise<{ ok: true; order: ProductionOrder } | { ok: false; message: string }> {
-  const current = await getCurrentUserRecord();
+  const current = await getCurrentUserRecord("admin");
   if (!isAdmin(current)) return { ok: false, message: "Only Admin users can create production orders." };
   if (!Number.isInteger(input.target) || input.target < 1) return { ok: false, message: "Target must be a whole number greater than zero." };
   const dueDate = normalizeDate(input.dueDate);
@@ -240,7 +240,7 @@ export async function createProductionOrder(input: {
 export async function listProductionOrders(): Promise<
   { ok: true; orders: ProductionOrder[] } | { ok: false; orders: ProductionOrder[]; message: string }
 > {
-  const current = await getCurrentUserRecord();
+  const current = await getCurrentUserRecord("admin");
   if (!current || (!isAdmin(current) && !isSubhub(current))) return { ok: false, orders: [], message: "You do not have access to production orders." };
   const db = await getControlPlaneDatabase();
   const filter = isSubhub(current) ? { subhubUserId: current._id } : {};
@@ -260,7 +260,7 @@ export async function listProductionOrders(): Promise<
 export async function getManagerProductionData(): Promise<
   { ok: true; data: ManagerProductionData } | { ok: false; data: ManagerProductionData; message: string }
 > {
-  const current = await getCurrentUserRecord();
+  const current = await getCurrentUserRecord("subhub");
   if (!isSubhub(current)) return { ok: false, data: { subhubName: "", orders: [], reports: [] }, message: "Only SubHub Managers can enter production." };
   const db = await getControlPlaneDatabase();
   const [orders, reports] = await Promise.all([
@@ -283,7 +283,7 @@ export async function saveDailyProduction(input: {
   quantity: number;
   notes: string;
 }): Promise<{ ok: true; report: ProductionReport } | { ok: false; message: string }> {
-  const current = await getCurrentUserRecord();
+  const current = await getCurrentUserRecord("subhub");
   if (!isSubhub(current)) return { ok: false, message: "Only SubHub Managers can enter production." };
   if (!Number.isInteger(input.quantity) || input.quantity < 0) return { ok: false, message: "Production must be a whole number of zero or more." };
   const date = normalizeDate(input.date);
@@ -330,7 +330,7 @@ export async function saveDailyProduction(input: {
 export async function getAdminProductionDashboard(): Promise<
   { ok: true; data: AdminProductionDashboard } | { ok: false; data: AdminProductionDashboard; message: string }
 > {
-  const current = await getCurrentUserRecord();
+  const current = await getCurrentUserRecord("admin");
   const empty: AdminProductionDashboard = { hubs: [], orders: [], totalTarget: 0, totalProduced: 0, totalRemaining: 0, completion: 0, reportsToday: 0, latestReportDate: null };
   if (!isAdmin(current)) return { ok: false, data: empty, message: "Only Admin users can view all hub performance." };
 

@@ -55,7 +55,7 @@ export function Shell({
     .toUpperCase() || "FA";
 
   async function signOut() {
-    await logoutFn();
+    await logoutFn({ data: { panel: "admin" } });
     await router.invalidate();
     await router.navigate({ to: "/login" });
   }

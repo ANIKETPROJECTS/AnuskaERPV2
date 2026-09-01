@@ -77,7 +77,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  loader: () => getAuthStateFn(),
+  loader: ({ location }) => getAuthStateFn({ data: { panel: panelForPath(location.pathname) } }),
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -184,4 +184,10 @@ function sectionForPath(pathname: string): string | null {
   if (pathname.startsWith("/subhub/hr")) return "hr";
   if (pathname.startsWith("/subhub/")) return "hub-manager";
   return null;
+}
+
+function panelForPath(pathname: string): "admin" | "subhub" | undefined {
+  if (pathname.startsWith("/subhub") || pathname.startsWith("/inventory")) return "subhub";
+  if (pathname === "/login") return undefined;
+  return "admin";
 }

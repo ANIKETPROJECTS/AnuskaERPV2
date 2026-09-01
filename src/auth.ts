@@ -18,6 +18,8 @@ const loginSchema = z.object({
   panel: z.enum(["admin", "subhub"]).optional(),
 });
 
+const panelSchema = z.object({ panel: z.enum(["admin", "subhub"]).optional() });
+
 const bootstrapSchema = z.object({
   name: z.string().trim().min(2).max(80),
   email: z.string().trim().email(),
@@ -44,7 +46,9 @@ const updateUserSchema = z.object({
   password: z.string().max(200).optional(),
 });
 
-export const getAuthStateFn = createServerFn({ method: "GET" }).handler(() => getAuthState());
+export const getAuthStateFn = createServerFn({ method: "GET" })
+  .validator(panelSchema)
+  .handler(({ data }) => getAuthState(data.panel));
 
 export const loginFn = createServerFn({ method: "POST" })
   .validator(loginSchema)
@@ -54,7 +58,9 @@ export const bootstrapMasterAdminFn = createServerFn({ method: "POST" })
   .validator(bootstrapSchema)
   .handler(({ data }) => bootstrapMasterAdmin(data.name, data.email, data.password));
 
-export const logoutFn = createServerFn({ method: "POST" }).handler(() => logoutUser());
+export const logoutFn = createServerFn({ method: "POST" })
+  .validator(z.object({ panel: z.enum(["admin", "subhub"]) }))
+  .handler(({ data }) => logoutUser(data.panel));
 
 export const listUsersFn = createServerFn({ method: "GET" }).handler(() => listUsers());
 

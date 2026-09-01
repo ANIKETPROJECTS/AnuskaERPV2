@@ -1,3 +1,4 @@
 - [Replit Vite preview hosts](replit-vite-preview-hosts.md) — allow generated `*.replit.dev` hosts in Vite for proxied preview access.
 - [TanStack Node server output](tanstack-node-server-entry.md) — keep Nitro's default server entry; custom server wrappers can collide with generated SSR modules.
 - [MongoDB workspace names](mongodb-workspace-name-limit.md) — keep per-user database names under MongoDB's 38-byte limit while retaining the full user ID in control data.
+- [Panel-isolated sessions](panel-isolated-sessions.md) — keep Admin and SubHub identities in separate server-side sessions and authenticate operations by expected panel.

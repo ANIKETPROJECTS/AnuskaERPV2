@@ -9,10 +9,10 @@ const monthSchema = z.object({ month: z.string() });
 export const getManagerHrDataFn = createServerFn({ method: "GET" }).validator(managerSchema).handler(({ data }) => getManagerHrData(data.month) as any);
 export const getAdminHrDataFn = createServerFn({ method: "GET" }).validator(monthSchema).handler(({ data }) => getAdminHrData(data.month));
 export const createEmployeeFn = createServerFn({ method: "POST" })
-  .validator(z.object({ name: z.string(), employeeNumber: z.string().optional(), shiftIds: z.array(z.string()).optional() }))
-  .handler(({ data }) => createEmployee(data.name, data.employeeNumber ?? "", data.shiftIds ?? []));
+  .validator(z.object({ name: z.string(), phoneNumber: z.string().optional(), shiftIds: z.array(z.string()).optional() }))
+  .handler(({ data }) => createEmployee(data.name, data.phoneNumber ?? "", data.shiftIds ?? []));
 export const updateEmployeeFn = createServerFn({ method: "POST" })
-  .validator(z.object({ id: z.string(), name: z.string(), employeeNumber: z.string().optional(), active: z.boolean() }))
+  .validator(z.object({ id: z.string(), name: z.string(), phoneNumber: z.string().optional(), active: z.boolean() }))
   .handler(({ data }) => updateEmployee(data));
 export const saveAttendanceFn = createServerFn({ method: "POST" }).validator(z.object({ employeeId: z.string(), date: z.string(), status: z.enum(ATTENDANCE_STATUSES) })).handler(({ data }) => saveAttendance(data));
 export const createShiftFn = createServerFn({ method: "POST" }).validator(z.object({ name: z.string(), startTime: z.string(), endTime: z.string() })).handler(({ data }) => createShift(data));
