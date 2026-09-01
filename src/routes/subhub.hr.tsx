@@ -37,7 +37,18 @@ const emptyData: ManagerHrData = {
 };
 
 function currentDate() {
-  return new Date().toISOString().slice(0, 10);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+      .formatToParts(new Date())
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return `${parts["year"]}-${parts["month"]}-${parts["day"]}`;
 }
 
 function formatTime12(value: string) {
@@ -146,6 +157,7 @@ function SubhubHr() {
   const [editingName, setEditingName] = useState("");
   const [editingPhone, setEditingPhone] = useState("");
   const [pendingChanges, setPendingChanges] = useState<AttendanceChange[]>([]);
+  const [futureDateRequest, setFutureDateRequest] = useState("");
 
   async function load(showNotice = false) {
     setLoading(true);
@@ -370,8 +382,9 @@ function SubhubHr() {
     }
   }
 
-  function changeDate(value: string) {
+  function applyDate(value: string) {
     setSelectedDate(value);
+    setPendingChanges([]);
     setDraft(
       Object.fromEntries(
         data.attendance
@@ -380,6 +393,23 @@ function SubhubHr() {
       ),
     );
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) setMonth(value.slice(0, 7));
+  }
+
+  function changeDate(value: string) {
+    if (value > currentDate()) {
+      setFutureDateRequest(value);
+      return;
+    }
+    applyDate(value);
+  }
+
+  function cancelFutureDateSelection() {
+    setFutureDateRequest("");
+  }
+
+  function confirmFutureDateSelection() {
+    applyDate(futureDateRequest);
+    setFutureDateRequest("");
   }
 
   function exportReport() {
@@ -480,8 +510,9 @@ function SubhubHr() {
                         <button
                           key={status}
                           type="button"
+                          disabled={saving}
                           onClick={() => setDraft({ ...draft, [employee.id]: status })}
-                          className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition ${
+                          className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
                             draft[employee.id] === status ? statusClass(status) : "border-input text-muted-foreground hover:bg-muted"
                           }`}
                         >
@@ -624,6 +655,13 @@ function SubhubHr() {
           onConfirm={() => void confirmAttendanceChanges()}
         />
       ) : null}
+      {futureDateRequest ? (
+        <FutureAttendanceDialog
+          date={futureDateRequest}
+          onCancel={cancelFutureDateSelection}
+          onConfirm={confirmFutureDateSelection}
+        />
+      ) : null}
     </SubHubShell>
   );
 }
@@ -651,6 +689,50 @@ function Empty({ icon, title, detail }: { icon: ReactNode; title: string; detail
       {icon}
       <p className="mt-3 font-medium text-foreground">{title}</p>
       <p className="mt-1 text-sm">{detail}</p>
+    </div>
+  );
+}
+
+function formatDateForWarning(value: string) {
+  const [year, month, day] = value.split("-");
+  return `${day}-${month}-${year}`;
+}
+
+function FutureAttendanceDialog({
+  date,
+  onCancel,
+  onConfirm,
+}: {
+  date: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
+      <div role="dialog" aria-modal="true" aria-labelledby="future-attendance-title" className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-warning/15 text-warning-foreground">
+            <AlertTriangle className="size-5" />
+          </div>
+          <div>
+            <h2 id="future-attendance-title" className="text-lg font-semibold">Mark attendance for a future date?</h2>
+            <p className="mt-1 text-sm leading-5 text-muted-foreground">
+              You selected <strong>{formatDateForWarning(date)}</strong>. Future attendance can be saved, but please confirm the date before making any changes.
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs leading-5 text-muted-foreground">
+          Status buttons will remain unchanged until you confirm this date.
+        </div>
+        <div className="mt-6 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className="rounded-md border border-input px-3 py-2 text-sm font-medium hover:bg-muted">
+            Choose another date
+          </button>
+          <button type="button" onClick={onConfirm} className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">
+            Continue to date
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
