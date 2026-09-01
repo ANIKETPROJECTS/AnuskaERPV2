@@ -1,6 +1,6 @@
 import { Bell, ClipboardList, Factory, FileText, Package, Search, X } from "lucide-react";
 import { useRouter } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getOrderNotificationsFn, searchWorkspaceFn, type OrderNotification, type WorkspaceSearchResult } from "@/production";
 
 const notificationStorageKey = (panel: "admin" | "subhub") => `gadsons-order-notifications-seen:${panel}`;
@@ -140,19 +140,23 @@ export function NotificationBell({ panel }: { panel: "admin" | "subhub" }) {
   const [lastSeen, setLastSeen] = useState("");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const refreshNotifications = useCallback(async () => {
+    try {
+      const response = await getOrderNotificationsFn({ data: panel });
+      if (response.ok) setNotifications(response.notifications);
+    } catch {
+      // Notifications are supplementary; keep the header usable if the request fails.
+    }
+  }, [panel]);
 
   useEffect(() => {
     setLastSeen(window.localStorage.getItem(notificationStorageKey(panel)) ?? "");
-    let cancelled = false;
-    void getOrderNotificationsFn()
-      .then((response) => {
-        if (!cancelled && response.ok) setNotifications(response.notifications);
-      })
-      .catch(() => undefined);
+    void refreshNotifications();
+    const interval = window.setInterval(() => void refreshNotifications(), 30_000);
     return () => {
-      cancelled = true;
+      window.clearInterval(interval);
     };
-  }, [panel]);
+  }, [panel, refreshNotifications]);
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
@@ -167,6 +171,7 @@ export function NotificationBell({ panel }: { panel: "admin" | "subhub" }) {
   function toggle() {
     const nextOpen = !open;
     setOpen(nextOpen);
+    if (nextOpen) void refreshNotifications();
     if (nextOpen && notifications[0]) {
       const seenAt = new Date().toISOString();
       setLastSeen(seenAt);

@@ -94,7 +94,7 @@ function Orders() {
     setExpandedOrderId(orderId);
     if (activities[orderId]) return;
     setActivityLoading(orderId);
-    const result = await getProductionOrderActivityFn({ data: { orderId } });
+    const result = await getProductionOrderActivityFn({ data: { orderId, panel: "admin" } });
     if (result.ok) setActivities((current) => ({ ...current, [orderId]: result.activities }));
     else setError(result.message);
     setActivityLoading("");

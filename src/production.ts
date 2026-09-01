@@ -38,6 +38,7 @@ const capacitySchema = z.object({
 
 const activitySchema = z.object({
   orderId: z.string().min(1),
+  panel: z.enum(["admin", "subhub"]),
 });
 
 const reassignSchema = z.object({
@@ -50,6 +51,8 @@ const searchSchema = z.object({
   query: z.string().max(100),
 });
 
+const panelSchema = z.enum(["admin", "subhub"]);
+
 export const listAssignableSubhubsFn = createServerFn({ method: "GET" }).handler(() => listAssignableSubhubs());
 export const listProductionOrdersFn = createServerFn({ method: "GET" }).handler(() => listProductionOrders());
 export const getManagerProductionDataFn = createServerFn({ method: "GET" }).handler(() => getManagerProductionData());
@@ -57,7 +60,7 @@ export const getAdminProductionDashboardFn = createServerFn({ method: "GET" }).h
 export const createProductionOrderFn = createServerFn({ method: "POST" }).validator(orderSchema).handler(({ data }) => createProductionOrder(data));
 export const saveDailyProductionFn = createServerFn({ method: "POST" }).validator(reportSchema).handler(({ data }) => saveDailyProduction(data));
 export const setHubCapacityFn = createServerFn({ method: "POST" }).validator(capacitySchema).handler(({ data }) => setHubCapacity(data));
-export const getProductionOrderActivityFn = createServerFn({ method: "POST" }).validator(activitySchema).handler(({ data }) => getProductionOrderActivity(data.orderId));
+export const getProductionOrderActivityFn = createServerFn({ method: "POST" }).validator(activitySchema).handler(({ data }) => getProductionOrderActivity(data.orderId, data.panel));
 export const reassignProductionOrderFn = createServerFn({ method: "POST" }).validator(reassignSchema).handler(({ data }) => reassignProductionOrder(data));
 export const searchWorkspaceFn = createServerFn({ method: "POST" }).validator(searchSchema).handler(({ data }) => searchWorkspace(data.query));
-export const getOrderNotificationsFn = createServerFn({ method: "GET" }).handler(() => getOrderNotifications());
+export const getOrderNotificationsFn = createServerFn({ method: "POST" }).validator(panelSchema).handler(({ data }) => getOrderNotifications(data));

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { getControlPlaneDatabase, getCurrentUserRecord, type UserDocument } from "./auth.server";
+import { getControlPlaneDatabase, getCurrentUserRecord, type Panel, type UserDocument } from "./auth.server";
 import { bomCatalog } from "./lib/bom-catalog";
 import { getMongoDb } from "./mongodb.server";
 import { subparts } from "./lib/erp-data";
@@ -777,14 +777,14 @@ export async function saveDailyProduction(input: {
   return { ok: true, report: serializeReport(saved) };
 }
 
-export async function getProductionOrderActivity(orderId: string): Promise<
+export async function getProductionOrderActivity(orderId: string, panel: Panel): Promise<
   { ok: true; activities: ProductionOrderActivity[] } | { ok: false; activities: ProductionOrderActivity[]; message: string }
 > {
   const [current, subhubCurrent] = await Promise.all([
     getCurrentUserRecord("admin"),
     getCurrentUserRecord("subhub"),
   ]);
-  const user = isAdmin(current) ? current : subhubCurrent;
+  const user = panel === "admin" ? current : subhubCurrent;
   if (!user || (!isAdmin(user) && !isSubhub(user))) return { ok: false, activities: [], message: "You do not have access to order activity." };
 
   const db = await getControlPlaneDatabase();
@@ -892,14 +892,14 @@ export async function searchWorkspace(query: string): Promise<
   return { ok: true, results: results.slice(0, 20) };
 }
 
-export async function getOrderNotifications(): Promise<
+export async function getOrderNotifications(panel: Panel): Promise<
   { ok: true; notifications: OrderNotification[] } | { ok: false; notifications: OrderNotification[]; message: string }
 > {
   const [adminCurrent, subhubCurrent] = await Promise.all([
     getCurrentUserRecord("admin"),
     getCurrentUserRecord("subhub"),
   ]);
-  const current = isAdmin(adminCurrent) ? adminCurrent : subhubCurrent;
+  const current = panel === "admin" ? adminCurrent : subhubCurrent;
   if (!current || (!isAdmin(current) && !isSubhub(current))) {
     return { ok: false, notifications: [], message: "You do not have access to order notifications." };
   }
