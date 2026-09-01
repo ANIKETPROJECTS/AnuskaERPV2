@@ -9,6 +9,7 @@ export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
 export type HrEmployee = {
   id: string;
   name: string;
+  employeeNumber: string;
   active: boolean;
   createdAt: string;
 };
@@ -63,6 +64,8 @@ type EmployeeDocument = {
   _id: string;
   name: string;
   normalizedName: string;
+  employeeNumber?: string | undefined;
+  normalizedEmployeeNumber?: string;
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -99,6 +102,26 @@ const indexesByDatabase = new Map<string, Promise<void>>();
 
 function normalizeName(value: string): string {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function normalizeEmployeeNumber(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+function employeeNumberPrefix(subhubName: string): string {
+  const prefix = normalizeEmployeeNumber(subhubName).replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return prefix.slice(0, 24) || "SUBHUB";
+}
+
+async function generateEmployeeNumber(db: Db, subhubName: string): Promise<string> {
+  const prefix = employeeNumberPrefix(subhubName);
+  let sequence = (await db.collection<EmployeeDocument>("hr_employees").countDocuments()) + 1;
+  let employeeNumber = `${prefix}-${String(sequence).padStart(2, "0")}`;
+  while (await db.collection<EmployeeDocument>("hr_employees").findOne({ normalizedEmployeeNumber: employeeNumber })) {
+    sequence += 1;
+    employeeNumber = `${prefix}-${String(sequence).padStart(2, "0")}`;
+  }
+  return employeeNumber;
 }
 
 function normalizeDate(value: string): string | null {
@@ -151,6 +174,7 @@ async function ensureHrIndexes(db: Db): Promise<void> {
   if (!promise) {
     promise = Promise.all([
       db.collection<EmployeeDocument>("hr_employees").createIndex({ normalizedName: 1 }, { unique: true }),
+      db.collection<EmployeeDocument>("hr_employees").createIndex({ normalizedEmployeeNumber: 1 }, { unique: true, sparse: true }),
       db.collection<ShiftDocument>("hr_shifts").createIndex({ normalizedName: 1 }, { unique: true }),
       db.collection<ShiftAssignmentDocument>("hr_shift_assignments").createIndex({ employeeId: 1, shiftId: 1 }, { unique: true }),
       db.collection<AttendanceDocument>("hr_attendance").createIndex({ employeeId: 1, date: 1 }, { unique: true }),
@@ -162,7 +186,13 @@ async function ensureHrIndexes(db: Db): Promise<void> {
 }
 
 function serializeEmployee(employee: EmployeeDocument): HrEmployee {
-  return { id: employee._id, name: employee.name, active: employee.active, createdAt: employee.createdAt.toISOString() };
+  return {
+    id: employee._id,
+    name: employee.name,
+    employeeNumber: employee.employeeNumber ?? "",
+    active: employee.active,
+    createdAt: employee.createdAt.toISOString(),
+  };
 }
 
 function serializeAttendance(record: AttendanceDocument): AttendanceRecord {
@@ -242,19 +272,54 @@ export async function getManagerHrData(monthInput: string): Promise<
   };
 }
 
-export async function createEmployee(nameInput: string): Promise<{ ok: true; employee: HrEmployee } | { ok: false; message: string }> {
+export async function createEmployee(
+  nameInput: string,
+  employeeNumberInput = "",
+  shiftIds: string[] = [],
+): Promise<{ ok: true; employee: HrEmployee } | { ok: false; message: string }> {
   const current = await getCurrentUserRecord();
   if (!isSubhub(current)) return { ok: false, message: "Only SubHub Managers can add employees." };
   const name = normalizeName(nameInput);
   if (name.length < 2 || name.length > 80) return { ok: false, message: "Employee name must be between 2 and 80 characters." };
   const db = await getMongoDb(current.databaseName);
   await ensureHrIndexes(db);
+  const requestedNumber = normalizeEmployeeNumber(employeeNumberInput);
+  if (requestedNumber && !/^[A-Z0-9][A-Z0-9 -]{0,29}$/.test(requestedNumber)) {
+    return { ok: false, message: "Employee number may contain letters, numbers, spaces, and hyphens only." };
+  }
+  const selectedShiftIds = [...new Set(shiftIds)];
+  if (selectedShiftIds.length) {
+    const matchingShifts = await db.collection<ShiftDocument>("hr_shifts").countDocuments({ _id: { $in: selectedShiftIds } });
+    if (matchingShifts !== selectedShiftIds.length) return { ok: false, message: "One or more selected shifts do not belong to this workspace." };
+  }
+  let employeeNumber = requestedNumber;
+  if (!employeeNumber) employeeNumber = await generateEmployeeNumber(db, current.subhubName ?? "SubHub");
   const now = new Date();
-  const employee: EmployeeDocument = { _id: randomUUID().replace(/-/g, ""), name, normalizedName: name.toLowerCase(), active: true, createdAt: now, updatedAt: now };
+  const employee: EmployeeDocument = {
+    _id: randomUUID().replace(/-/g, ""),
+    name,
+    normalizedName: name.toLowerCase(),
+    employeeNumber,
+    normalizedEmployeeNumber: employeeNumber,
+    active: true,
+    createdAt: now,
+    updatedAt: now,
+  };
   try {
     await db.collection<EmployeeDocument>("hr_employees").insertOne(employee);
+    if (selectedShiftIds.length) {
+      await db.collection<ShiftAssignmentDocument>("hr_shift_assignments").insertMany(
+        selectedShiftIds.map((shiftId) => ({
+          _id: randomUUID().replace(/-/g, ""),
+          shiftId,
+          employeeId: employee._id,
+          createdAt: now,
+          updatedAt: now,
+        })),
+      );
+    }
   } catch (error) {
-    if (error instanceof Error && error.message.includes("E11000")) return { ok: false, message: "An employee with that name already exists in this workspace." };
+    if (error instanceof Error && error.message.includes("E11000")) return { ok: false, message: "That employee name or number already exists in this workspace." };
     throw error;
   }
   return { ok: true, employee: serializeEmployee(employee) };
@@ -263,6 +328,7 @@ export async function createEmployee(nameInput: string): Promise<{ ok: true; emp
 export async function updateEmployee(input: {
   id: string;
   name: string;
+  employeeNumber?: string | undefined;
   active: boolean;
 }): Promise<{ ok: true; employee: HrEmployee } | { ok: false; message: string }> {
   const current = await getCurrentUserRecord();
@@ -271,17 +337,24 @@ export async function updateEmployee(input: {
   if (name.length < 2 || name.length > 80) return { ok: false, message: "Employee name must be between 2 and 80 characters." };
   const db = await getMongoDb(current.databaseName);
   await ensureHrIndexes(db);
+  const existing = await db.collection<EmployeeDocument>("hr_employees").findOne({ _id: input.id });
+  if (!existing) return { ok: false, message: "That employee no longer exists in this workspace." };
+  let employeeNumber = normalizeEmployeeNumber(input.employeeNumber ?? existing.employeeNumber ?? "");
+  if (!employeeNumber) employeeNumber = await generateEmployeeNumber(db, current.subhubName ?? "SubHub");
+  if (!employeeNumber || !/^[A-Z0-9][A-Z0-9 -]{0,29}$/.test(employeeNumber)) {
+    return { ok: false, message: "Enter a valid employee number." };
+  }
   const now = new Date();
   try {
     const result = await db.collection<EmployeeDocument>("hr_employees").findOneAndUpdate(
       { _id: input.id },
-      { $set: { name, normalizedName: name.toLowerCase(), active: input.active, updatedAt: now } },
+      { $set: { name, normalizedName: name.toLowerCase(), employeeNumber, normalizedEmployeeNumber: employeeNumber, active: input.active, updatedAt: now } },
       { returnDocument: "after" },
     );
     if (!result) return { ok: false, message: "That employee no longer exists in this workspace." };
     return { ok: true, employee: serializeEmployee(result) };
   } catch (error) {
-    if (error instanceof Error && error.message.includes("E11000")) return { ok: false, message: "An employee with that name already exists in this workspace." };
+    if (error instanceof Error && error.message.includes("E11000")) return { ok: false, message: "That employee name or number already exists in this workspace." };
     throw error;
   }
 }

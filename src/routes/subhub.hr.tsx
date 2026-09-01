@@ -17,7 +17,7 @@ export const Route = createFileRoute("/subhub/hr")({
   component: SubhubHr,
 });
 
-type HrTab = "attendance" | "shifts" | "report";
+type HrTab = "attendance" | "registration" | "report";
 type AttendanceDraft = Record<string, AttendanceStatus | undefined>;
 type AttendanceChange = {
   employeeId: string;
@@ -138,11 +138,14 @@ function SubhubHr() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [employeeName, setEmployeeName] = useState("");
+  const [employeeNumber, setEmployeeNumber] = useState("");
+  const [selectedShiftIds, setSelectedShiftIds] = useState<string[]>([]);
   const [shiftName, setShiftName] = useState("");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
   const [editingId, setEditingId] = useState("");
   const [editingName, setEditingName] = useState("");
+  const [editingNumber, setEditingNumber] = useState("");
   const [pendingChanges, setPendingChanges] = useState<AttendanceChange[]>([]);
 
   async function load(showNotice = false) {
@@ -258,12 +261,14 @@ function SubhubHr() {
     setError("");
     setNotice("");
     try {
-      const result = await createEmployeeFn({ data: { name: employeeName } });
+      const result = await createEmployeeFn({ data: { name: employeeName, employeeNumber, shiftIds: selectedShiftIds } });
       if (!result.ok) {
         setError(result.message);
         return;
       }
       setEmployeeName("");
+      setEmployeeNumber("");
+      setSelectedShiftIds([]);
       setNotice("Employee added to this workspace.");
       await load();
     } catch {
@@ -278,7 +283,7 @@ function SubhubHr() {
     setError("");
     try {
       const result = await updateEmployeeFn({
-        data: { id: employee.id, name: editingName, active: employee.active },
+        data: { id: employee.id, name: editingName, employeeNumber: editingNumber, active: employee.active },
       });
       if (!result.ok) setError(result.message);
       else {
@@ -298,7 +303,7 @@ function SubhubHr() {
     setError("");
     try {
       const result = await updateEmployeeFn({
-        data: { id: employee.id, name: employee.name, active: !employee.active },
+        data: { id: employee.id, name: employee.name, employeeNumber: employee.employeeNumber, active: !employee.active },
       });
       if (!result.ok) setError(result.message);
       else {
@@ -324,7 +329,8 @@ function SubhubHr() {
         return;
       }
       setShiftName("");
-      setNotice("Shift created. Assign active employees below.");
+      setSelectedShiftIds((current) => [...new Set([...current, result.shift.id])]);
+      setNotice("Shift created and selected for the next employee registration.");
       await load();
     } catch {
       setError("Shift could not be saved. Please try again.");
@@ -377,11 +383,6 @@ function SubhubHr() {
     ]);
   }
 
-  const markedToday = data.employees.filter((employee) =>
-    data.attendance.some((record) => record.employeeId === employee.id && record.date === selectedDate),
-  ).length;
-  const assignedCount = data.shifts.reduce((total, shift) => total + shift.assignedEmployeeIds.length, 0);
-
   return (
     <SubHubShell>
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-card px-6 py-5">
@@ -407,7 +408,7 @@ function SubhubHr() {
         <div className="flex flex-wrap gap-2 border-b border-border pb-4">
           {[
             ["attendance", "Daily attendance"],
-            ["shifts", "Shifts"],
+            ["registration", "Registration"],
             ["report", "Monthly report"],
           ].map(([value, label]) => (
             <button
@@ -437,129 +438,149 @@ function SubhubHr() {
         ) : null}
 
         {tab === "attendance" ? (
-          <>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Stat label="Employees" value={String(data.employees.filter((employee) => employee.active).length)} helper={`${data.employees.length} total, including archived`} />
-              <Stat label={`Marked ${selectedDate}`} value={String(markedToday)} helper="attendance entries" />
-              <Stat label="Shift assignments" value={String(assignedCount)} helper={`${data.shifts.length} shifts defined`} />
+          <section className="panel overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+              <div>
+                <h2 className="font-semibold">Employee attendance</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Choose one status for each active employee.</p>
+              </div>
+              <label className="text-xs font-medium">
+                Attendance date
+                <input type="date" value={selectedDate} onChange={(event) => changeDate(event.target.value)} className="mt-1.5 block h-9 rounded-md border border-input bg-white px-3 text-sm font-normal" />
+              </label>
+            </div>
+            {loading ? (
+              <p className="p-8 text-center text-sm text-muted-foreground">Loading employees…</p>
+            ) : data.employees.filter((employee) => employee.active).length === 0 ? (
+              <Empty icon={<Users className="mx-auto size-8" />} title="No employees registered" detail="Register employees before recording attendance." />
+            ) : (
+              <div className="divide-y divide-border">
+                {data.employees.filter((employee) => employee.active).map((employee) => (
+                  <div key={employee.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                    <div>
+                      <p className="font-medium">{employee.name}</p>
+                      {employee.employeeNumber ? <p className="mt-0.5 font-mono text-xs text-muted-foreground">{employee.employeeNumber}</p> : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {statuses.map((status) => (
+                        <button
+                          key={status}
+                          type="button"
+                          onClick={() => setDraft({ ...draft, [employee.id]: status })}
+                          className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition ${
+                            draft[employee.id] === status ? statusClass(status) : "border-input text-muted-foreground hover:bg-muted"
+                          }`}
+                        >
+                          {draft[employee.id] === status ? <Check className="mr-1 inline size-3.5" /> : null}
+                          {status}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-4">
+              <p className="text-xs text-muted-foreground">Statuses: Present, Absent, Late, or Half-day.</p>
+              <button type="button" onClick={() => void saveAttendance()} disabled={loading || saving} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
+                <Save className="size-4" /> {saving ? "Saving…" : "Save attendance"}
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        {tab === "registration" ? (
+          <div className="space-y-6">
+            <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+            <section className="panel">
+              <div className="border-b border-border px-5 py-4">
+                <h2 className="font-semibold">Register employee</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Add the employee’s details and select their shift.</p>
+              </div>
+              <form onSubmit={(event) => void addEmployee(event)} className="space-y-4 p-5">
+                <label className="block text-sm font-medium">Employee name<input required value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} placeholder="Full name" className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm" /></label>
+                <label className="block text-sm font-medium">Employee number<input required value={employeeNumber} onChange={(event) => setEmployeeNumber(event.target.value)} placeholder="Example: NORTH-HUB-01" className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm" /></label>
+                <div>
+                  <p className="text-sm font-medium">Assign shift</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Select one or more shifts for this employee.</p>
+                  <div className="mt-2 space-y-2">
+                    {data.shifts.map((shift) => (
+                      <label key={shift.id} className="flex items-start gap-2 rounded-md border border-input px-3 py-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedShiftIds.includes(shift.id)}
+                          disabled={saving}
+                          onChange={(event) =>
+                            setSelectedShiftIds((current) =>
+                              event.target.checked ? [...current, shift.id] : current.filter((id) => id !== shift.id),
+                            )
+                          }
+                        />
+                        <span>
+                          <span className="font-medium">{shift.name}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            {formatTime12(shift.startTime)}–{formatTime12(shift.endTime)}
+                            {shift.endTime < shift.startTime ? " · next day" : ""}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                    {!data.shifts.length ? <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">Create a shift on the right before registering an employee.</p> : null}
+                  </div>
+                </div>
+                <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><Plus className="size-4" /> {saving ? "Saving…" : "Register employee"}</button>
+              </form>
+            </section>
+            <section className="panel">
+              <div className="border-b border-border px-5 py-4">
+                <h2 className="font-semibold">Create shift timing</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Create a one-time shift timing, then select it during registration.</p>
+              </div>
+              <form onSubmit={(event) => void addShift(event)} className="space-y-4 p-5">
+                <label className="block text-sm font-medium">Shift name<input required value={shiftName} onChange={(event) => setShiftName(event.target.value)} placeholder="Night shift" className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm" /></label>
+                <div className="grid grid-cols-2 gap-3">
+                  <ShiftTimeField label="Starts" value={startTime} onChange={setStartTime} />
+                  <ShiftTimeField label="Ends (next day if earlier)" value={endTime} onChange={setEndTime} />
+                </div>
+                <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><Plus className="size-4" /> {saving ? "Saving…" : "Create shift"}</button>
+              </form>
+            </section>
             </div>
             <section className="panel overflow-hidden">
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
-                <div>
-                  <h2 className="font-semibold">Employee attendance</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">Choose one simple status for each active employee.</p>
-                </div>
-                <label className="text-xs font-medium">
-                  Attendance date
-                  <input type="date" value={selectedDate} onChange={(event) => changeDate(event.target.value)} className="mt-1.5 block h-9 rounded-md border border-input bg-white px-3 text-sm font-normal" />
-                </label>
+              <div className="border-b border-border px-5 py-4">
+                <h2 className="font-semibold">Registered employees</h2>
+                <p className="mt-1 text-sm text-muted-foreground">Edit employee details or deactivate an employee. Past attendance remains available.</p>
               </div>
-              {loading ? (
-                <p className="p-8 text-center text-sm text-muted-foreground">Loading employees…</p>
-              ) : data.employees.filter((employee) => employee.active).length === 0 ? (
-                <Empty icon={<Users className="mx-auto size-8" />} title="No employees yet" detail="Add your first employee below to start recording attendance." />
-              ) : (
-                <div className="divide-y divide-border">
-                  {data.employees.filter((employee) => employee.active).map((employee) => (
-                    <div key={employee.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-                      <p className="font-medium">{employee.name}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {statuses.map((status) => (
-                          <button
-                            key={status}
-                            type="button"
-                            onClick={() => setDraft({ ...draft, [employee.id]: status })}
-                            className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition ${
-                              draft[employee.id] === status ? statusClass(status) : "border-input text-muted-foreground hover:bg-muted"
-                            }`}
-                          >
-                            {draft[employee.id] === status ? <Check className="mr-1 inline size-3.5" /> : null}
-                            {status}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-4">
-                <p className="text-xs text-muted-foreground">Statuses: Present, Absent, Late, or Half-day.</p>
-                <button type="button" onClick={() => void saveAttendance()} disabled={loading || saving} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
-                  <Save className="size-4" /> {saving ? "Saving…" : "Save attendance"}
-                </button>
-              </div>
-            </section>
-            <section className="panel p-5">
-              <h2 className="font-semibold">Employees</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Add employees who belong to this SubHub. Deactivated employees remain in past reports.</p>
-              <form onSubmit={(event) => void addEmployee(event)} className="mt-4 flex gap-2">
-                <input required value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} placeholder="Employee name" className="h-10 min-w-0 flex-1 rounded-md border border-input px-3 text-sm" />
-                <button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
-                  <Plus className="size-4" /> Add
-                </button>
-              </form>
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <div className="divide-y divide-border">
                 {data.employees.map((employee) => (
-                  <div key={employee.id} className="flex items-center gap-2 rounded-md border border-border px-3 py-2">
+                  <div key={employee.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
                     {editingId === employee.id ? (
                       <>
-                        <input autoFocus value={editingName} onChange={(event) => setEditingName(event.target.value)} className="h-8 min-w-0 flex-1 rounded-md border border-input px-2 text-sm" />
-                        <button type="button" disabled={saving} onClick={() => void saveEmployee(employee)} className="rounded-md p-1.5 text-success hover:bg-success/10" aria-label="Save employee name"><Save className="size-4" /></button>
+                        <input autoFocus value={editingName} onChange={(event) => setEditingName(event.target.value)} className="h-9 min-w-40 flex-1 rounded-md border border-input px-2 text-sm" aria-label="Employee name" />
+                        <input value={editingNumber} onChange={(event) => setEditingNumber(event.target.value)} className="h-9 min-w-36 flex-1 rounded-md border border-input px-2 font-mono text-sm" aria-label="Employee number" />
+                        <button type="button" disabled={saving} onClick={() => void saveEmployee(employee)} className="rounded-md p-1.5 text-success hover:bg-success/10" aria-label="Save employee details"><Save className="size-4" /></button>
                         <button type="button" onClick={() => setEditingId("")} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label="Cancel edit"><X className="size-4" /></button>
                       </>
                     ) : (
                       <>
-                        <span className={`min-w-0 flex-1 truncate text-sm ${employee.active ? "font-medium" : "text-muted-foreground line-through"}`}>{employee.name}</span>
-                        <button type="button" onClick={() => { setEditingId(employee.id); setEditingName(employee.name); }} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label={`Edit ${employee.name}`}><Pencil className="size-4" /></button>
+                        <div className={`min-w-0 flex-1 ${employee.active ? "" : "text-muted-foreground"}`}>
+                          <p className={`truncate text-sm ${employee.active ? "font-medium" : "line-through"}`}>{employee.name}</p>
+                          <p className="font-mono text-xs text-muted-foreground">{employee.employeeNumber || "Number not assigned"}</p>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {data.shifts
+                            .filter((shift) => shift.assignedEmployeeIds.includes(employee.id))
+                            .map((shift) => shift.name)
+                            .join(", ") || "No shift"}
+                        </div>
+                        <button type="button" onClick={() => { setEditingId(employee.id); setEditingName(employee.name); setEditingNumber(employee.employeeNumber); }} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label={`Edit ${employee.name}`}><Pencil className="size-4" /></button>
                         <button type="button" disabled={saving} onClick={() => void toggleEmployee(employee)} className="rounded-md border border-input px-2 py-1 text-xs hover:bg-muted">{employee.active ? "Deactivate" : "Reactivate"}</button>
                       </>
                     )}
                   </div>
                 ))}
+                {!data.employees.length ? <Empty icon={<Users className="mx-auto size-8" />} title="No employees registered" detail="Register the first employee above." /> : null}
               </div>
-            </section>
-          </>
-        ) : null}
-
-        {tab === "shifts" ? (
-          <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
-            <section className="panel">
-              <div className="border-b border-border px-5 py-4">
-                <h2 className="font-semibold">Define a shift</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Choose AM or PM. An earlier end time is treated as overnight.</p>
-              </div>
-              <form onSubmit={(event) => void addShift(event)} className="space-y-4 p-5">
-                <label className="block text-sm font-medium">Shift name<input required value={shiftName} onChange={(event) => setShiftName(event.target.value)} placeholder="Morning shift" className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm" /></label>
-                <div className="grid grid-cols-2 gap-3">
-                  <ShiftTimeField label="Starts" value={startTime} onChange={setStartTime} />
-                  <ShiftTimeField label="Ends (next day if earlier)" value={endTime} onChange={setEndTime} />
-                </div>
-                <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><Plus className="size-4" /> {saving ? "Saving…" : "Add shift"}</button>
-              </form>
-            </section>
-            <section className="panel">
-              <div className="border-b border-border px-5 py-4">
-                <h2 className="font-semibold">Assign employees</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Each employee can have one or more shifts.</p>
-              </div>
-              <div className="divide-y divide-border">
-                {data.employees.filter((employee) => employee.active).map((employee) => (
-                  <div key={employee.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
-                    <p className="text-sm font-medium">{employee.name}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {data.shifts.map((shift) => (
-                        <label key={shift.id} className="inline-flex items-center gap-1.5 rounded-md border border-input px-2 py-1.5 text-xs">
-                          <input type="checkbox" checked={shift.assignedEmployeeIds.includes(employee.id)} disabled={saving} onChange={(event) => void assign(shift.id, employee.id, event.target.checked)} />
-                          {shift.name} · {formatTime12(shift.startTime)}–{formatTime12(shift.endTime)}
-                          {shift.endTime < shift.startTime ? " · next day" : ""}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                {!data.employees.some((employee) => employee.active) ? <Empty icon={<Users className="mx-auto size-8" />} title="Add employees first" detail="Employees will appear here when you add them." /> : null}
-              </div>
-              {!data.shifts.length ? <p className="border-t border-border p-6 text-center text-sm text-muted-foreground">No shifts defined yet.</p> : null}
             </section>
           </div>
         ) : null}
