@@ -4,11 +4,16 @@ import {
   createProductionOrder,
   getAdminProductionDashboard,
   getManagerProductionData,
+  getOrderNotifications,
+  getProductionOrderActivity,
   listAssignableSubhubs,
   listProductionOrders,
+  reassignProductionOrder,
   saveDailyProduction,
+  searchWorkspace,
   setHubCapacity,
 } from "./production.server";
+export type { OrderNotification, WorkspaceSearchResult } from "./production.server";
 
 const orderSchema = z.object({
   subhubUserId: z.string().min(1),
@@ -31,6 +36,20 @@ const capacitySchema = z.object({
   capacityUnits: z.number().int().positive().nullable(),
 });
 
+const activitySchema = z.object({
+  orderId: z.string().min(1),
+});
+
+const reassignSchema = z.object({
+  orderId: z.string().min(1),
+  subhubUserId: z.string().min(1),
+  reason: z.string().max(500),
+});
+
+const searchSchema = z.object({
+  query: z.string().max(100),
+});
+
 export const listAssignableSubhubsFn = createServerFn({ method: "GET" }).handler(() => listAssignableSubhubs());
 export const listProductionOrdersFn = createServerFn({ method: "GET" }).handler(() => listProductionOrders());
 export const getManagerProductionDataFn = createServerFn({ method: "GET" }).handler(() => getManagerProductionData());
@@ -38,3 +57,7 @@ export const getAdminProductionDashboardFn = createServerFn({ method: "GET" }).h
 export const createProductionOrderFn = createServerFn({ method: "POST" }).validator(orderSchema).handler(({ data }) => createProductionOrder(data));
 export const saveDailyProductionFn = createServerFn({ method: "POST" }).validator(reportSchema).handler(({ data }) => saveDailyProduction(data));
 export const setHubCapacityFn = createServerFn({ method: "POST" }).validator(capacitySchema).handler(({ data }) => setHubCapacity(data));
+export const getProductionOrderActivityFn = createServerFn({ method: "POST" }).validator(activitySchema).handler(({ data }) => getProductionOrderActivity(data.orderId));
+export const reassignProductionOrderFn = createServerFn({ method: "POST" }).validator(reassignSchema).handler(({ data }) => reassignProductionOrder(data));
+export const searchWorkspaceFn = createServerFn({ method: "POST" }).validator(searchSchema).handler(({ data }) => searchWorkspace(data.query));
+export const getOrderNotificationsFn = createServerFn({ method: "GET" }).handler(() => getOrderNotifications());

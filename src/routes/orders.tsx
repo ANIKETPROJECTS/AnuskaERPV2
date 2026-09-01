@@ -5,6 +5,7 @@ import {
   CalendarRange,
   Check,
   ClipboardList,
+  History,
   Plus,
   RefreshCw,
   Search,
@@ -27,8 +28,8 @@ import {
 import { Shell } from "@/components/erp/Shell";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
 import { bomCatalog, type BomCatalogProduct } from "@/lib/bom-catalog";
-import { createProductionOrderFn, getAdminProductionDashboardFn, listAssignableSubhubsFn, setHubCapacityFn } from "@/production";
-import type { AdminProductionDashboard, AssignableSubhub, ProductionOrder } from "@/production.server";
+import { createProductionOrderFn, getAdminProductionDashboardFn, getProductionOrderActivityFn, listAssignableSubhubsFn, reassignProductionOrderFn } from "@/production";
+import type { AdminProductionDashboard, AssignableSubhub, ProductionOrder, ProductionOrderActivity } from "@/production.server";
 import { num } from "@/lib/erp-data";
 
 export const Route = createFileRoute("/orders")({
@@ -56,12 +57,13 @@ function Orders() {
   const [dashboard, setDashboard] = useState<AdminProductionDashboard | null>(null);
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
   const [subhubs, setSubhubs] = useState<AssignableSubhub[]>([]);
-  const [capacityInputs, setCapacityInputs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
-  const [capacityMessage, setCapacityMessage] = useState("");
-  const [savingCapacity, setSavingCapacity] = useState("");
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [activities, setActivities] = useState<Record<string, ProductionOrderActivity[]>>({});
+  const [activityLoading, setActivityLoading] = useState("");
+  const [reassigningOrderId, setReassigningOrderId] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,7 +71,6 @@ function Orders() {
     if (dashboardResult.ok) {
       setDashboard(dashboardResult.data);
       setOrders(dashboardResult.data.orders);
-      setCapacityInputs(Object.fromEntries(dashboardResult.data.hubs.map((hub) => [hub.userId, hub.capacityUnits?.toString() ?? ""])));
     } else setError(dashboardResult.message);
     if (subhubResult.ok) setSubhubs(subhubResult.subhubs);
     else setError(subhubResult.message);
@@ -85,24 +86,18 @@ function Orders() {
   const totalRemaining = orders.reduce((sum, order) => sum + order.remaining, 0);
   const completion = totalTarget ? Math.round((totalProduced / totalTarget) * 100) : 0;
 
-  async function saveCapacity(subhubUserId: string) {
-    setSavingCapacity(subhubUserId);
-    setCapacityMessage("");
-    setError("");
-    const rawValue = capacityInputs[subhubUserId]?.trim() ?? "";
-    const capacityUnits = rawValue ? Number(rawValue) : null;
-    const result = await setHubCapacityFn({ data: { subhubUserId, capacityUnits } });
-    if (!result.ok) {
-      setError(result.message);
-    } else {
-      setCapacityMessage(
-        result.reassignments.length
-          ? `${result.reassignments.length} order${result.reassignments.length === 1 ? "" : "s"} reassigned to protect hub capacity.`
-          : "Hub capacity saved.",
-      );
-      await load();
+  async function toggleActivity(orderId: string) {
+    if (expandedOrderId === orderId) {
+      setExpandedOrderId(null);
+      return;
     }
-    setSavingCapacity("");
+    setExpandedOrderId(orderId);
+    if (activities[orderId]) return;
+    setActivityLoading(orderId);
+    const result = await getProductionOrderActivityFn({ data: { orderId } });
+    if (result.ok) setActivities((current) => ({ ...current, [orderId]: result.activities }));
+    else setError(result.message);
+    setActivityLoading("");
   }
 
   async function saveOrder(input: { subhubUserId: string; productCode: string; variantCode: string; target: number; dueDate: string; notes: string }) {
@@ -111,9 +106,27 @@ function Orders() {
       setError(result.message);
       return;
     }
-    setOrders((current) => [result.order, ...current]);
     setShowForm(false);
     setError("");
+    await load();
+  }
+
+  async function reassignOrder(orderId: string, subhubUserId: string, reason: string) {
+    setReassigningOrderId(orderId);
+    setError("");
+    const result = await reassignProductionOrderFn({ data: { orderId, subhubUserId, reason } });
+    if (!result.ok) {
+      setError(result.message);
+    } else {
+      setActivities((current) => {
+        const next = { ...current };
+        delete next[orderId];
+        return next;
+      });
+      setExpandedOrderId(null);
+      await load();
+    }
+    setReassigningOrderId("");
   }
 
   return (
@@ -140,9 +153,7 @@ function Orders() {
         </div>
 
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
-        {capacityMessage ? <p role="status" className="rounded-md border border-success/25 bg-success/5 px-4 py-3 text-sm text-success">{capacityMessage}</p> : null}
-
-        <Panel title="Hub capacity & workload" description="Admin sets each hub’s active target capacity. Overloaded orders move to another eligible hub with available capacity. Leave blank for no limit.">
+        <Panel title="Hub capacity & workload" description="Capacity is declared by each Hub Manager. Admin can use this live data to assign work and monitor automatic reassignment.">
           <div className="divide-y divide-border">
             {loading && !dashboard ? (
               <p className="p-8 text-center text-sm text-muted-foreground">Loading hub capacity…</p>
@@ -151,10 +162,6 @@ function Orders() {
                 <HubCapacityRow
                   key={hub.userId}
                   hub={hub}
-                  value={capacityInputs[hub.userId] ?? ""}
-                  saving={savingCapacity === hub.userId}
-                  onChange={(value) => setCapacityInputs((current) => ({ ...current, [hub.userId]: value }))}
-                  onSave={() => void saveCapacity(hub.userId)}
                 />
               ))
             ) : (
@@ -213,21 +220,17 @@ function Orders() {
                 </thead>
                 <tbody>
                   {orders.map((order) => (
-                    <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
-                      <td className="px-5 py-4">
-                        <p className="tabular font-semibold">{order.orderNumber}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{order.subhubName}</p>
-                      </td>
-                      <td className="px-5 py-4">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{order.productName}</p>
-                        <p className="mt-1 font-medium">{order.variantName}</p>
-                        <p className="tabular text-xs text-muted-foreground">{order.variantCode}</p>
-                      </td>
-                      <td className="tabular px-5 py-4 text-right font-semibold">{num(order.target)}</td>
-                      <td className="tabular px-5 py-4 text-right">{num(order.produced)}</td>
-                      <td className="tabular px-5 py-4 text-right text-muted-foreground">{order.dueDate}</td>
-                      <td className="px-5 py-4 text-right"><Tag tone={statusTone(order.status)}>{order.status}</Tag></td>
-                    </tr>
+                    <OrderRow
+                      key={order.id}
+                      order={order}
+                      subhubs={subhubs}
+                      activity={activities[order.id] ?? []}
+                      activityLoading={activityLoading === order.id}
+                      reassigning={reassigningOrderId === order.id}
+                      activityOpen={expandedOrderId === order.id}
+                      onToggleActivity={() => void toggleActivity(order.id)}
+                      onReassign={(subhubUserId, reason) => void reassignOrder(order.id, subhubUserId, reason)}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -241,19 +244,7 @@ function Orders() {
   );
 }
 
-function HubCapacityRow({
-  hub,
-  value,
-  saving,
-  onChange,
-  onSave,
-}: {
-  hub: AdminProductionDashboard["hubs"][number];
-  value: string;
-  saving: boolean;
-  onChange: (value: string) => void;
-  onSave: () => void;
-}) {
+function HubCapacityRow({ hub }: { hub: AdminProductionDashboard["hubs"][number] }) {
   const capacityLabel = hub.capacityUnits === null ? "No limit" : num(hub.capacityUnits);
   const loadLabel = hub.capacityUnits === null
     ? `${num(hub.openUnits)} open units`
@@ -274,29 +265,120 @@ function HubCapacityRow({
         </div>
         <Tag tone={statusTone}>{status}</Tag>
       </div>
-      <label className="w-full text-sm lg:w-56">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Capacity units</span>
-        <input
-          type="number"
-          min="1"
-          step="1"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder="No limit"
-          aria-label={`Capacity units for ${hub.subhubName}`}
-          className="tabular mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary"
-        />
-      </label>
-      <button
-        type="button"
-        onClick={onSave}
-        disabled={saving}
-        className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted disabled:opacity-50"
-      >
-        <Settings2 className="size-4" />
-        {saving ? "Saving…" : "Save capacity"}
-      </button>
-      <span className="sr-only">Configured capacity: {capacityLabel}</span>
+      <div className="flex items-center gap-2 rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">
+        <Settings2 className="size-4 text-muted-foreground" />
+        <span><span className="text-xs uppercase tracking-wide text-muted-foreground">Declared capacity</span><span className="tabular ml-2 font-semibold">{capacityLabel}</span></span>
+      </div>
+      {hub.overloaded ? <AlertTriangle className="size-5 text-destructive" aria-label="Hub is overloaded" /> : null}
+    </div>
+  );
+}
+
+function OrderRow({
+  order,
+  subhubs,
+  activity,
+  activityLoading,
+  reassigning,
+  activityOpen,
+  onToggleActivity,
+  onReassign,
+}: {
+  order: ProductionOrder;
+  subhubs: AssignableSubhub[];
+  activity?: ProductionOrderActivity[];
+  activityLoading: boolean;
+  reassigning: boolean;
+  activityOpen: boolean;
+  onToggleActivity: () => void;
+  onReassign: (subhubUserId: string, reason: string) => void;
+}) {
+  const [destinationId, setDestinationId] = useState(order.subhubUserId);
+  const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    setDestinationId(order.subhubUserId);
+  }, [order.subhubUserId]);
+
+  return (
+    <>
+      <tr className="border-b border-border/70 hover:bg-muted/40">
+        <td className="px-5 py-4">
+          <p className="tabular font-semibold">{order.orderNumber}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{order.subhubName}</p>
+          <button type="button" onClick={onToggleActivity} className="mt-2 text-xs font-medium text-primary hover:underline">
+            {activityLoading ? "Loading activity…" : activityOpen ? "Hide activity" : "View activity"}
+          </button>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <select
+              value={destinationId}
+              onChange={(event) => setDestinationId(event.target.value)}
+              aria-label={`Destination SubHub for ${order.orderNumber}`}
+              className="h-8 max-w-44 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary"
+            >
+              {subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.subhubName}</option>)}
+            </select>
+            <button
+              type="button"
+              disabled={reassigning || destinationId === order.subhubUserId}
+              onClick={() => onReassign(destinationId, reason)}
+              className="inline-flex h-8 items-center gap-1 rounded-md border border-input px-2 text-xs font-medium hover:bg-muted disabled:opacity-50"
+            >
+              <ArrowRight className="size-3.5" /> {reassigning ? "Moving…" : "Move order"}
+            </button>
+          </div>
+          {destinationId !== order.subhubUserId ? (
+            <input
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              placeholder="Reason (optional)"
+              aria-label={`Reason for moving ${order.orderNumber}`}
+              className="mt-2 h-8 w-full max-w-64 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary"
+            />
+          ) : null}
+        </td>
+        <td className="px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{order.productName}</p>
+          <p className="mt-1 font-medium">{order.variantName}</p>
+          <p className="tabular text-xs text-muted-foreground">{order.variantCode}</p>
+        </td>
+        <td className="tabular px-5 py-4 text-right font-semibold">{num(order.target)}</td>
+        <td className="tabular px-5 py-4 text-right">{num(order.produced)}</td>
+        <td className="tabular px-5 py-4 text-right text-muted-foreground">{order.dueDate}</td>
+        <td className="px-5 py-4 text-right"><Tag tone={statusTone(order.status)}>{order.status}</Tag></td>
+      </tr>
+      {activityOpen ? (
+        <tr className="border-b border-border/70">
+          <td colSpan={6} className="bg-muted/10 px-5 py-4">
+            <ActivityTimeline activities={activity ?? []} loading={activityLoading} />
+          </td>
+        </tr>
+      ) : null}
+    </>
+  );
+}
+
+function ActivityTimeline({ activities, loading }: { activities: ProductionOrderActivity[]; loading: boolean }) {
+  if (loading) return <p className="text-sm text-muted-foreground">Loading order activity…</p>;
+  if (!activities.length) return <p className="text-sm text-muted-foreground">No activity has been recorded for this order yet.</p>;
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Order activity</p>
+      <div className="mt-3 space-y-3">
+        {activities.map((activity) => (
+          <div key={activity.id} className="flex gap-3 text-sm">
+            <div className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <p className="font-medium">{activity.summary}</p>
+                <time className="text-xs text-muted-foreground">{activity.createdAt.replace("T", " ").slice(0, 16)}</time>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{activity.details}</p>
+              <p className="mt-1 text-xs text-muted-foreground">By {activity.actorName} · {activity.actorRole}</p>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

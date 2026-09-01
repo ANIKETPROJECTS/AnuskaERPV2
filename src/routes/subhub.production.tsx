@@ -1,37 +1,54 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, ClipboardCheck, Minus, Plus, RefreshCw, Save } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Check, ClipboardCheck, History, Minus, Plus, RefreshCw, Save, Settings2 } from "lucide-react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
-import { getManagerProductionDataFn, saveDailyProductionFn } from "@/production";
-import type { ManagerProductionData, ProductionOrder } from "@/production.server";
+import { getManagerProductionDataFn, getProductionOrderActivityFn, saveDailyProductionFn, setHubCapacityFn } from "@/production";
+import type { ManagerProductionData, ProductionOrder, ProductionOrderActivity } from "@/production.server";
 import { num } from "@/lib/erp-data";
+import { useAuth } from "@/components/auth/AuthContext";
 
 export const Route = createFileRoute("/subhub/production")({
   head: () => ({ meta: [{ title: "Production — Hub Manager · SubHub" }] }),
   component: HubManagerProduction,
 });
 
-const emptyData: ManagerProductionData = { subhubName: "", orders: [], reports: [] };
+const emptyData: ManagerProductionData = {
+  subhubName: "",
+  orders: [],
+  reports: [],
+  capacityUnits: null,
+  openUnits: 0,
+  availableUnits: null,
+  overloaded: false,
+};
 
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
 function HubManagerProduction() {
+  const { user } = useAuth();
   const [data, setData] = useState(emptyData);
   const [selectedDate, setSelectedDate] = useState(today());
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [capacityInput, setCapacityInput] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingCapacity, setSavingCapacity] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [capacitySaved, setCapacitySaved] = useState(false);
   const [error, setError] = useState("");
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [activities, setActivities] = useState<Record<string, ProductionOrderActivity[]>>({});
+  const [activityLoading, setActivityLoading] = useState("");
 
   async function load() {
     setLoading(true);
     const result = await getManagerProductionDataFn();
     if (result.ok) {
       setData(result.data);
+      setCapacityInput(result.data.capacityUnits?.toString() ?? "");
       setError("");
     } else {
       setError(result.message);
@@ -57,6 +74,41 @@ function HubManagerProduction() {
     setNotes(reportsForDate.find((report) => report.notes)?.notes ?? "");
     setSaved(false);
   }, [reportsForDate]);
+
+  async function saveCapacity() {
+    if (!user?.id) return;
+    const rawValue = capacityInput.trim();
+    const capacityUnits = rawValue ? Number(rawValue) : null;
+    if (capacityUnits !== null && (!Number.isInteger(capacityUnits) || capacityUnits < 1)) {
+      setError("Capacity must be a whole number greater than zero, or left blank for no limit.");
+      return;
+    }
+    setSavingCapacity(true);
+    setCapacitySaved(false);
+    setError("");
+    const result = await setHubCapacityFn({ data: { subhubUserId: user.id, capacityUnits } });
+    if (!result.ok) {
+      setError(result.message);
+    } else {
+      setCapacitySaved(true);
+      await load();
+    }
+    setSavingCapacity(false);
+  }
+
+  async function toggleActivity(orderId: string) {
+    if (expandedOrderId === orderId) {
+      setExpandedOrderId(null);
+      return;
+    }
+    setExpandedOrderId(orderId);
+    if (activities[orderId]) return;
+    setActivityLoading(orderId);
+    const result = await getProductionOrderActivityFn({ data: { orderId } });
+    if (result.ok) setActivities((current) => ({ ...current, [orderId]: result.activities }));
+    else setError(result.message);
+    setActivityLoading("");
+  }
 
   const totalTarget = data.orders.reduce((sum, order) => sum + order.target, 0);
   const totalProduced = data.orders.reduce((sum, order) => sum + order.produced, 0);
@@ -108,6 +160,42 @@ function HubManagerProduction() {
 
       <section className="space-y-6 p-6">
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+        <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <Settings2 className="size-4 text-primary" />
+                <h2 className="font-semibold">Declare hub capacity</h2>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">Set the active target units this hub can handle. Admin will use this data for assignment and reassignment decisions.</p>
+            </div>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end">
+              <label className="text-sm font-medium">
+                Capacity units
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={capacityInput}
+                  onChange={(event) => { setCapacityInput(event.target.value); setCapacitySaved(false); }}
+                  placeholder="No limit"
+                  aria-label="Hub capacity units"
+                  className="tabular mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary sm:w-44"
+                />
+              </label>
+              <button type="button" disabled={savingCapacity} onClick={() => void saveCapacity()} className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50">
+                <Save className="size-4" /> {savingCapacity ? "Saving…" : "Save capacity"}
+              </button>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4 text-sm">
+            <span className="text-muted-foreground">Current load: <strong className="tabular text-foreground">{num(data.openUnits)}</strong> open units</span>
+            <span className="text-muted-foreground">Declared: <strong className="tabular text-foreground">{data.capacityUnits === null ? "No limit" : num(data.capacityUnits)}</strong></span>
+            {data.availableUnits !== null ? <span className={data.overloaded ? "font-medium text-destructive" : "text-success"}>{data.overloaded ? `${num(Math.abs(data.availableUnits))} units over capacity` : `${num(data.availableUnits)} units available`}</span> : null}
+            {data.overloaded ? <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive"><AlertTriangle className="size-3.5" /> Admin reassignment review needed</span> : null}
+            {capacitySaved ? <span className="inline-flex items-center gap-1 text-success"><Check className="size-4" /> Capacity shared with Admin</span> : null}
+          </div>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Stat label="Assigned target" value={num(totalTarget)} helper={`${data.orders.length} orders`} tone="text-foreground" />
           <Stat label="Produced to date" value={num(totalProduced)} helper="all stored reports" tone="text-primary" />
@@ -138,8 +226,26 @@ function HubManagerProduction() {
                 <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <tr><th className="px-5 py-3 font-medium">Order / product</th><th className="px-5 py-3 text-right font-medium">Target</th><th className="px-5 py-3 text-center font-medium">Produced on date</th><th className="px-5 py-3 text-right font-medium">Total to date</th><th className="px-5 py-3 text-right font-medium">Status</th></tr>
                 </thead>
-                <tbody>
-                  {data.orders.map((order) => <ProductionRow key={order.id} order={order} quantity={quantities[order.id] ?? 0} onChange={(value) => updateQuantity(order.id, value)} />)}
+                  <tbody>
+                    {data.orders.map((order) => (
+                      <Fragment key={order.id}>
+                        <ProductionRow
+                          order={order}
+                          quantity={quantities[order.id] ?? 0}
+                          activityOpen={expandedOrderId === order.id}
+                          activityLoading={activityLoading === order.id}
+                          onChange={(value) => updateQuantity(order.id, value)}
+                          onToggleActivity={() => void toggleActivity(order.id)}
+                        />
+                        {expandedOrderId === order.id ? (
+                          <tr className="border-b border-border/70">
+                            <td colSpan={6} className="bg-muted/10 px-5 py-4">
+                              <ManagerActivityTimeline activities={activities[order.id] ?? []} loading={activityLoading === order.id} />
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
+                    ))}
                 </tbody>
               </table>
             </div>
@@ -164,15 +270,62 @@ function HubManagerProduction() {
   );
 }
 
-function ProductionRow({ order, quantity, onChange }: { order: ProductionOrder; quantity: number; onChange: (value: number) => void }) {
+function ProductionRow({
+  order,
+  quantity,
+  activityOpen,
+  activityLoading,
+  onChange,
+  onToggleActivity,
+}: {
+  order: ProductionOrder;
+  quantity: number;
+  activityOpen: boolean;
+  activityLoading: boolean;
+  onChange: (value: number) => void;
+  onToggleActivity: () => void;
+}) {
   return (
     <tr className="border-b border-border/70 last:border-0">
-      <td className="px-5 py-4"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{order.productName}</p><p className="mt-1 font-medium">{order.variantName}</p><p className="tabular text-xs text-muted-foreground">{order.orderNumber} · {order.variantCode}</p><p className="mt-1 text-xs text-muted-foreground">Due {order.dueDate}</p></td>
+      <td className="px-5 py-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{order.productName}</p>
+        <p className="mt-1 font-medium">{order.variantName}</p>
+        <p className="tabular text-xs text-muted-foreground">{order.orderNumber} · {order.variantCode}</p>
+        <p className="mt-1 text-xs text-muted-foreground">Due {order.dueDate}</p>
+        <button type="button" onClick={onToggleActivity} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+          <History className="size-3.5" /> {activityLoading ? "Loading…" : activityOpen ? "Hide activity" : "View activity"}
+        </button>
+      </td>
       <td className="tabular px-5 py-4 text-right font-semibold">{num(order.target)}</td>
       <td className="px-5 py-4"><div className="mx-auto flex w-36 items-center justify-center gap-1"><button type="button" aria-label={`Decrease ${order.variantName}`} onClick={() => onChange(quantity - 1)} className="flex size-8 items-center justify-center rounded-md border border-input text-muted-foreground hover:bg-muted"><Minus className="size-3.5" /></button><input type="number" min="0" step="1" value={quantity} onChange={(event) => onChange(Number(event.target.value))} className="h-8 w-20 rounded-md border border-input text-center text-sm font-semibold" /><button type="button" aria-label={`Increase ${order.variantName}`} onClick={() => onChange(quantity + 1)} className="flex size-8 items-center justify-center rounded-md border border-input text-muted-foreground hover:bg-muted"><Plus className="size-3.5" /></button></div></td>
       <td className="tabular px-5 py-4 text-right">{num(order.produced)}</td>
       <td className="px-5 py-4 text-right"><span className={`rounded-full px-2 py-1 text-[11px] font-medium ${order.status === "Complete" || order.status === "Over target" ? "bg-success/10 text-success" : order.status === "In progress" ? "bg-warning/10 text-warning" : "bg-muted text-muted-foreground"}`}>{order.status}</span></td>
     </tr>
+  );
+}
+
+function ManagerActivityTimeline({ activities, loading }: { activities: ProductionOrderActivity[]; loading: boolean }) {
+  if (loading) return <p className="text-sm text-muted-foreground">Loading order activity…</p>;
+  if (!activities.length) return <p className="text-sm text-muted-foreground">No activity has been recorded for this order yet.</p>;
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Order activity</p>
+      <div className="mt-3 space-y-3">
+        {activities.map((activity) => (
+          <div key={activity.id} className="flex gap-3 text-sm">
+            <div className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <p className="font-medium">{activity.summary}</p>
+                <time className="text-xs text-muted-foreground">{activity.createdAt.replace("T", " ").slice(0, 16)}</time>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{activity.details}</p>
+              <p className="mt-1 text-xs text-muted-foreground">By {activity.actorName} · {activity.actorRole}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -124,6 +124,9 @@ async function ensureControlPlane(): Promise<Db> {
     db.collection<SessionDocument>("sessions").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     db.collection<ProvisioningDocument>("provisioning").createIndex({ userId: 1 }, { unique: true }),
     db.collection("production_orders").createIndex({ subhubUserId: 1, createdAt: -1 }),
+    db.collection("hub_capacities").createIndex({ updatedAt: -1 }),
+    db.collection("production_order_activity").createIndex({ orderId: 1, createdAt: -1 }),
+    db.collection("production_reassignments").createIndex({ createdAt: -1 }),
     db.collection<UserDocument>("users").updateMany(
       { panel: { $in: ["admin", "subhub"] } },
       { $addToSet: { permissions: "hr" } },

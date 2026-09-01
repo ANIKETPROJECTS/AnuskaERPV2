@@ -8,8 +8,6 @@ import {
   AlertTriangle,
   Truck,
   Users,
-  Bell,
-  Search,
   LogOut,
   Database,
   UserCog,
@@ -18,6 +16,7 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { logoutFn } from "@/auth";
 import { canAccess, useAuth } from "@/components/auth/AuthContext";
+import { GlobalSearch, NotificationBell } from "./HeaderTools";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, permission: "dashboard" },
@@ -125,15 +124,8 @@ export function Shell({
               <h1 className="truncate text-xl font-semibold">{title}</h1>
               {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
             </div>
-            <div className="hidden items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm text-muted-foreground md:flex">
-              <Search className="size-4" />
-              <span className="w-40">Search parts, hubs…</span>
-              <kbd className="tabular rounded border border-border px-1.5 text-[10px]">⌘K</kbd>
-            </div>
-            <button className="relative rounded-md border border-input bg-card p-2 text-muted-foreground">
-              <Bell className="size-4" />
-              <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-destructive" />
-            </button>
+            <GlobalSearch />
+            <NotificationBell panel="admin" />
             {actions}
           </div>
           <nav className="flex gap-1 overflow-x-auto border-t border-border px-4 py-2 lg:hidden">

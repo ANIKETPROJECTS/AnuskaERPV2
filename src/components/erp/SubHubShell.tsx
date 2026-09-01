@@ -3,6 +3,7 @@ import { Boxes, ClipboardCheck, FileBarChart, LogOut, PackageOpen, UserRoundCog 
 import type { ReactNode } from "react";
 import { logoutFn } from "@/auth";
 import { canAccess, useAuth } from "@/components/auth/AuthContext";
+import { GlobalSearch, NotificationBell } from "./HeaderTools";
 
 const subhubNav = [
   { to: "/inventory", label: "Inventory Management", permission: "inventory", icon: PackageOpen },
@@ -87,7 +88,11 @@ export function SubHubShell({ actions, children }: { actions?: ReactNode; childr
         </div>
       </aside>
       <main className="min-w-0 flex-1">
-        {actions ? <div className="flex items-center justify-end border-b border-border bg-card px-6 py-3">{actions}</div> : null}
+        <header className="sticky top-0 z-20 flex flex-wrap items-center justify-end gap-3 border-b border-border bg-background/85 px-6 py-3 backdrop-blur">
+          <GlobalSearch />
+          <NotificationBell panel="subhub" />
+          {actions}
+        </header>
         {children}
       </main>
     </div>

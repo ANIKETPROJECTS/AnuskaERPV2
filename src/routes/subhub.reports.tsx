@@ -11,7 +11,15 @@ export const Route = createFileRoute("/subhub/reports")({
   component: HubReports,
 });
 
-const emptyData: ManagerProductionData = { subhubName: "", orders: [], reports: [] };
+const emptyData: ManagerProductionData = {
+  subhubName: "",
+  orders: [],
+  reports: [],
+  capacityUnits: null,
+  openUnits: 0,
+  availableUnits: null,
+  overloaded: false,
+};
 
 function HubReports() {
   const [data, setData] = useState(emptyData);

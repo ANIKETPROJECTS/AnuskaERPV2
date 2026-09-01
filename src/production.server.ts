@@ -42,6 +42,10 @@ export type ManagerProductionData = {
   subhubName: string;
   orders: ProductionOrder[];
   reports: ProductionReport[];
+  capacityUnits: number | null;
+  openUnits: number;
+  availableUnits: number | null;
+  overloaded: boolean;
 };
 
 export type HubSummary = {
@@ -85,6 +89,37 @@ export type ProductionReassignment = {
   fromHub: string;
   toHub: string;
   reason: string;
+  createdAt: string;
+};
+
+export type ProductionOrderActivity = {
+  id: string;
+  orderId: string;
+  action: "created" | "assigned" | "reassigned" | "production_updated";
+  actorName: string;
+  actorRole: string;
+  summary: string;
+  details: string;
+  createdAt: string;
+};
+
+export type WorkspaceSearchResult = {
+  id: string;
+  kind: "order" | "hub" | "part" | "product";
+  title: string;
+  subtitle: string;
+  href: string;
+};
+
+export type OrderNotification = {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  action: ProductionOrderActivity["action"];
+  summary: string;
+  details: string;
+  actorName: string;
+  actorRole: string;
   createdAt: string;
 };
 
@@ -149,6 +184,18 @@ type ReassignmentDocument = {
   reason: string;
   createdAt: Date;
   createdBy: string;
+};
+
+type OrderActivityDocument = {
+  _id: string;
+  orderId: string;
+  action: ProductionOrderActivity["action"];
+  actorId: string;
+  actorName: string;
+  actorRole: string;
+  summary: string;
+  details: string;
+  createdAt: Date;
 };
 
 type InventoryItemDocument = {
@@ -217,6 +264,33 @@ function serializeReport(report: ProductionReportDocument): ProductionReport {
   };
 }
 
+function serializeOrderActivity(activity: OrderActivityDocument): ProductionOrderActivity {
+  return {
+    id: activity._id,
+    orderId: activity.orderId,
+    action: activity.action,
+    actorName: activity.actorName,
+    actorRole: activity.actorRole,
+    summary: activity.summary,
+    details: activity.details,
+    createdAt: activity.createdAt.toISOString(),
+  };
+}
+
+function serializeNotification(activity: OrderActivityDocument, order: ProductionOrderDocument): OrderNotification {
+  return {
+    id: activity._id,
+    orderId: activity.orderId,
+    orderNumber: order.orderNumber,
+    action: activity.action,
+    summary: activity.summary,
+    details: activity.details,
+    actorName: activity.actorName,
+    actorRole: activity.actorRole,
+    createdAt: activity.createdAt.toISOString(),
+  };
+}
+
 async function allSubhubUsers() {
   const db = await getControlPlaneDatabase();
   return db
@@ -281,6 +355,31 @@ async function moveOrderReports(
   await fromDb.collection<ProductionReportDocument>("production_reports").deleteMany({ orderId });
 }
 
+async function recordOrderActivity(
+  db: Awaited<ReturnType<typeof getControlPlaneDatabase>>,
+  input: {
+    orderId: string;
+    action: ProductionOrderActivity["action"];
+    actorId: string;
+    actorName: string;
+    actorRole: string;
+    summary: string;
+    details: string;
+  },
+) {
+  await db.collection<OrderActivityDocument>("production_order_activity").insertOne({
+    _id: randomUUID().replace(/-/g, ""),
+    orderId: input.orderId,
+    action: input.action,
+    actorId: input.actorId,
+    actorName: input.actorName,
+    actorRole: input.actorRole,
+    summary: input.summary,
+    details: input.details,
+    createdAt: new Date(),
+  });
+}
+
 async function rebalanceProductionOrders(actorId: string): Promise<ProductionReassignment[]> {
   const db = await getControlPlaneDatabase();
   const [orders, users] = await Promise.all([
@@ -291,6 +390,9 @@ async function rebalanceProductionOrders(actorId: string): Promise<ProductionRea
   const capacities = await capacityDocumentsFor(activeUsers);
   const workspaceData = await reportsByUserFor(users);
   const reportsByUser = new Map(workspaceData.map(({ user, reports }) => [user._id, reports]));
+  const actor = users.find((user) => user._id === actorId);
+  const actorName = actor?.name ?? "System";
+  const actorRole = actor?.role === "subhub" ? "Hub Manager" : actor?.role === "master_admin" ? "Master Admin" : "Admin";
   const loads = new Map<string, number>();
   const reassignments: ProductionReassignment[] = [];
 
@@ -357,6 +459,15 @@ async function rebalanceProductionOrders(actorId: string): Promise<ProductionRea
         reason: `${fromHub} exceeded its active target capacity`,
         createdAt: new Date().toISOString(),
       });
+      await recordOrderActivity(db, {
+        orderId: order._id,
+        action: "reassigned",
+        actorId,
+        actorName,
+        actorRole,
+        summary: `Order reassigned from ${fromHub} to ${destination.subhubName!}`,
+        details: `${fromHub} exceeded its active target capacity. The order’s production history was moved with it.`,
+      });
     }
   }
 
@@ -386,8 +497,8 @@ export async function setHubCapacity(input: {
   { ok: true; capacityUnits: number | null; reassignments: ProductionReassignment[] } |
   { ok: false; message: string }
 > {
-  const current = await getCurrentUserRecord("admin");
-  if (!isAdmin(current)) return { ok: false, message: "Only Admin users can manage hub capacity." };
+  const current = await getCurrentUserRecord("subhub");
+  if (!isSubhub(current)) return { ok: false, message: "Only SubHub Managers can manage their hub capacity." };
   if (
     input.capacityUnits !== null &&
     (!Number.isInteger(input.capacityUnits) || input.capacityUnits < 1)
@@ -396,13 +507,8 @@ export async function setHubCapacity(input: {
   }
 
   const db = await getControlPlaneDatabase();
-  const subhub = await db.collection<UserDocument>("users").findOne({
-    _id: input.subhubUserId,
-    panel: "subhub",
-    role: "subhub",
-    active: true,
-  });
-  if (!subhub?.subhubName) return { ok: false, message: "Select an active SubHub Manager." };
+  if (input.subhubUserId !== current._id) return { ok: false, message: "You can only manage your own hub capacity." };
+  if (!current.subhubName) return { ok: false, message: "Your SubHub does not have a name yet." };
 
   if (input.capacityUnits === null) {
     await db.collection<HubCapacityDocument>("hub_capacities").deleteOne({ _id: input.subhubUserId });
@@ -484,9 +590,79 @@ export async function createProductionOrder(input: {
     updatedAt: now,
   };
   await db.collection<ProductionOrderDocument>("production_orders").insertOne(order);
+  await recordOrderActivity(db, {
+    orderId: order._id,
+    action: "created",
+    actorId: current._id,
+    actorName: current.name,
+    actorRole: current.role === "master_admin" ? "Master Admin" : "Admin",
+    summary: `Order created and assigned to ${order.subhubName}`,
+    details: `${order.variantName} · target ${order.target.toLocaleString()} units · due ${order.dueDate}`,
+  });
   await rebalanceProductionOrders(current._id);
   const savedOrder = await db.collection<ProductionOrderDocument>("production_orders").findOne({ _id: order._id });
   return { ok: true, order: summarizeOrder(savedOrder ?? order, []) };
+}
+
+export async function reassignProductionOrder(input: {
+  orderId: string;
+  subhubUserId: string;
+  reason: string;
+}): Promise<{ ok: true; order: ProductionOrder } | { ok: false; message: string }> {
+  const current = await getCurrentUserRecord("admin");
+  if (!isAdmin(current)) return { ok: false, message: "Only Admin users can reassign production orders." };
+
+  const db = await getControlPlaneDatabase();
+  const [order, destination] = await Promise.all([
+    db.collection<ProductionOrderDocument>("production_orders").findOne({ _id: input.orderId }),
+    db.collection<UserDocument>("users").findOne({
+      _id: input.subhubUserId,
+      panel: "subhub",
+      role: "subhub",
+      active: true,
+    }),
+  ]);
+  if (!order) return { ok: false, message: "Production order not found." };
+  if (!destination?.subhubName) return { ok: false, message: "Select an active destination SubHub." };
+  if (order.subhubUserId === destination._id) return { ok: false, message: "Choose a different SubHub for reassignment." };
+
+  const source = await db.collection<UserDocument>("users").findOne({ _id: order.subhubUserId, panel: "subhub", role: "subhub" });
+  if (source) await moveOrderReports(order._id, source.databaseName, destination.databaseName);
+  await db.collection<ProductionOrderDocument>("production_orders").updateOne(
+    { _id: order._id },
+    {
+      $set: {
+        subhubUserId: destination._id,
+        subhubName: destination.subhubName,
+        updatedAt: new Date(),
+      },
+    },
+  );
+
+  const fromHub = order.subhubName;
+  await recordOrderActivity(db, {
+    orderId: order._id,
+    action: "reassigned",
+    actorId: current._id,
+    actorName: current.name,
+    actorRole: current.role === "master_admin" ? "Master Admin" : "Admin",
+    summary: `Order manually reassigned from ${fromHub} to ${destination.subhubName}`,
+    details: input.reason.trim() || "Reassigned by Admin based on current hub planning.",
+  });
+
+  const reports = await reportsForDatabase(destination.databaseName);
+  return {
+    ok: true,
+    order: summarizeOrder(
+      {
+        ...order,
+        subhubUserId: destination._id,
+        subhubName: destination.subhubName,
+        updatedAt: new Date(),
+      },
+      reports,
+    ),
+  };
 }
 
 export async function listProductionOrders(): Promise<
@@ -513,18 +689,30 @@ export async function getManagerProductionData(): Promise<
   { ok: true; data: ManagerProductionData } | { ok: false; data: ManagerProductionData; message: string }
 > {
   const current = await getCurrentUserRecord("subhub");
-  if (!isSubhub(current)) return { ok: false, data: { subhubName: "", orders: [], reports: [] }, message: "Only SubHub Managers can enter production." };
+  if (!isSubhub(current)) return {
+    ok: false,
+    data: { subhubName: "", orders: [], reports: [], capacityUnits: null, openUnits: 0, availableUnits: null, overloaded: false },
+    message: "Only SubHub Managers can enter production.",
+  };
   const db = await getControlPlaneDatabase();
   const [orders, reports] = await Promise.all([
     db.collection<ProductionOrderDocument>("production_orders").find({ subhubUserId: current._id }).sort({ dueDate: 1, createdAt: -1 }).toArray(),
     reportsForDatabase(current.databaseName),
   ]);
+  const capacity = await db.collection<HubCapacityDocument>("hub_capacities").findOne({ _id: current._id });
+  const serializedOrders = orders.map((order) => summarizeOrder(order, reports));
+  const openUnits = serializedOrders.reduce((sum, order) => sum + order.remaining, 0);
+  const capacityUnits = capacity?.capacityUnits ?? null;
   return {
     ok: true,
     data: {
       subhubName: current.subhubName ?? "SubHub",
-      orders: orders.map((order) => summarizeOrder(order, reports)),
+      orders: serializedOrders,
       reports: reports.map(serializeReport),
+      capacityUnits,
+      openUnits,
+      availableUnits: capacityUnits === null ? null : capacityUnits - openUnits,
+      overloaded: capacityUnits !== null && openUnits > capacityUnits,
     },
   };
 }
@@ -551,6 +739,7 @@ export async function saveDailyProduction(input: {
   const now = new Date();
   const reportId = `${order._id}_${date}`;
   const workspaceDb = await getMongoDb(current.databaseName);
+  const existingReport = await workspaceDb.collection<ProductionReportDocument>("production_reports").findOne({ _id: reportId });
   await workspaceDb.collection<ProductionReportDocument>("production_reports").updateOne(
     { _id: reportId },
     {
@@ -576,7 +765,165 @@ export async function saveDailyProduction(input: {
     createdAt: now,
     updatedAt: now,
   };
+  await recordOrderActivity(controlDb, {
+    orderId: order._id,
+    action: "production_updated",
+    actorId: current._id,
+    actorName: current.name,
+    actorRole: "Hub Manager",
+    summary: existingReport ? `Production report updated for ${date}` : `Production report added for ${date}`,
+    details: `${input.quantity.toLocaleString()} units reported for ${order.variantName}${input.notes.trim() ? ` · ${input.notes.trim()}` : ""}`,
+  });
   return { ok: true, report: serializeReport(saved) };
+}
+
+export async function getProductionOrderActivity(orderId: string): Promise<
+  { ok: true; activities: ProductionOrderActivity[] } | { ok: false; activities: ProductionOrderActivity[]; message: string }
+> {
+  const [current, subhubCurrent] = await Promise.all([
+    getCurrentUserRecord("admin"),
+    getCurrentUserRecord("subhub"),
+  ]);
+  const user = isAdmin(current) ? current : subhubCurrent;
+  if (!user || (!isAdmin(user) && !isSubhub(user))) return { ok: false, activities: [], message: "You do not have access to order activity." };
+
+  const db = await getControlPlaneDatabase();
+  const order = await db.collection<ProductionOrderDocument>("production_orders").findOne({ _id: orderId });
+  if (!order) return { ok: false, activities: [], message: "Production order not found." };
+  if (isSubhub(user) && order.subhubUserId !== user._id) {
+    return { ok: false, activities: [], message: "That order is not assigned to this SubHub." };
+  }
+  const activities = await db
+    .collection<OrderActivityDocument>("production_order_activity")
+    .find({ orderId })
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .toArray();
+  return { ok: true, activities: activities.map(serializeOrderActivity) };
+}
+
+export async function searchWorkspace(query: string): Promise<
+  { ok: true; results: WorkspaceSearchResult[] } | { ok: false; results: WorkspaceSearchResult[]; message: string }
+> {
+  const [adminCurrent, subhubCurrent] = await Promise.all([
+    getCurrentUserRecord("admin"),
+    getCurrentUserRecord("subhub"),
+  ]);
+  const admin = isAdmin(adminCurrent) ? adminCurrent : null;
+  const subhub = isSubhub(subhubCurrent) ? subhubCurrent : null;
+  const current = admin ?? subhub;
+  if (!current) {
+    return { ok: false, results: [], message: "You do not have access to workspace search." };
+  }
+  const normalizedQuery = query.trim().toLowerCase();
+  if (normalizedQuery.length < 2) return { ok: true, results: [] };
+
+  const db = await getControlPlaneDatabase();
+  const results: WorkspaceSearchResult[] = [];
+  const matches = (...values: Array<string | undefined>) =>
+    values.some((value) => value?.toLowerCase().includes(normalizedQuery));
+
+  const orders = await db.collection<ProductionOrderDocument>("production_orders")
+    .find(subhub ? { subhubUserId: subhub._id } : {})
+    .sort({ dueDate: 1, createdAt: -1 })
+    .limit(50)
+    .toArray();
+  orders
+    .filter((order) => matches(order.orderNumber, order.subhubName, order.productName, order.variantName, order.productCode, order.variantCode))
+    .slice(0, 12)
+    .forEach((order) => results.push({
+      id: order._id,
+      kind: "order",
+      title: `${order.orderNumber} · ${order.variantName}`,
+      subtitle: `${order.subhubName} · due ${order.dueDate}`,
+      href: subhub ? "/subhub/production" : "/orders",
+    }));
+
+  const users = await allSubhubUsers();
+  if (admin) {
+    users
+      .filter((user) => user.active && matches(user.name, user.subhubName))
+      .slice(0, 8)
+      .forEach((user) => results.push({
+        id: user._id,
+        kind: "hub",
+        title: user.subhubName ?? user.name,
+        subtitle: `${user.name} · managed SubHub`,
+        href: "/hubs",
+      }));
+
+    subparts
+      .filter((part) => matches(part.code, part.name, part.material, part.source))
+      .slice(0, 8)
+      .forEach((part) => results.push({
+        id: part.code,
+        kind: "part",
+        title: part.name,
+        subtitle: `${part.code} · ${part.material} · ${part.source}`,
+        href: "/raw-materials",
+      }));
+
+    bomCatalog
+      .filter((product) => matches(product.code, product.name, product.description))
+      .slice(0, 6)
+      .forEach((product) => results.push({
+        id: product.code,
+        kind: "product",
+        title: product.name,
+        subtitle: `${product.code} · ${product.variants.length} variants`,
+        href: "/bom",
+      }));
+  } else if (subhub) {
+    const inventoryDb = await getMongoDb(subhub.databaseName);
+    const inventory = await inventoryDb.collection<InventoryItemDocument>("inventory_items").find().limit(100).toArray();
+    inventory
+      .map((item) => subparts.find((part) => part.code === item._id) ?? { code: item._id, name: item._id, material: "Inventory item", source: "Workspace" })
+      .filter((part) => matches(part.code, part.name, part.material, part.source))
+      .slice(0, 8)
+      .forEach((part) => results.push({
+        id: part.code,
+        kind: "part",
+        title: part.name,
+        subtitle: `${part.code} · inventory item`,
+        href: "/inventory",
+      }));
+  }
+
+  return { ok: true, results: results.slice(0, 20) };
+}
+
+export async function getOrderNotifications(): Promise<
+  { ok: true; notifications: OrderNotification[] } | { ok: false; notifications: OrderNotification[]; message: string }
+> {
+  const [adminCurrent, subhubCurrent] = await Promise.all([
+    getCurrentUserRecord("admin"),
+    getCurrentUserRecord("subhub"),
+  ]);
+  const current = isAdmin(adminCurrent) ? adminCurrent : subhubCurrent;
+  if (!current || (!isAdmin(current) && !isSubhub(current))) {
+    return { ok: false, notifications: [], message: "You do not have access to order notifications." };
+  }
+
+  const db = await getControlPlaneDatabase();
+  const orderFilter = isSubhub(current) ? { subhubUserId: current._id } : {};
+  const orders = await db.collection<ProductionOrderDocument>("production_orders").find(orderFilter).toArray();
+  if (!orders.length) return { ok: true, notifications: [] };
+  const orderById = new Map(orders.map((order) => [order._id, order]));
+  const activities = await db
+    .collection<OrderActivityDocument>("production_order_activity")
+    .find({ orderId: { $in: orders.map((order) => order._id) } })
+    .sort({ createdAt: -1 })
+    .limit(30)
+    .toArray();
+  return {
+    ok: true,
+    notifications: activities
+      .map((activity) => {
+        const order = orderById.get(activity.orderId);
+        return order ? serializeNotification(activity, order) : null;
+      })
+      .filter((notification): notification is OrderNotification => notification !== null),
+  };
 }
 
 export async function getAdminProductionDashboard(): Promise<
