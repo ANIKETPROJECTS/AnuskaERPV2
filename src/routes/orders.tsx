@@ -1,11 +1,34 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CalendarRange, Check, ClipboardList, Plus, RefreshCw, Search, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CalendarRange,
+  Check,
+  ClipboardList,
+  Plus,
+  RefreshCw,
+  Search,
+  Settings2,
+  X,
+} from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Shell } from "@/components/erp/Shell";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
 import { bomCatalog, type BomCatalogProduct } from "@/lib/bom-catalog";
-import { createProductionOrderFn, listAssignableSubhubsFn, listProductionOrdersFn } from "@/production";
-import type { AssignableSubhub, ProductionOrder } from "@/production.server";
+import { createProductionOrderFn, getAdminProductionDashboardFn, listAssignableSubhubsFn, setHubCapacityFn } from "@/production";
+import type { AdminProductionDashboard, AssignableSubhub, ProductionOrder } from "@/production.server";
 import { num } from "@/lib/erp-data";
 
 export const Route = createFileRoute("/orders")({
@@ -30,17 +53,24 @@ function statusTone(status: ProductionOrder["status"]): "good" | "warn" | "bad" 
 }
 
 function Orders() {
+  const [dashboard, setDashboard] = useState<AdminProductionDashboard | null>(null);
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
   const [subhubs, setSubhubs] = useState<AssignableSubhub[]>([]);
+  const [capacityInputs, setCapacityInputs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState("");
+  const [capacityMessage, setCapacityMessage] = useState("");
+  const [savingCapacity, setSavingCapacity] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [orderResult, subhubResult] = await Promise.all([listProductionOrdersFn(), listAssignableSubhubsFn()]);
-    if (orderResult.ok) setOrders(orderResult.orders);
-    else setError(orderResult.message);
+    const [dashboardResult, subhubResult] = await Promise.all([getAdminProductionDashboardFn(), listAssignableSubhubsFn()]);
+    if (dashboardResult.ok) {
+      setDashboard(dashboardResult.data);
+      setOrders(dashboardResult.data.orders);
+      setCapacityInputs(Object.fromEntries(dashboardResult.data.hubs.map((hub) => [hub.userId, hub.capacityUnits?.toString() ?? ""])));
+    } else setError(dashboardResult.message);
     if (subhubResult.ok) setSubhubs(subhubResult.subhubs);
     else setError(subhubResult.message);
     setLoading(false);
@@ -54,6 +84,26 @@ function Orders() {
   const totalProduced = orders.reduce((sum, order) => sum + order.produced, 0);
   const totalRemaining = orders.reduce((sum, order) => sum + order.remaining, 0);
   const completion = totalTarget ? Math.round((totalProduced / totalTarget) * 100) : 0;
+
+  async function saveCapacity(subhubUserId: string) {
+    setSavingCapacity(subhubUserId);
+    setCapacityMessage("");
+    setError("");
+    const rawValue = capacityInputs[subhubUserId]?.trim() ?? "";
+    const capacityUnits = rawValue ? Number(rawValue) : null;
+    const result = await setHubCapacityFn({ data: { subhubUserId, capacityUnits } });
+    if (!result.ok) {
+      setError(result.message);
+    } else {
+      setCapacityMessage(
+        result.reassignments.length
+          ? `${result.reassignments.length} order${result.reassignments.length === 1 ? "" : "s"} reassigned to protect hub capacity.`
+          : "Hub capacity saved.",
+      );
+      await load();
+    }
+    setSavingCapacity("");
+  }
 
   async function saveOrder(input: { subhubUserId: string; productCode: string; variantCode: string; target: number; dueDate: string; notes: string }) {
     const result = await createProductionOrderFn({ data: input });
@@ -69,7 +119,7 @@ function Orders() {
   return (
     <Shell
       title="Orders & Production Targets"
-      subtitle="Assign work to SubHubs and track completion from manager-entered daily reports"
+      subtitle="Set hub capacity, assign work, and analyze manager-entered production"
       actions={
         <div className="flex gap-2">
           <button type="button" onClick={() => void load()} className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm">
@@ -90,6 +140,51 @@ function Orders() {
         </div>
 
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+        {capacityMessage ? <p role="status" className="rounded-md border border-success/25 bg-success/5 px-4 py-3 text-sm text-success">{capacityMessage}</p> : null}
+
+        <Panel title="Hub capacity & workload" description="Admin sets each hub’s active target capacity. Overloaded orders move to another eligible hub with available capacity. Leave blank for no limit.">
+          <div className="divide-y divide-border">
+            {loading && !dashboard ? (
+              <p className="p-8 text-center text-sm text-muted-foreground">Loading hub capacity…</p>
+            ) : dashboard?.hubs.length ? (
+              dashboard.hubs.map((hub) => (
+                <HubCapacityRow
+                  key={hub.userId}
+                  hub={hub}
+                  value={capacityInputs[hub.userId] ?? ""}
+                  saving={savingCapacity === hub.userId}
+                  onChange={(value) => setCapacityInputs((current) => ({ ...current, [hub.userId]: value }))}
+                  onSave={() => void saveCapacity(hub.userId)}
+                />
+              ))
+            ) : (
+              <p className="p-8 text-center text-sm text-muted-foreground">Create an active SubHub Manager to define capacity.</p>
+            )}
+          </div>
+        </Panel>
+
+        {dashboard ? <ProductionCharts dashboard={dashboard} /> : null}
+
+        {dashboard?.recentReassignments.length ? (
+          <Panel title="Recent automatic reassignments" description="Orders moved when their previous hub exceeded its configured active target capacity.">
+            <div className="divide-y divide-border">
+              {dashboard.recentReassignments.map((reassignment, index) => (
+                <div key={`${reassignment.orderNumber}-${reassignment.createdAt}-${index}`} className="flex flex-wrap items-center gap-3 px-5 py-4 text-sm">
+                  <div className="min-w-48 flex-1">
+                    <p className="font-medium">{reassignment.orderNumber} · {reassignment.variantName}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{reassignment.productName}</p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <Tag tone="warn">{reassignment.fromHub}</Tag>
+                    <ArrowRight className="size-4 text-muted-foreground" />
+                    <Tag tone="good">{reassignment.toHub}</Tag>
+                  </div>
+                  <time className="text-xs text-muted-foreground">{reassignment.createdAt.slice(0, 10)}</time>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        ) : null}
 
         <Panel title="Assigned production orders" description="Each order belongs to one SubHub and can be reported against day by day.">
           {loading ? (
@@ -143,6 +238,143 @@ function Orders() {
 
       {showForm ? <AssignTargetForm subhubs={subhubs} onClose={() => setShowForm(false)} onSave={saveOrder} /> : null}
     </Shell>
+  );
+}
+
+function HubCapacityRow({
+  hub,
+  value,
+  saving,
+  onChange,
+  onSave,
+}: {
+  hub: AdminProductionDashboard["hubs"][number];
+  value: string;
+  saving: boolean;
+  onChange: (value: string) => void;
+  onSave: () => void;
+}) {
+  const capacityLabel = hub.capacityUnits === null ? "No limit" : num(hub.capacityUnits);
+  const loadLabel = hub.capacityUnits === null
+    ? `${num(hub.openUnits)} open units`
+    : `${num(hub.openUnits)} / ${num(hub.capacityUnits)} units`;
+  const status = hub.overloaded ? "Overloaded" : hub.capacityUnits === null ? "Unrestricted" : "Within capacity";
+  const statusTone = hub.overloaded ? "bad" : hub.capacityUnits === null ? "neutral" : "good";
+
+  return (
+    <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center">
+      <div className="min-w-52 flex-1">
+        <p className="font-medium">{hub.subhubName}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{hub.name} · {hub.orderCount} active order{hub.orderCount === 1 ? "" : "s"}</p>
+      </div>
+      <div className="flex items-center gap-3 text-sm">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Current load</p>
+          <p className="tabular mt-1 font-semibold">{loadLabel}</p>
+        </div>
+        <Tag tone={statusTone}>{status}</Tag>
+      </div>
+      <label className="w-full text-sm lg:w-56">
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Capacity units</span>
+        <input
+          type="number"
+          min="1"
+          step="1"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="No limit"
+          aria-label={`Capacity units for ${hub.subhubName}`}
+          className="tabular mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary"
+        />
+      </label>
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={saving}
+        className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted disabled:opacity-50"
+      >
+        <Settings2 className="size-4" />
+        {saving ? "Saving…" : "Save capacity"}
+      </button>
+      <span className="sr-only">Configured capacity: {capacityLabel}</span>
+    </div>
+  );
+}
+
+const chartColors = ["#2563eb", "#16a34a", "#ea580c", "#9333ea", "#0891b2", "#db2777", "#65a30d", "#c2410c"];
+
+function ProductionCharts({ dashboard }: { dashboard: AdminProductionDashboard }) {
+  const chartStyle = {
+    borderRadius: 8,
+    border: "1px solid var(--color-border)",
+    background: "var(--color-card)",
+    fontSize: 12,
+  };
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-2">
+      <Panel title="Daily production by hub" description="Finished units reported by each SubHub for every production day.">
+        {dashboard.dailyProduction.length === 0 ? (
+          <div className="flex h-72 items-center justify-center px-6 text-center text-sm text-muted-foreground">
+            No daily production reports are available yet.
+          </div>
+        ) : (
+          <div className="h-72 p-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dashboard.dailyProduction} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                <XAxis dataKey="label" stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} />
+                <YAxis stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={chartStyle} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                {dashboard.chartHubs.map((hub, index) => (
+                  <Bar
+                    key={hub.key}
+                    dataKey={hub.key}
+                    name={hub.subhubName}
+                    stackId="production"
+                    fill={chartColors[index % chartColors.length]}
+                    {...(index === dashboard.chartHubs.length - 1 ? { radius: [4, 4, 0, 0] as [number, number, number, number] } : {})}
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </Panel>
+
+      <Panel title="Weekly production trend by hub" description="Compare output trends across all hubs, grouped Monday through Sunday.">
+        {dashboard.weeklyProduction.length === 0 ? (
+          <div className="flex h-72 items-center justify-center px-6 text-center text-sm text-muted-foreground">
+            No weekly production reports are available yet.
+          </div>
+        ) : (
+          <div className="h-72 p-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={dashboard.weeklyProduction} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                <XAxis dataKey="label" stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} />
+                <YAxis stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
+                <Tooltip contentStyle={chartStyle} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                {dashboard.chartHubs.map((hub, index) => (
+                  <Line
+                    key={hub.key}
+                    type="monotone"
+                    dataKey={hub.key}
+                    name={hub.subhubName}
+                    stroke={chartColors[index % chartColors.length]}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 5 }}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </Panel>
+    </div>
   );
 }
 

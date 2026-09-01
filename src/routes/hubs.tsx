@@ -20,6 +20,10 @@ export const Route = createFileRoute("/hubs")({
 const emptyDashboard: AdminProductionDashboard = {
   hubs: [],
   orders: [],
+  chartHubs: [],
+  dailyProduction: [],
+  weeklyProduction: [],
+  recentReassignments: [],
   totalTarget: 0,
   totalProduced: 0,
   totalRemaining: 0,

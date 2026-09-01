@@ -7,6 +7,7 @@ import {
   listAssignableSubhubs,
   listProductionOrders,
   saveDailyProduction,
+  setHubCapacity,
 } from "./production.server";
 
 const orderSchema = z.object({
@@ -25,9 +26,15 @@ const reportSchema = z.object({
   notes: z.string().max(500),
 });
 
+const capacitySchema = z.object({
+  subhubUserId: z.string().min(1),
+  capacityUnits: z.number().int().positive().nullable(),
+});
+
 export const listAssignableSubhubsFn = createServerFn({ method: "GET" }).handler(() => listAssignableSubhubs());
 export const listProductionOrdersFn = createServerFn({ method: "GET" }).handler(() => listProductionOrders());
 export const getManagerProductionDataFn = createServerFn({ method: "GET" }).handler(() => getManagerProductionData());
 export const getAdminProductionDashboardFn = createServerFn({ method: "GET" }).handler(() => getAdminProductionDashboard());
 export const createProductionOrderFn = createServerFn({ method: "POST" }).validator(orderSchema).handler(({ data }) => createProductionOrder(data));
 export const saveDailyProductionFn = createServerFn({ method: "POST" }).validator(reportSchema).handler(({ data }) => saveDailyProduction(data));
+export const setHubCapacityFn = createServerFn({ method: "POST" }).validator(capacitySchema).handler(({ data }) => setHubCapacity(data));
