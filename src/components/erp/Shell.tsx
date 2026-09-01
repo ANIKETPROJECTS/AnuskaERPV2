@@ -16,6 +16,7 @@ import {
 import { useRouter } from "@tanstack/react-router";
 import { logoutFn } from "@/auth";
 import { canAccess, useAuth } from "@/components/auth/AuthContext";
+import type { WorkspaceSearchScope } from "@/production";
 import { GlobalSearch, NotificationBell } from "./HeaderTools";
 
 const nav = [
@@ -31,6 +32,19 @@ const nav = [
   { to: "/hr", label: "HR & Attendance", icon: UserRoundCog, permission: "hr" },
 ] as const;
 
+function searchScopeForPath(pathname: string): WorkspaceSearchScope {
+  if (pathname.startsWith("/bom")) return "bom";
+  if (pathname.startsWith("/raw-materials")) return "raw-materials";
+  if (pathname.startsWith("/orders")) return "orders";
+  if (pathname.startsWith("/hubs")) return "hubs";
+  if (pathname.startsWith("/shortages")) return "shortages";
+  if (pathname.startsWith("/procurement")) return "procurement";
+  if (pathname.startsWith("/production")) return "production";
+  if (pathname.startsWith("/admin/users")) return "user-management";
+  if (pathname.startsWith("/hr")) return "hr";
+  return "dashboard";
+}
+
 export function Shell({
   title,
   subtitle,
@@ -43,6 +57,7 @@ export function Shell({
   children: ReactNode;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const searchScope = searchScopeForPath(pathname);
   const router = useRouter();
   const { user } = useAuth();
   const visibleNav = nav.filter((item) => canAccess(user, item.permission));
@@ -124,7 +139,7 @@ export function Shell({
               <h1 className="truncate text-xl font-semibold">{title}</h1>
               {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
             </div>
-            <GlobalSearch panel="admin" />
+            <GlobalSearch panel="admin" scope={searchScope} />
             <NotificationBell panel="admin" />
             {actions}
           </div>

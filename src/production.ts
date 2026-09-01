@@ -13,7 +13,7 @@ import {
   searchWorkspace,
   setHubCapacity,
 } from "./production.server";
-export type { OrderNotification, WorkspaceSearchResult } from "./production.server";
+export type { OrderNotification, WorkspaceSearchResult, WorkspaceSearchScope } from "./production.server";
 
 const orderSchema = z.object({
   subhubUserId: z.string().min(1),
@@ -50,6 +50,7 @@ const reassignSchema = z.object({
 const searchSchema = z.object({
   query: z.string().max(100),
   panel: z.enum(["admin", "subhub"]),
+  scope: z.enum(["dashboard", "bom", "raw-materials", "orders", "hubs", "shortages", "procurement", "production", "user-management", "hr"]),
 });
 
 const panelSchema = z.enum(["admin", "subhub"]);
@@ -63,5 +64,5 @@ export const saveDailyProductionFn = createServerFn({ method: "POST" }).validato
 export const setHubCapacityFn = createServerFn({ method: "POST" }).validator(capacitySchema).handler(({ data }) => setHubCapacity(data));
 export const getProductionOrderActivityFn = createServerFn({ method: "POST" }).validator(activitySchema).handler(({ data }) => getProductionOrderActivity(data.orderId, data.panel));
 export const reassignProductionOrderFn = createServerFn({ method: "POST" }).validator(reassignSchema).handler(({ data }) => reassignProductionOrder(data));
-export const searchWorkspaceFn = createServerFn({ method: "POST" }).validator(searchSchema).handler(({ data }) => searchWorkspace(data.query, data.panel));
+export const searchWorkspaceFn = createServerFn({ method: "POST" }).validator(searchSchema).handler(({ data }) => searchWorkspace(data.query, data.panel, data.scope));
 export const getOrderNotificationsFn = createServerFn({ method: "POST" }).validator(panelSchema).handler(({ data }) => getOrderNotifications(data));

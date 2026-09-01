@@ -1,7 +1,7 @@
 import { Bell, ClipboardList, Factory, FileText, Package, Search, X } from "lucide-react";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getOrderNotificationsFn, searchWorkspaceFn, type OrderNotification, type WorkspaceSearchResult } from "@/production";
+import { getOrderNotificationsFn, searchWorkspaceFn, type OrderNotification, type WorkspaceSearchResult, type WorkspaceSearchScope } from "@/production";
 
 const notificationStorageKey = (panel: "admin" | "subhub") => `gadsons-order-notifications-seen:${panel}`;
 
@@ -12,7 +12,20 @@ function resultIcon(kind: WorkspaceSearchResult["kind"]) {
   return FileText;
 }
 
-export function GlobalSearch({ panel }: { panel: "admin" | "subhub" }) {
+const searchLabels: Record<WorkspaceSearchScope, { placeholder: string; ariaLabel: string; empty: string }> = {
+  dashboard: { placeholder: "Search this section…", ariaLabel: "Search dashboard", empty: "No searchable records on the dashboard." },
+  bom: { placeholder: "Search BOM products…", ariaLabel: "Search BOM products and variants", empty: "No matching BOM products or variants." },
+  "raw-materials": { placeholder: "Search raw materials…", ariaLabel: "Search raw materials", empty: "No matching raw materials." },
+  orders: { placeholder: "Search orders…", ariaLabel: "Search orders", empty: "No matching orders." },
+  hubs: { placeholder: "Search hubs…", ariaLabel: "Search hubs", empty: "No matching hubs." },
+  shortages: { placeholder: "Search shortages…", ariaLabel: "Search shortages", empty: "No matching shortage parts." },
+  procurement: { placeholder: "Search procurement…", ariaLabel: "Search procurement actions", empty: "No matching procurement actions." },
+  production: { placeholder: "Search production…", ariaLabel: "Search production records", empty: "No matching production records." },
+  "user-management": { placeholder: "Search users…", ariaLabel: "Search users", empty: "No matching users." },
+  hr: { placeholder: "Search HR records…", ariaLabel: "Search HR records", empty: "No matching HR records." },
+};
+
+export function GlobalSearch({ panel, scope }: { panel: "admin" | "subhub"; scope: WorkspaceSearchScope }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<WorkspaceSearchResult[]>([]);
@@ -53,7 +66,7 @@ export function GlobalSearch({ panel }: { panel: "admin" | "subhub" }) {
     setLoading(true);
     const timeout = window.setTimeout(async () => {
       try {
-        const response = await searchWorkspaceFn({ data: { query: trimmed, panel } });
+        const response = await searchWorkspaceFn({ data: { query: trimmed, panel, scope } });
         if (!cancelled) setResults(response.ok ? response.results : []);
       } catch {
         if (!cancelled) setResults([]);
@@ -65,7 +78,7 @@ export function GlobalSearch({ panel }: { panel: "admin" | "subhub" }) {
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [panel, query]);
+  }, [panel, query, scope]);
 
   async function openResult(result: WorkspaceSearchResult) {
     setOpen(false);
@@ -85,8 +98,8 @@ export function GlobalSearch({ panel }: { panel: "admin" | "subhub" }) {
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Search parts, hubs…"
-          aria-label="Search parts, hubs, and orders"
+          placeholder={searchLabels[scope].placeholder}
+          aria-label={searchLabels[scope].ariaLabel}
           aria-expanded={open}
           className="w-full min-w-0 bg-transparent outline-none placeholder:text-muted-foreground"
         />
@@ -101,7 +114,7 @@ export function GlobalSearch({ panel }: { panel: "admin" | "subhub" }) {
       {open && query.trim().length >= 2 ? (
         <div className="absolute right-0 top-full z-50 mt-2 w-[min(24rem,80vw)] overflow-hidden rounded-lg border border-border bg-card shadow-xl">
           {loading ? <p className="px-4 py-3 text-sm text-muted-foreground">Searching workspace…</p> : null}
-          {!loading && !results.length ? <p className="px-4 py-3 text-sm text-muted-foreground">No matching records in this workspace.</p> : null}
+          {!loading && !results.length ? <p className="px-4 py-3 text-sm text-muted-foreground">{searchLabels[scope].empty}</p> : null}
           {!loading && results.length ? (
             <div className="max-h-80 overflow-y-auto py-1">
               {results.map((result) => {

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getControlPlaneDatabase, getCurrentUserRecord, type Panel, type UserDocument } from "./auth.server";
 import { bomCatalog } from "./lib/bom-catalog";
 import { getMongoDb } from "./mongodb.server";
-import { subparts } from "./lib/erp-data";
+import { procurement, subparts } from "./lib/erp-data";
 
 export type AssignableSubhub = {
   id: string;
@@ -110,6 +110,18 @@ export type WorkspaceSearchResult = {
   subtitle: string;
   href: string;
 };
+
+export type WorkspaceSearchScope =
+  | "dashboard"
+  | "bom"
+  | "raw-materials"
+  | "orders"
+  | "hubs"
+  | "shortages"
+  | "procurement"
+  | "production"
+  | "user-management"
+  | "hr";
 
 export type OrderNotification = {
   id: string;
@@ -802,7 +814,7 @@ export async function getProductionOrderActivity(orderId: string, panel: Panel):
   return { ok: true, activities: activities.map(serializeOrderActivity) };
 }
 
-export async function searchWorkspace(query: string, panel: Panel): Promise<
+export async function searchWorkspace(query: string, panel: Panel, scope: WorkspaceSearchScope): Promise<
   { ok: true; results: WorkspaceSearchResult[] } | { ok: false; results: WorkspaceSearchResult[]; message: string }
 > {
   const [adminCurrent, subhubCurrent] = await Promise.all([
@@ -823,56 +835,80 @@ export async function searchWorkspace(query: string, panel: Panel): Promise<
   const matches = (...values: Array<string | undefined>) =>
     values.some((value) => value?.toLowerCase().includes(normalizedQuery));
 
-  const orders = await db.collection<ProductionOrderDocument>("production_orders")
-    .find(subhub ? { subhubUserId: subhub._id } : {})
-    .sort({ dueDate: 1, createdAt: -1 })
-    .limit(50)
-    .toArray();
-  orders
-    .filter((order) => matches(order.orderNumber, order.subhubName, order.productName, order.variantName, order.productCode, order.variantCode))
-    .slice(0, 12)
-    .forEach((order) => results.push({
-      id: order._id,
-      kind: "order",
-      title: `${order.orderNumber} · ${order.variantName}`,
-      subtitle: `${order.subhubName} · due ${order.dueDate}`,
-       href: panel === "subhub" ? "/subhub/production" : "/orders",
-    }));
-
-  const users = await allSubhubUsers();
-  if (admin) {
+  if (scope === "orders" || scope === "production") {
+    const orders = await db.collection<ProductionOrderDocument>("production_orders")
+      .find(subhub ? { subhubUserId: subhub._id } : {})
+      .sort({ dueDate: 1, createdAt: -1 })
+      .limit(50)
+      .toArray();
+    orders
+      .filter((order) => matches(order.orderNumber, order.subhubName, order.productName, order.variantName, order.productCode, order.variantCode))
+      .slice(0, 20)
+      .forEach((order) => results.push({
+        id: order._id,
+        kind: "order",
+        title: `${order.orderNumber} · ${order.variantName}`,
+        subtitle: `${order.subhubName} · due ${order.dueDate}`,
+        href: scope === "production" ? "/production" : "/orders",
+      }));
+  } else if (scope === "hubs" || scope === "user-management" || scope === "hr") {
+    const users = await allSubhubUsers();
     users
       .filter((user) => user.active && matches(user.name, user.subhubName))
-      .slice(0, 8)
+      .slice(0, 20)
       .forEach((user) => results.push({
         id: user._id,
         kind: "hub",
         title: user.subhubName ?? user.name,
         subtitle: `${user.name} · managed SubHub`,
-        href: "/hubs",
+        href: scope === "user-management" ? "/admin/users" : scope === "hr" ? "/hr" : "/hubs",
       }));
-
+  } else if (scope === "raw-materials" || scope === "shortages") {
     subparts
       .filter((part) => matches(part.code, part.name, part.material, part.source))
-      .slice(0, 8)
+      .slice(0, 20)
       .forEach((part) => results.push({
         id: part.code,
         kind: "part",
         title: part.name,
         subtitle: `${part.code} · ${part.material} · ${part.source}`,
-        href: "/raw-materials",
+        href: scope === "shortages" ? "/shortages" : "/raw-materials",
       }));
+  } else if (scope === "procurement") {
+    procurement
+      .filter((item) => matches(item.id, item.part, item.hub, item.status, item.vendor, item.by))
+      .slice(0, 20)
+      .forEach((item) => results.push({
+        id: item.id,
+        kind: "part",
+        title: `${item.id} · ${item.part}`,
+        subtitle: `${item.hub} · ${item.status} · ${item.vendor}`,
+        href: "/procurement",
+      }));
+  } else if (scope === "bom") {
+    bomCatalog.forEach((product) => {
+      const productMatches = matches(product.code, product.name, product.description);
+      if (productMatches) {
+        results.push({
+          id: product.code,
+          kind: "product",
+          title: product.name,
+          subtitle: `${product.code} · ${product.variants.length} variants`,
+          href: `/bom/${product.code}`,
+        });
+      }
 
-    bomCatalog
-      .filter((product) => matches(product.code, product.name, product.description))
-      .slice(0, 6)
-      .forEach((product) => results.push({
-        id: product.code,
-        kind: "product",
-        title: product.name,
-        subtitle: `${product.code} · ${product.variants.length} variants`,
-        href: "/bom",
-      }));
+      product.variants
+        .filter((variant) => matches(variant.code, variant.name, variant.company))
+        .slice(0, 12)
+        .forEach((variant) => results.push({
+          id: `${product.code}-${variant.code}`,
+          kind: "product",
+          title: variant.name,
+          subtitle: `${product.name} · ${variant.code} variant`,
+          href: `/bom/${product.code}`,
+        }));
+    });
   } else if (subhub) {
     const inventoryDb = await getMongoDb(subhub.databaseName);
     const inventory = await inventoryDb.collection<InventoryItemDocument>("inventory_items").find().limit(100).toArray();
