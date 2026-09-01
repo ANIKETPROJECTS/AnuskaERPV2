@@ -97,7 +97,7 @@ const ADMIN_PERMISSIONS: AccessSection[] = [
   "hr",
 ];
 
-const SUBHUB_PERMISSIONS: AccessSection[] = ["inventory", "hub-manager", "hub-reports", "hr"];
+const SUBHUB_PERMISSIONS: AccessSection[] = ["inventory", "hub-manager", "hub-reports", "hr", "bom", "raw-materials"];
 const PANEL_PERMISSIONS: Record<Panel, readonly AccessSection[]> = {
   admin: ADMIN_PERMISSIONS,
   subhub: SUBHUB_PERMISSIONS,
@@ -129,7 +129,7 @@ async function ensureControlPlane(): Promise<Db> {
     db.collection("production_reassignments").createIndex({ createdAt: -1 }),
     db.collection<UserDocument>("users").updateMany(
       { panel: { $in: ["admin", "subhub"] } },
-      { $addToSet: { permissions: "hr" } },
+      { $addToSet: { permissions: { $each: ["hr", "bom", "raw-materials"] } } },
     ),
   ]).then(() => undefined);
   await indexesPromise;

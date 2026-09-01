@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Database, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
 import { Shell } from "@/components/erp/Shell";
+import { SubHubShell } from "@/components/erp/SubHubShell";
 import { Panel } from "@/components/erp/bits";
 import { subparts } from "@/lib/erp-data";
 
@@ -25,6 +26,10 @@ export const Route = createFileRoute("/raw-materials")({
 });
 
 function RawMaterials() {
+  return <RawMaterialsPage readOnly={false} />;
+}
+
+export function RawMaterialsPage({ readOnly }: { readOnly: boolean }) {
   const [materials, setMaterials] = useState<RawMaterial[]>(seededMaterials);
   const [query, setQuery] = useState("");
   const [showCreator, setShowCreator] = useState(false);
@@ -60,23 +65,77 @@ function RawMaterials() {
   }
 
   return (
-    <Shell
-      title="Raw Materials"
-      subtitle="Admin Panel · central raw-part catalog"
-      actions={
-        <button type="button" onClick={openCreate} className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium">
-          <Plus className="size-4" /> New raw material
-        </button>
-      }
-    >
+    readOnly ? (
+      <SubHubShell title="Raw Materials" subtitle="View-only central raw-part catalog">
+        <RawMaterialsContent
+          materials={materials}
+          filteredMaterials={filteredMaterials}
+          query={query}
+          onQueryChange={setQuery}
+          readOnly
+        />
+      </SubHubShell>
+    ) : (
+      <Shell
+        title="Raw Materials"
+        subtitle="Admin Panel · central raw-part catalog"
+        actions={
+          <button type="button" onClick={openCreate} className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium">
+            <Plus className="size-4" /> New raw material
+          </button>
+        }
+      >
+        <RawMaterialsContent
+          materials={materials}
+          filteredMaterials={filteredMaterials}
+          query={query}
+          onQueryChange={setQuery}
+          onEdit={openEdit}
+          onDelete={removeMaterial}
+        />
+        {showCreator ? (
+          <RawMaterialDrawer
+            initial={editingMaterial}
+            editing={Boolean(editingMaterial)}
+            onClose={() => {
+              setShowCreator(false);
+              setEditingMaterial(null);
+            }}
+            onSave={saveMaterial}
+          />
+        ) : null}
+      </Shell>
+    )
+  );
+}
+
+function RawMaterialsContent({
+  materials,
+  filteredMaterials,
+  query,
+  onQueryChange,
+  readOnly = false,
+  onEdit,
+  onDelete,
+}: {
+  materials: RawMaterial[];
+  filteredMaterials: RawMaterial[];
+  query: string;
+  onQueryChange: (value: string) => void;
+  readOnly?: boolean;
+  onEdit?: (item: RawMaterial) => void;
+  onDelete?: (item: RawMaterial) => void;
+}) {
+  return (
+    <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <p className="text-sm text-muted-foreground">{materials.length} raw materials</p>
-          <p className="mt-1 text-xs text-muted-foreground">Master data is maintained in the Admin Panel.</p>
+          <p className="mt-1 text-xs text-muted-foreground">{readOnly ? "View-only access for this SubHub." : "Master data is maintained in the Admin Panel."}</p>
         </div>
         <label className="relative block w-full max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search raw materials" className="h-9 w-full rounded-md border border-input bg-card pl-9 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
+          <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search raw materials" className="h-9 w-full rounded-md border border-input bg-card pl-9 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
         </label>
       </div>
       <Panel title="Raw material catalog" description="Costing inputs and component records used by product structures">
@@ -88,7 +147,7 @@ function RawMaterials() {
                 <th className="px-5 py-3 font-medium">Name</th>
                 <th className="px-5 py-3 font-medium">Description</th>
                 <th className="px-5 py-3 font-medium">Material</th>
-                <th className="px-5 py-3 text-right font-medium">Actions</th>
+                {!readOnly ? <th className="px-5 py-3 text-right font-medium">Actions</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -98,35 +157,26 @@ function RawMaterials() {
                   <td className="px-5 py-4 font-medium">{item.name}</td>
                   <td className="px-5 py-4 text-muted-foreground">{item.description}</td>
                   <td className="px-5 py-4 text-muted-foreground">{item.material}</td>
-                  <td className="px-5 py-4">
-                    <div className="flex justify-end gap-1">
-                      <button type="button" onClick={() => openEdit(item)} aria-label={`Edit ${item.name}`} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
+                  {!readOnly ? (
+                    <td className="px-5 py-4">
+                      <div className="flex justify-end gap-1">
+                        <button type="button" onClick={() => onEdit?.(item)} aria-label={`Edit ${item.name}`} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
                         <Pencil className="size-3.5" />
-                      </button>
-                      <button type="button" onClick={() => removeMaterial(item)} aria-label={`Delete ${item.name}`} className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                        </button>
+                        <button type="button" onClick={() => onDelete?.(item)} aria-label={`Delete ${item.name}`} className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                         <Trash2 className="size-3.5" />
-                      </button>
-                    </div>
-                  </td>
+                        </button>
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
-              {!filteredMaterials.length ? <tr><td colSpan={5} className="px-5 py-12 text-center text-sm text-muted-foreground">No raw materials found.</td></tr> : null}
+              {!filteredMaterials.length ? <tr><td colSpan={readOnly ? 4 : 5} className="px-5 py-12 text-center text-sm text-muted-foreground">No raw materials found.</td></tr> : null}
             </tbody>
           </table>
         </div>
       </Panel>
-      {showCreator ? (
-        <RawMaterialDrawer
-          initial={editingMaterial}
-          editing={Boolean(editingMaterial)}
-          onClose={() => {
-            setShowCreator(false);
-            setEditingMaterial(null);
-          }}
-          onSave={saveMaterial}
-        />
-      ) : null}
-    </Shell>
+    </div>
   );
 }
 

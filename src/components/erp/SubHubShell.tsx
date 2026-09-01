@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { Boxes, ClipboardCheck, FileBarChart, LogOut, PackageOpen, UserRoundCog } from "lucide-react";
+import { Boxes, ClipboardCheck, Database, FileBarChart, Layers, LogOut, PackageOpen, UserRoundCog } from "lucide-react";
 import type { ReactNode } from "react";
 import { logoutFn } from "@/auth";
 import { canAccess, useAuth } from "@/components/auth/AuthContext";
@@ -7,12 +7,24 @@ import { NotificationBell } from "./HeaderTools";
 
 const subhubNav = [
   { to: "/inventory", label: "Inventory Management", permission: "inventory", icon: PackageOpen },
+  { to: "/subhub/bom", label: "Bill of Materials", permission: "bom", icon: Layers },
+  { to: "/subhub/raw-materials", label: "Raw Materials", permission: "raw-materials", icon: Database },
   { to: "/subhub/production", label: "Hub Manager", permission: "hub-manager", icon: ClipboardCheck },
   { to: "/subhub/reports", label: "Hub Reports", permission: "hub-reports", icon: FileBarChart },
   { to: "/subhub/hr", label: "HR & Attendance", permission: "hr", icon: UserRoundCog },
 ] as const;
 
-export function SubHubShell({ actions, children }: { actions?: ReactNode; children: ReactNode }) {
+export function SubHubShell({
+  title,
+  subtitle,
+  actions,
+  children,
+}: {
+  title?: string;
+  subtitle?: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const router = useRouter();
   const { user } = useAuth();
@@ -92,6 +104,12 @@ export function SubHubShell({ actions, children }: { actions?: ReactNode; childr
           <NotificationBell panel="subhub" />
           {actions}
         </header>
+        {title ? (
+          <div className="border-b border-border px-6 py-5">
+            <h1 className="text-xl font-semibold">{title}</h1>
+            {subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}
+          </div>
+        ) : null}
         {children}
       </main>
     </div>

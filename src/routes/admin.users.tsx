@@ -35,6 +35,8 @@ const permissionGroups: Array<{ label: string; panel: Panel; items: Array<{ valu
       { value: "hub-manager", label: "Hub Manager" },
       { value: "hub-reports", label: "Hub Reports" },
       { value: "hr", label: "HR & Attendance" },
+      { value: "bom", label: "Bill of Materials (view only)" },
+      { value: "raw-materials", label: "Raw Materials (view only)" },
     ],
   },
 ];

@@ -1,7 +1,6 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
+import { RawMaterialsPage } from "./raw-materials";
 
 export const Route = createFileRoute("/subhub/raw-materials")({
-  beforeLoad: () => {
-    throw redirect({ to: "/raw-materials" });
-  },
+  component: () => <RawMaterialsPage readOnly />,
 });

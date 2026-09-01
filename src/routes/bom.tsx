@@ -2,6 +2,8 @@ import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 import { ImagePlus, Plus, Upload, X } from "lucide-react";
 import { ChangeEvent, FormEvent, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
+import { SubHubShell } from "@/components/erp/SubHubShell";
+import { useAuth } from "@/components/auth/AuthContext";
 import { useBomProducts, addBomProduct, rawPartCount, type NewProduct } from "@/lib/bom-store";
 
 export const Route = createFileRoute("/bom")({
@@ -23,14 +25,19 @@ const emptyProduct: NewProduct = { name: "", code: "", description: "", image: "
 
 function Bom() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const products = useBomProducts();
-  const [showProductForm, setShowProductForm] = useState(false);
-  const [productForm, setProductForm] = useState(emptyProduct);
-  const [productError, setProductError] = useState("");
+  const { user } = useAuth();
 
   if (pathname !== "/bom") {
     return <Outlet />;
   }
+  return <BomPage readOnly={user?.panel === "subhub"} />;
+}
+
+export function BomPage({ readOnly }: { readOnly: boolean }) {
+  const products = useBomProducts();
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [productForm, setProductForm] = useState(emptyProduct);
+  const [productError, setProductError] = useState("");
 
   function openProductForm() {
     setProductForm(emptyProduct);
@@ -76,20 +83,7 @@ function Bom() {
     closeProductForm();
   }
 
-  return (
-    <Shell
-      title="Bills of Materials"
-      subtitle="Parent assemblies and component structures for the Float product line"
-      actions={
-        <button
-          type="button"
-          onClick={openProductForm}
-          className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"
-        >
-          <Plus className="size-4" /> Add product
-        </button>
-      }
-    >
+  const content = (
       <section className="space-y-6 p-6">
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {products.map((product) => (
@@ -111,18 +105,41 @@ function Bom() {
                     <p className="mt-1 font-semibold">{rawPartCount(product)}</p>
                   </div>
                 </div>
-                <Link
-                  to="/bom/$code"
-                  params={{ code: product.code }}
-                  className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-primary hover:underline"
-                >
-                  Open structure <span aria-hidden="true">→</span>
-                </Link>
+                {readOnly ? (
+                  <Link to="/subhub/bom/$code" params={{ code: product.code }} className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-primary hover:underline">
+                    Open structure <span aria-hidden="true">→</span>
+                  </Link>
+                ) : (
+                  <Link to="/bom/$code" params={{ code: product.code }} className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-primary hover:underline">
+                    Open structure <span aria-hidden="true">→</span>
+                  </Link>
+                )}
               </div>
             </article>
           ))}
         </div>
       </section>
+  );
+
+  if (readOnly) {
+    return <SubHubShell title="Bills of Materials" subtitle="View-only parent assemblies and component structures">{content}</SubHubShell>;
+  }
+
+  return (
+    <Shell
+      title="Bills of Materials"
+      subtitle="Parent assemblies and component structures for the Float product line"
+      actions={
+        <button
+          type="button"
+          onClick={openProductForm}
+          className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"
+        >
+          <Plus className="size-4" /> Add product
+        </button>
+      }
+    >
+      {content}
 
       {showProductForm ? (
         <ProductForm

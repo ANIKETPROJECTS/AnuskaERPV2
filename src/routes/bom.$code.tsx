@@ -1,7 +1,8 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Check, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
+import { SubHubShell } from "@/components/erp/SubHubShell";
 import { Panel, Tag } from "@/components/erp/bits";
 import {
   addBomVariant,
@@ -27,7 +28,10 @@ const emptyVariant: NewVariant = { company: "", name: "", code: "", parts: {} };
 
 function BomStructure() {
   const { code } = Route.useParams();
-  const navigate = useNavigate();
+  return <BomStructurePage code={code} readOnly={false} />;
+}
+
+export function BomStructurePage({ code, readOnly }: { code: string; readOnly: boolean }) {
   const products = useBomProducts();
   const product = products.find((item) => item.code === code);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(product?.variants[0]?.id ?? null);
@@ -52,14 +56,17 @@ function BomStructure() {
   const selectedVariant = product?.variants.find((variant) => variant.id === selectedVariantId) ?? null;
 
   if (!product) {
-    return (
-      <Shell title="BOM product not found" subtitle="No such parent assembly">
+    const notFound = (
         <Panel title="Nothing here">
           <div className="p-5 text-sm">
             <Link to="/bom" className="text-primary underline">Back to Bill of Materials</Link>
           </div>
         </Panel>
-      </Shell>
+    );
+    return readOnly ? (
+      <SubHubShell title="BOM product not found" subtitle="No such parent assembly">{notFound}</SubHubShell>
+    ) : (
+      <Shell title="BOM product not found" subtitle="No such parent assembly">{notFound}</Shell>
     );
   }
   const currentProduct = product;
@@ -91,16 +98,7 @@ function BomStructure() {
     setEditingVariant(null);
   }
 
-  return (
-    <Shell
-      title={`${product.name} structure`}
-      subtitle={`${product.code} · ${product.variants.length} product variants · ${new Set(product.variants.flatMap((variant) => Object.keys(variant.parts))).size} raw parts`}
-      actions={
-        <Link to="/bom" className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm">
-          <ArrowLeft className="size-4" /> Bill of Materials
-        </Link>
-      }
-    >
+  const content = (
       <div className="grid gap-5 p-6 xl:grid-cols-[270px_1fr]">
         <aside className="panel h-fit overflow-hidden">
           <div className="border-b border-border p-4">
@@ -109,14 +107,16 @@ function BomStructure() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company BOM variants</p>
                 <p className="mt-1 text-xs text-muted-foreground">{product.variants.length} variants</p>
               </div>
-              <button
-                type="button"
-                onClick={openCreateVariant}
-                aria-label="Add variant"
-                className="rounded-md border border-input p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <Plus className="size-4" />
-              </button>
+              {!readOnly ? (
+                <button
+                  type="button"
+                  onClick={openCreateVariant}
+                  aria-label="Add variant"
+                  className="rounded-md border border-input p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Plus className="size-4" />
+                </button>
+              ) : null}
             </div>
             <div className="relative mt-3">
               <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
@@ -142,14 +142,16 @@ function BomStructure() {
                   <p className="mt-1 text-sm font-semibold">{variant.name}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{variant.company}</p>
                 </button>
-                <div className="mt-2 flex justify-end gap-1">
-                  <button type="button" onClick={() => openEditVariant(variant)} aria-label={`Edit ${variant.name}`} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-                    <Pencil className="size-3.5" />
-                  </button>
-                  <button type="button" onClick={() => removeVariant(variant)} aria-label={`Delete ${variant.name}`} className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-                    <Trash2 className="size-3.5" />
-                  </button>
-                </div>
+                {!readOnly ? (
+                  <div className="mt-2 flex justify-end gap-1">
+                    <button type="button" onClick={() => openEditVariant(variant)} aria-label={`Edit ${variant.name}`} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button type="button" onClick={() => removeVariant(variant)} aria-label={`Delete ${variant.name}`} className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ))}
             {filteredVariants.length === 0 ? (
@@ -169,15 +171,47 @@ function BomStructure() {
                   {selectedVariant ? `${selectedVariant.company} · ${selectedVariant.code}` : "Create a variant-specific BOM to begin."}
                 </p>
               </div>
-              <button type="button" onClick={openCreateVariant} className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium">
-                <Plus className="size-4" /> Add variant
-              </button>
+              {!readOnly ? (
+                <button type="button" onClick={openCreateVariant} className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium">
+                  <Plus className="size-4" /> Add variant
+                </button>
+              ) : null}
             </div>
-            {selectedVariant ? <PartsTable variant={selectedVariant} /> : <EmptyVariantState onAdd={openCreateVariant} />}
+            {selectedVariant ? <PartsTable variant={selectedVariant} /> : readOnly ? <p className="p-12 text-center text-sm text-muted-foreground">No variant selected.</p> : <EmptyVariantState onAdd={openCreateVariant} />}
           </div>
         </main>
       </div>
+  );
 
+  const backLink = readOnly ? (
+    <Link to="/subhub/bom" className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm">
+      <ArrowLeft className="size-4" /> Bill of Materials
+    </Link>
+  ) : (
+    <Link to="/bom" className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm">
+      <ArrowLeft className="size-4" /> Bill of Materials
+    </Link>
+  );
+
+  if (readOnly) {
+    return (
+      <SubHubShell
+        title={`${product.name} structure`}
+        subtitle={`${product.code} · ${product.variants.length} product variants · ${new Set(product.variants.flatMap((variant) => Object.keys(variant.parts))).size} raw parts`}
+        actions={backLink}
+      >
+        {content}
+      </SubHubShell>
+    );
+  }
+
+  return (
+    <Shell
+      title={`${product.name} structure`}
+      subtitle={`${product.code} · ${product.variants.length} product variants · ${new Set(product.variants.flatMap((variant) => Object.keys(variant.parts))).size} raw parts`}
+      actions={backLink}
+    >
+      {content}
       {showVariantForm ? (
         <VariantForm
           productName={product.name}
