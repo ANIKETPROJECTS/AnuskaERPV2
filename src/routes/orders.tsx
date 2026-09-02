@@ -14,19 +14,25 @@ import {
   ArrowRight,
   ChevronDown,
   ClipboardList,
+  Edit3,
   History,
   Plus,
   RefreshCw,
   Save,
   Settings2,
+  Trash2,
+  X,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/components/auth/AuthContext";
 import { Shell } from "@/components/erp/Shell";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
 import { TablePagination } from "@/components/erp/TablePagination";
 import { getAdminProductionDashboardFn, getProductionOrderActivityFn, listAssignableSubhubsFn, reassignProductionOrderFn, setAdminHubCapacityFn } from "@/production";
+import { deleteProductionOrderFn, updateProductionOrderFn } from "@/production";
 import type { AdminProductionDashboard, AssignableSubhub, ProductionOrder, ProductionOrderActivity } from "@/production.server";
+import { bomCatalog } from "@/lib/bom-catalog";
 import { num } from "@/lib/erp-data";
 
 export const Route = createFileRoute("/orders")({
@@ -72,6 +78,8 @@ function formatOrderDate(value: string) {
 }
 
 function Orders() {
+  const auth = useAuth();
+  const isMasterAdmin = auth.user?.role === "master_admin";
   const [dashboard, setDashboard] = useState<AdminProductionDashboard | null>(null);
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
   const [subhubs, setSubhubs] = useState<AssignableSubhub[]>([]);
@@ -91,6 +99,9 @@ function Orders() {
   const [orderPageSize, setOrderPageSize] = useState(10);
   const [savingCapacityId, setSavingCapacityId] = useState("");
   const [capacitySuccess, setCapacitySuccess] = useState("");
+  const [editingOrder, setEditingOrder] = useState<ProductionOrder | null>(null);
+  const [savingOrderId, setSavingOrderId] = useState("");
+  const [orderSuccess, setOrderSuccess] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -201,6 +212,55 @@ function Orders() {
     return result;
   }
 
+  async function saveTarget(input: {
+    orderId: string;
+    subhubUserId: string;
+    productCode: string;
+    variantCode: string;
+    target: number;
+    dueDate: string;
+    notes: string;
+  }) {
+    setSavingOrderId(input.orderId);
+    setError("");
+    setOrderSuccess("");
+    const result = await updateProductionOrderFn({ data: input });
+    if (!result.ok) {
+      setError(result.message);
+    } else {
+      setEditingOrder(null);
+      setActivities((current) => {
+        const next = { ...current };
+        delete next[input.orderId];
+        return next;
+      });
+      setOrderSuccess(`${result.order.orderNumber} was updated successfully.`);
+      await load();
+    }
+    setSavingOrderId("");
+  }
+
+  async function deleteTarget(order: ProductionOrder) {
+    if (!window.confirm(`Delete ${order.orderNumber}? This will permanently remove the target, its production reports, and its activity history.`)) return;
+    setSavingOrderId(order.id);
+    setError("");
+    setOrderSuccess("");
+    const result = await deleteProductionOrderFn({ data: { orderId: order.id } });
+    if (!result.ok) {
+      setError(result.message);
+    } else {
+      setExpandedOrderId(null);
+      setActivities((current) => {
+        const next = { ...current };
+        delete next[order.id];
+        return next;
+      });
+      setOrderSuccess(`${result.orderNumber} was deleted successfully.`);
+      await load();
+    }
+    setSavingOrderId("");
+  }
+
   return (
     <Shell
       title="Orders & Production Targets"
@@ -226,6 +286,7 @@ function Orders() {
 
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
         {capacitySuccess ? <p role="status" className="rounded-md border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-700">{capacitySuccess}</p> : null}
+        {orderSuccess ? <p role="status" className="rounded-md border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-700">{orderSuccess}</p> : null}
         <details className="panel group">
           <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-3.5 [&::-webkit-details-marker]:hidden">
             <div className="min-w-0 flex-1">
@@ -400,8 +461,12 @@ function Orders() {
                             activityLoading={activityLoading === order.id}
                             reassigning={reassigningOrderId === order.id}
                             activityOpen={expandedOrderId === order.id}
+                            canManage={isMasterAdmin}
+                            saving={savingOrderId === order.id}
                             onToggleActivity={() => void toggleActivity(order.id)}
                             onReassign={(subhubUserId, reason) => void reassignOrder(order.id, subhubUserId, reason)}
+                            onEdit={() => setEditingOrder(order)}
+                            onDelete={() => void deleteTarget(order)}
                           />
                         ))}
                       </tbody>
@@ -414,6 +479,7 @@ function Orders() {
           )}
         </Panel>
       </div>
+      {editingOrder ? <TargetEditor order={editingOrder} subhubs={subhubs} busy={savingOrderId === editingOrder.id} onClose={() => setEditingOrder(null)} onSave={saveTarget} /> : null}
 
     </Shell>
   );
@@ -499,6 +565,113 @@ function HubCapacityRow({
   );
 }
 
+function TargetEditor({
+  order,
+  subhubs,
+  busy,
+  onClose,
+  onSave,
+}: {
+  order: ProductionOrder;
+  subhubs: AssignableSubhub[];
+  busy: boolean;
+  onClose: () => void;
+  onSave: (input: {
+    orderId: string;
+    subhubUserId: string;
+    productCode: string;
+    variantCode: string;
+    target: number;
+    dueDate: string;
+    notes: string;
+  }) => Promise<void>;
+}) {
+  const [subhubUserId, setSubhubUserId] = useState(order.subhubUserId);
+  const [productCode, setProductCode] = useState(order.productCode);
+  const [variantCode, setVariantCode] = useState(order.variantCode);
+  const [target, setTarget] = useState(String(order.target));
+  const [dueDate, setDueDate] = useState(order.dueDate);
+  const [notes, setNotes] = useState(order.notes);
+  const product = bomCatalog.find((item) => item.code === productCode) ?? bomCatalog[0];
+
+  function changeProduct(nextProductCode: string) {
+    const nextProduct = bomCatalog.find((item) => item.code === nextProductCode);
+    setProductCode(nextProductCode);
+    setVariantCode(nextProduct?.variants[0]?.code ?? "");
+  }
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void onSave({
+      orderId: order.id,
+      subhubUserId,
+      productCode,
+      variantCode,
+      target: Number(target),
+      dueDate,
+      notes,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex justify-end bg-black/25" role="dialog" aria-modal="true" aria-labelledby="edit-production-target-title">
+      <div className="flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-border bg-card p-6 shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Master Admin controls</p>
+            <h2 id="edit-production-target-title" className="mt-2 text-xl font-semibold">Edit production target</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{order.orderNumber} · update the assigned SubHub, variant, quantity, date, or notes.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close edit target" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted">
+            <X className="size-5" />
+          </button>
+        </div>
+        <form onSubmit={submit} className="mt-7 space-y-4">
+          <label className="block text-sm font-medium">
+            Destination SubHub
+            <select required value={subhubUserId} onChange={(event) => setSubhubUserId(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary">
+              <option value="">Select SubHub</option>
+              {subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.subhubName} · {subhub.name}</option>)}
+            </select>
+          </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-sm font-medium">
+              Float type
+              <select required value={productCode} onChange={(event) => changeProduct(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary">
+                {bomCatalog.map((item) => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}
+              </select>
+            </label>
+            <label className="block text-sm font-medium">
+              Variant
+              <select required value={variantCode} onChange={(event) => setVariantCode(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary">
+                {(product?.variants ?? []).map((variant) => <option key={variant.code} value={variant.code}>{variant.name} · {variant.code}</option>)}
+              </select>
+            </label>
+            <label className="block text-sm font-medium">
+              Target quantity
+              <input required type="number" min="1" step="1" value={target} onChange={(event) => setTarget(event.target.value)} className="tabular mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" />
+            </label>
+            <label className="block text-sm font-medium">
+              Due date
+              <input required type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="tabular mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" />
+            </label>
+          </div>
+          <label className="block text-sm font-medium">
+            Instructions <span className="font-normal text-muted-foreground">(optional)</span>
+            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={4} className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary" />
+          </label>
+          <div className="flex justify-end gap-3 border-t border-border pt-5">
+            <button type="button" onClick={onClose} className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted">Cancel</button>
+            <button type="submit" disabled={busy} className="rule-header inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60">
+              <Save className="size-4" /> {busy ? "Saving…" : "Save target"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function OrderRow({
   order,
   subhubs,
@@ -506,8 +679,12 @@ function OrderRow({
   activityLoading,
   reassigning,
   activityOpen,
+  canManage,
+  saving,
   onToggleActivity,
   onReassign,
+  onEdit,
+  onDelete,
 }: {
   order: ProductionOrder;
   subhubs: AssignableSubhub[];
@@ -515,8 +692,12 @@ function OrderRow({
   activityLoading: boolean;
   reassigning: boolean;
   activityOpen: boolean;
+  canManage: boolean;
+  saving: boolean;
   onToggleActivity: () => void;
   onReassign: (subhubUserId: string, reason: string) => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
   const [destinationId, setDestinationId] = useState(order.subhubUserId);
   const [reason, setReason] = useState("");
@@ -561,6 +742,16 @@ function OrderRow({
               aria-label={`Reason for moving ${order.orderNumber}`}
               className="mt-2 h-8 w-full max-w-64 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary"
             />
+          ) : null}
+          {canManage ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/70 pt-3">
+              <button type="button" onClick={onEdit} disabled={saving} className="inline-flex h-8 items-center gap-1 rounded-md border border-input px-2 text-xs font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50">
+                <Edit3 className="size-3.5" /> Edit target
+              </button>
+              <button type="button" onClick={onDelete} disabled={saving} className="inline-flex h-8 items-center gap-1 rounded-md border border-destructive/25 px-2 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50">
+                <Trash2 className="size-3.5" /> {saving ? "Deleting…" : "Delete"}
+              </button>
+            </div>
           ) : null}
         </td>
         <td className="px-5 py-4">

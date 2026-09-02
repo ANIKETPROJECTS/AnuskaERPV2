@@ -95,7 +95,7 @@ export type ProductionReassignment = {
 export type ProductionOrderActivity = {
   id: string;
   orderId: string;
-  action: "created" | "assigned" | "reassigned" | "production_updated";
+  action: "created" | "assigned" | "reassigned" | "updated" | "production_updated";
   actorName: string;
   actorRole: string;
   summary: string;
@@ -218,6 +218,10 @@ type InventoryItemDocument = {
 
 function isAdmin(user: UserDocument | null): user is UserDocument {
   return user?.panel === "admin" && (user.role === "master_admin" || user.role === "admin");
+}
+
+function isMasterAdmin(user: UserDocument | null): user is UserDocument {
+  return user?.panel === "admin" && user.role === "master_admin";
 }
 
 function isSubhub(user: UserDocument | null): user is UserDocument {
@@ -716,6 +720,127 @@ export async function createProductionOrders(input: {
       reportsByUser.find((item) => item.userId === order.subhubUserId)?.reports ?? [],
     )),
   };
+}
+
+export async function updateProductionOrder(input: {
+  orderId: string;
+  subhubUserId: string;
+  productCode: string;
+  variantCode: string;
+  target: number;
+  dueDate: string;
+  notes: string;
+}): Promise<{ ok: true; order: ProductionOrder } | { ok: false; message: string }> {
+  const current = await getCurrentUserRecord("admin");
+  if (!isMasterAdmin(current)) return { ok: false, message: "Only Master Admin users can edit production targets." };
+  if (!Number.isInteger(input.target) || input.target < 1) {
+    return { ok: false, message: "Target must be a whole number greater than zero." };
+  }
+  const dueDate = normalizeDate(input.dueDate);
+  if (!dueDate) return { ok: false, message: "Enter a valid target due date." };
+
+  const product = bomCatalog.find((item) => item.code === input.productCode);
+  const variant = product?.variants.find((item) => item.code === input.variantCode);
+  if (!product || !variant) return { ok: false, message: "Select a valid Float type and variant." };
+
+  const db = await getControlPlaneDatabase();
+  const [order, destination] = await Promise.all([
+    db.collection<ProductionOrderDocument>("production_orders").findOne({ _id: input.orderId }),
+    db.collection<UserDocument>("users").findOne({
+      _id: input.subhubUserId,
+      panel: "subhub",
+      role: "subhub",
+      active: true,
+    }),
+  ]);
+  if (!order) return { ok: false, message: "Production order not found." };
+  if (!destination?.subhubName) return { ok: false, message: "Select an active destination SubHub." };
+
+  const source = order.subhubUserId === destination._id
+    ? destination
+    : await db.collection<UserDocument>("users").findOne({ _id: order.subhubUserId, panel: "subhub", role: "subhub" });
+  if (source && source._id !== destination._id) {
+    await moveOrderReports(order._id, source.databaseName, destination.databaseName);
+  }
+
+  await db.collection<ProductionOrderDocument>("production_orders").updateOne(
+    { _id: order._id },
+    {
+      $set: {
+        subhubUserId: destination._id,
+        subhubName: destination.subhubName,
+        productCode: product.code,
+        productName: product.name,
+        variantCode: variant.code,
+        variantName: variant.name,
+        target: input.target,
+        dueDate,
+        notes: input.notes.trim(),
+        updatedAt: new Date(),
+      },
+    },
+  );
+
+  const movedHub = order.subhubUserId !== destination._id;
+  await recordOrderActivity(db, {
+    orderId: order._id,
+    action: movedHub ? "reassigned" : "updated",
+    actorId: current._id,
+    actorName: current.name,
+    actorRole: "Master Admin",
+    summary: movedHub
+      ? `Target edited and reassigned from ${order.subhubName} to ${destination.subhubName}`
+      : `Production target edited for ${destination.subhubName}`,
+    details: `${variant.name} · target ${input.target.toLocaleString()} units · due ${dueDate}`,
+  });
+
+  const reports = await reportsForDatabase(destination.databaseName);
+  return {
+    ok: true,
+    order: summarizeOrder(
+      {
+        ...order,
+        subhubUserId: destination._id,
+        subhubName: destination.subhubName,
+        productCode: product.code,
+        productName: product.name,
+        variantCode: variant.code,
+        variantName: variant.name,
+        target: input.target,
+        dueDate,
+        notes: input.notes.trim(),
+        updatedAt: new Date(),
+      },
+      reports,
+    ),
+  };
+}
+
+export async function deleteProductionOrder(input: {
+  orderId: string;
+}): Promise<{ ok: true; orderNumber: string } | { ok: false; message: string }> {
+  const current = await getCurrentUserRecord("admin");
+  if (!isMasterAdmin(current)) return { ok: false, message: "Only Master Admin users can delete production targets." };
+
+  const db = await getControlPlaneDatabase();
+  const order = await db.collection<ProductionOrderDocument>("production_orders").findOne({ _id: input.orderId });
+  if (!order) return { ok: false, message: "Production order not found." };
+
+  const source = await db.collection<UserDocument>("users").findOne({
+    _id: order.subhubUserId,
+    panel: "subhub",
+    role: "subhub",
+  });
+  await Promise.all([
+    source
+      ? getMongoDb(source.databaseName).then((workspaceDb) => workspaceDb.collection<ProductionReportDocument>("production_reports").deleteMany({ orderId: order._id }))
+      : Promise.resolve(),
+    db.collection<ProductionOrderDocument>("production_orders").deleteOne({ _id: order._id }),
+    db.collection<OrderActivityDocument>("production_order_activity").deleteMany({ orderId: order._id }),
+    db.collection<ReassignmentDocument>("production_reassignments").deleteMany({ orderId: order._id }),
+  ]);
+
+  return { ok: true, orderNumber: order.orderNumber };
 }
 
 export async function reassignProductionOrder(input: {
