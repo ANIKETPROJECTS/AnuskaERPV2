@@ -12,6 +12,7 @@ import {
 import {
   AlertTriangle,
   ArrowRight,
+  ChevronDown,
   ClipboardList,
   History,
   Plus,
@@ -23,6 +24,7 @@ import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
+import { TablePagination } from "@/components/erp/TablePagination";
 import { getAdminProductionDashboardFn, getProductionOrderActivityFn, listAssignableSubhubsFn, reassignProductionOrderFn, setAdminHubCapacityFn } from "@/production";
 import type { AdminProductionDashboard, AssignableSubhub, ProductionOrder, ProductionOrderActivity } from "@/production.server";
 import { num } from "@/lib/erp-data";
@@ -85,6 +87,8 @@ function Orders() {
   const [dateField, setDateField] = useState<OrderDateField>("all");
   const [dateValue, setDateValue] = useState("");
   const [sort, setSort] = useState<OrderSort>("assigned-newest");
+  const [orderPage, setOrderPage] = useState(1);
+  const [orderPageSize, setOrderPageSize] = useState(10);
   const [savingCapacityId, setSavingCapacityId] = useState("");
   const [capacitySuccess, setCapacitySuccess] = useState("");
 
@@ -138,6 +142,17 @@ function Orders() {
       return right.createdAt.localeCompare(left.createdAt);
     });
   }, [dateField, dateValue, orders, search, sort, statusFilter, subhubFilter]);
+
+  useEffect(() => {
+    setOrderPage(1);
+  }, [dateField, dateValue, search, sort, statusFilter, subhubFilter]);
+
+  const paginatedOrders = useMemo(() => {
+    const pageCount = Math.max(1, Math.ceil(filteredOrders.length / orderPageSize));
+    const currentPage = Math.min(orderPage, pageCount);
+    const start = (currentPage - 1) * orderPageSize;
+    return filteredOrders.slice(start, start + orderPageSize);
+  }, [filteredOrders, orderPage, orderPageSize]);
 
   async function toggleActivity(orderId: string) {
     if (expandedOrderId === orderId) {
@@ -211,7 +226,17 @@ function Orders() {
 
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
         {capacitySuccess ? <p role="status" className="rounded-md border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-700">{capacitySuccess}</p> : null}
-        <Panel title="Hub capacity & workload" description="Capacity is declared by each Hub Manager. Admin can use this live data to assign work and monitor automatic reassignment.">
+        <details className="panel group">
+          <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-3.5 [&::-webkit-details-marker]:hidden">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-semibold">Hub capacity & workload</h2>
+              <p className="text-xs text-muted-foreground">Capacity is declared by each Hub Manager. Review live workload and automatic reassignment settings.</p>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-2 text-xs font-medium text-primary">
+              View workload
+              <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+            </span>
+          </summary>
           <div className="divide-y divide-border">
             {loading && !dashboard ? (
               <p className="p-8 text-center text-sm text-muted-foreground">Loading hub capacity…</p>
@@ -228,12 +253,22 @@ function Orders() {
               <p className="p-8 text-center text-sm text-muted-foreground">Create an active SubHub Manager to define capacity.</p>
             )}
           </div>
-        </Panel>
+        </details>
 
         {dashboard ? <ProductionCharts dashboard={dashboard} /> : null}
 
         {dashboard?.recentReassignments.length ? (
-          <Panel title="Recent automatic reassignments" description="Orders moved when their previous hub exceeded its configured active target capacity.">
+          <details className="panel group">
+            <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-3.5 [&::-webkit-details-marker]:hidden">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-semibold">Recent automatic reassignments</h2>
+                <p className="text-xs text-muted-foreground">Orders moved when their previous hub exceeded its configured active target capacity.</p>
+              </div>
+              <span className="inline-flex shrink-0 items-center gap-2 text-xs font-medium text-primary">
+                {dashboard.recentReassignments.length} recent
+                <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+              </span>
+            </summary>
             <div className="divide-y divide-border">
               {dashboard.recentReassignments.map((reassignment, index) => (
                 <div key={`${reassignment.orderNumber}-${reassignment.createdAt}-${index}`} className="flex flex-wrap items-center gap-3 px-5 py-4 text-sm">
@@ -250,7 +285,7 @@ function Orders() {
                 </div>
               ))}
             </div>
-          </Panel>
+          </details>
         ) : null}
 
         <Panel title="Assigned production orders" description="Each order belongs to one SubHub and can be reported against day by day.">
@@ -339,38 +374,41 @@ function Orders() {
               {!filteredOrders.length ? (
                 <p className="p-10 text-center text-sm text-muted-foreground">No assigned orders match the current filters.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1320px] text-sm">
-                    <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-                      <tr>
-                        <th className="px-5 py-3 font-medium">Order / SubHub</th>
-                        <th className="px-5 py-3 font-medium">Product variant</th>
-                        <th className="px-5 py-3 text-right font-medium">Target</th>
-                        <th className="px-5 py-3 text-right font-medium">Produced</th>
-                        <th className="px-5 py-3 font-medium">Progress</th>
-                        <th className="px-5 py-3 text-right font-medium">Remaining</th>
-                        <th className="px-5 py-3 font-medium">Assigned</th>
-                        <th className="px-5 py-3 font-medium">Due date</th>
-                        <th className="px-5 py-3 text-right font-medium">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredOrders.map((order) => (
-                        <OrderRow
-                          key={order.id}
-                          order={order}
-                          subhubs={subhubs}
-                          activity={activities[order.id] ?? []}
-                          activityLoading={activityLoading === order.id}
-                          reassigning={reassigningOrderId === order.id}
-                          activityOpen={expandedOrderId === order.id}
-                          onToggleActivity={() => void toggleActivity(order.id)}
-                          onReassign={(subhubUserId, reason) => void reassignOrder(order.id, subhubUserId, reason)}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[1320px] text-sm">
+                      <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                        <tr>
+                          <th className="px-5 py-3 font-medium">Order / SubHub</th>
+                          <th className="px-5 py-3 font-medium">Product variant</th>
+                          <th className="px-5 py-3 text-right font-medium">Target</th>
+                          <th className="px-5 py-3 text-right font-medium">Produced</th>
+                          <th className="px-5 py-3 font-medium">Progress</th>
+                          <th className="px-5 py-3 text-right font-medium">Remaining</th>
+                          <th className="px-5 py-3 font-medium">Assigned</th>
+                          <th className="px-5 py-3 font-medium">Due date</th>
+                          <th className="px-5 py-3 text-right font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedOrders.map((order) => (
+                          <OrderRow
+                            key={order.id}
+                            order={order}
+                            subhubs={subhubs}
+                            activity={activities[order.id] ?? []}
+                            activityLoading={activityLoading === order.id}
+                            reassigning={reassigningOrderId === order.id}
+                            activityOpen={expandedOrderId === order.id}
+                            onToggleActivity={() => void toggleActivity(order.id)}
+                            onReassign={(subhubUserId, reason) => void reassignOrder(order.id, subhubUserId, reason)}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <TablePagination total={filteredOrders.length} page={orderPage} pageSize={orderPageSize} onPageChange={setOrderPage} onPageSizeChange={setOrderPageSize} />
+                </>
               )}
             </>
           )}
