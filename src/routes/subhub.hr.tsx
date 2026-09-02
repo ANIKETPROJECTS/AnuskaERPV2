@@ -35,6 +35,7 @@ type ReportSort = "name-asc" | "name-desc" | "present-desc" | "absent-desc" | "l
 const statuses: AttendanceStatus[] = ["Present", "Absent", "Late", "Half-day"];
 const emptyData: ManagerHrData = {
   subhubName: "",
+  subhubManagerName: "",
   month: "",
   employees: [],
   shifts: [],
@@ -43,6 +44,7 @@ const emptyData: ManagerHrData = {
 };
 const emptyReportData: ManagerAttendanceReport = {
   subhubName: "",
+  subhubManagerName: "",
   startDate: "",
   endDate: "",
   employees: [],
@@ -614,7 +616,8 @@ function SubhubHr() {
                   <div key={employee.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
                     <div>
                       <p className="font-medium">{employee.name}</p>
-                    {employee.phoneNumber ? <p className="mt-0.5 font-mono text-xs text-muted-foreground">{employee.phoneNumber}</p> : null}
+                      {employee.phoneNumber ? <p className="mt-0.5 font-mono text-xs text-muted-foreground">{employee.phoneNumber}</p> : null}
+                      <p className="mt-1 text-xs text-muted-foreground">SubHub: {data.subhubName || "—"} · Manager: {data.subhubManagerName || "—"}</p>
                     </div>
                      <div className="flex flex-wrap items-center justify-end gap-2">
                        <button
@@ -725,6 +728,7 @@ function SubhubHr() {
                         <div className={`min-w-0 flex-1 ${employee.active ? "" : "text-muted-foreground"}`}>
                           <p className={`truncate text-sm ${employee.active ? "font-medium" : "line-through"}`}>{employee.name}</p>
                           <p className="font-mono text-xs text-muted-foreground">{employee.phoneNumber || "Mobile number not assigned"}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">SubHub: {data.subhubName || "—"} · Manager: {data.subhubManagerName || "—"}</p>
                         </div>
                         <select
                           value={data.shifts.find((shift) => shift.assignedEmployeeIds.includes(employee.id))?.id ?? ""}
@@ -851,6 +855,8 @@ function SubhubHr() {
                   <thead className="border-b border-border bg-muted/20 text-left text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
                       <th className="px-5 py-3 font-medium">Employee</th>
+                      <th className="px-5 py-3 font-medium">SubHub</th>
+                      <th className="px-5 py-3 font-medium">SubHub manager</th>
                       <th className="px-5 py-3 text-right font-medium">Present</th>
                       <th className="px-5 py-3 text-right font-medium">Absent</th>
                       <th className="px-5 py-3 text-right font-medium">Late</th>
@@ -866,6 +872,8 @@ function SubhubHr() {
                           <p className="font-medium">{row.employeeName}</p>
                           {!row.active ? <p className="text-xs text-muted-foreground">(Archived)</p> : null}
                         </td>
+                        <td className="px-5 py-3 text-muted-foreground">{reportData.subhubName || "—"}</td>
+                        <td className="px-5 py-3 text-muted-foreground">{reportData.subhubManagerName || "—"}</td>
                         <td className="tabular px-5 py-3 text-right text-success">{row.present}</td>
                         <td className="tabular px-5 py-3 text-right text-destructive">{row.absent}</td>
                         <td className="tabular px-5 py-3 text-right text-warning">{row.late}</td>
@@ -902,7 +910,13 @@ function SubhubHr() {
         />
       ) : null}
       {viewedEmployee ? (
-        <EmployeeDetailsDialog employee={viewedEmployee} shifts={data.shifts} onClose={() => setViewingEmployeeId("")} />
+        <EmployeeDetailsDialog
+          employee={viewedEmployee}
+          shifts={data.shifts}
+          subhubName={data.subhubName}
+          subhubManagerName={data.subhubManagerName}
+          onClose={() => setViewingEmployeeId("")}
+        />
       ) : null}
     </SubHubShell>
   );
@@ -911,10 +925,14 @@ function SubhubHr() {
 function EmployeeDetailsDialog({
   employee,
   shifts,
+  subhubName,
+  subhubManagerName,
   onClose,
 }: {
   employee: HrEmployee;
   shifts: HrShift[];
+  subhubName: string;
+  subhubManagerName: string;
   onClose: () => void;
 }) {
   const [period, setPeriod] = useState<HistoryPeriod>("all");
@@ -982,6 +1000,10 @@ function EmployeeDetailsDialog({
             <p className="mt-1 text-sm text-muted-foreground">
               {employee.phoneNumber || "Mobile number not assigned"} · Joined {formatJoinedDate(employee.createdAt)}
             </p>
+            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+              <span><strong className="font-medium text-foreground">SubHub:</strong> {subhubName || history?.subhubName || "—"}</span>
+              <span><strong className="font-medium text-foreground">SubHub manager:</strong> {subhubManagerName || history?.subhubManagerName || "—"}</span>
+            </div>
           </div>
           <button type="button" onClick={onClose} aria-label="Close employee details" className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
             <X className="size-5" />
@@ -990,6 +1012,18 @@ function EmployeeDetailsDialog({
 
         <div className="overflow-y-auto">
           <div className="space-y-6 p-6">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-primary/15 bg-primary/5 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Employee SubHub</p>
+                <p className="mt-2 font-semibold">{subhubName || history?.subhubName || "—"}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Workspace where attendance and shifts are managed</p>
+              </div>
+              <div className="rounded-lg border border-primary/15 bg-primary/5 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">SubHub manager</p>
+                <p className="mt-2 font-semibold">{subhubManagerName || history?.subhubManagerName || "—"}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Manager responsible for this employee</p>
+              </div>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-lg border border-border bg-muted/20 p-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Assigned shift</p>

@@ -42,6 +42,7 @@ export type AttendanceSummary = {
 
 export type ManagerHrData = {
   subhubName: string;
+  subhubManagerName: string;
   month: string;
   employees: HrEmployee[];
   shifts: HrShift[];
@@ -62,6 +63,8 @@ export type AdminHrData = {
 
 export type EmployeeAttendanceHistory = {
   employee: HrEmployee;
+  subhubName: string;
+  subhubManagerName: string;
   shift: HrShift | null;
   attendance: AttendanceRecord[];
   summary: AttendanceSummary;
@@ -71,6 +74,7 @@ export type EmployeeAttendanceHistory = {
 
 export type ManagerAttendanceReport = {
   subhubName: string;
+  subhubManagerName: string;
   startDate: string;
   endDate: string;
   employees: HrEmployee[];
@@ -192,7 +196,7 @@ function isSubhub(user: UserDocument | null): user is UserDocument {
 }
 
 function emptyManagerData(): ManagerHrData {
-  return { subhubName: "", month: "", employees: [], shifts: [], attendance: [], summary: [] };
+  return { subhubName: "", subhubManagerName: "", month: "", employees: [], shifts: [], attendance: [], summary: [] };
 }
 
 function emptyAdminData(): AdminHrData {
@@ -403,6 +407,7 @@ export async function getManagerHrData(monthInput: string): Promise<
     ok: true,
     data: {
       subhubName: current.subhubName ?? "SubHub",
+      subhubManagerName: current.name,
       month,
       employees: workspace.employees.map(serializeEmployee),
       shifts: serializeShifts(workspace.shifts, workspace.assignments),
@@ -465,6 +470,8 @@ export async function getEmployeeAttendanceHistory(input: {
     ok: true,
     data: {
       employee: serializeEmployee(employee),
+      subhubName: current.subhubName ?? "SubHub",
+      subhubManagerName: current.name,
       shift: shift
         ? {
             id: shift._id,
@@ -521,6 +528,7 @@ export async function getManagerAttendanceReport(input: {
     ok: true,
     data: {
       subhubName: current.subhubName ?? "SubHub",
+      subhubManagerName: current.name,
       startDate,
       endDate,
       employees: workspace.employees.map(serializeEmployee),
