@@ -1,6 +1,6 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Check, Database, KeyRound, Pencil, Plus, Search, ShieldCheck, Trash2, UserCog, X } from "lucide-react";
+import { Check, Database, Eye, KeyRound, Pencil, Plus, Search, ShieldCheck, Trash2, UserCog, X } from "lucide-react";
 import {
   createManagedUserFn,
   deleteManagedUserFn,
@@ -417,6 +417,15 @@ function UserManagement() {
                         >
                           <Pencil className="size-3.5" /> Edit
                         </button>
+                        <Link
+                          to="/admin/users/$userId"
+                          params={{ userId: user.id }}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                          aria-label={`View ${user.name}`}
+                          title="View SubHub details"
+                        >
+                          <Eye className="size-3.5" /> View
+                        </Link>
                         <button
                           type="button"
                           onClick={() => void removeUser(user)}

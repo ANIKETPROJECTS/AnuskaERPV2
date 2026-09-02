@@ -37,6 +37,7 @@ import { Route as SubhubProductionRouteImport } from './routes/subhub.production
 import { Route as SubhubRawMaterialsRouteImport } from './routes/subhub.raw-materials'
 import { Route as SubhubReportsRouteImport } from './routes/subhub.reports'
 import { Route as WorkerIdRouteImport } from './routes/worker.$id'
+import { Route as AdminUsersUserIdRouteImport } from './routes/admin.users.$userId'
 import { Route as SubhubBomCodeRouteImport } from './routes/subhub.bom.$code'
 import { Route as SubhubParentCodeRouteImport } from './routes/subhub.parent.$code'
 import { Route as HrEmployeeSubhubIdEmployeeIdRouteImport } from './routes/hr.employee.$subhubId.$employeeId'
@@ -182,6 +183,11 @@ const WorkerIdRoute = WorkerIdRouteImport.update({
   path: '/worker/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminUsersUserIdRoute = AdminUsersUserIdRouteImport.update({
+  id: '/$userId',
+  path: '/$userId',
+  getParentRoute: () => AdminUsersRoute,
+} as any)
 const SubhubBomCodeRoute = SubhubBomCodeRouteImport.update({
   id: '/$code',
   path: '/$code',
@@ -219,7 +225,7 @@ export interface FileRoutesByFullPath {
   '/raw-materials': typeof RawMaterialsRoute
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
-  '/admin/users': typeof AdminUsersRoute
+  '/admin/users': typeof AdminUsersRouteWithChildren
   '/bom/$code': typeof BomCodeRoute
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
@@ -234,6 +240,7 @@ export interface FileRoutesByFullPath {
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
   '/subhub/reports': typeof SubhubReportsRoute
   '/worker/$id': typeof WorkerIdRoute
+  '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
@@ -253,7 +260,7 @@ export interface FileRoutesByTo {
   '/raw-materials': typeof RawMaterialsRoute
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
-  '/admin/users': typeof AdminUsersRoute
+  '/admin/users': typeof AdminUsersRouteWithChildren
   '/bom/$code': typeof BomCodeRoute
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
@@ -268,6 +275,7 @@ export interface FileRoutesByTo {
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
   '/subhub/reports': typeof SubhubReportsRoute
   '/worker/$id': typeof WorkerIdRoute
+  '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
@@ -288,7 +296,7 @@ export interface FileRoutesById {
   '/raw-materials': typeof RawMaterialsRoute
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
-  '/admin/users': typeof AdminUsersRoute
+  '/admin/users': typeof AdminUsersRouteWithChildren
   '/bom/$code': typeof BomCodeRoute
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
@@ -303,6 +311,7 @@ export interface FileRoutesById {
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
   '/subhub/reports': typeof SubhubReportsRoute
   '/worker/$id': typeof WorkerIdRoute
+  '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
@@ -339,6 +348,7 @@ export interface FileRouteTypes {
     | '/subhub/raw-materials'
     | '/subhub/reports'
     | '/worker/$id'
+    | '/admin/users/$userId'
     | '/subhub/bom/$code'
     | '/subhub/parent/$code'
     | '/hr/employee/$subhubId/$employeeId'
@@ -373,6 +383,7 @@ export interface FileRouteTypes {
     | '/subhub/raw-materials'
     | '/subhub/reports'
     | '/worker/$id'
+    | '/admin/users/$userId'
     | '/subhub/bom/$code'
     | '/subhub/parent/$code'
     | '/hr/employee/$subhubId/$employeeId'
@@ -407,6 +418,7 @@ export interface FileRouteTypes {
     | '/subhub/raw-materials'
     | '/subhub/reports'
     | '/worker/$id'
+    | '/admin/users/$userId'
     | '/subhub/bom/$code'
     | '/subhub/parent/$code'
     | '/hr/employee/$subhubId/$employeeId'
@@ -427,7 +439,7 @@ export interface RootRouteChildren {
   RawMaterialsRoute: typeof RawMaterialsRoute
   ShortagesRoute: typeof ShortagesRoute
   SubhubRoute: typeof SubhubRouteWithChildren
-  AdminUsersRoute: typeof AdminUsersRoute
+  AdminUsersRoute: typeof AdminUsersRouteWithChildren
   HubCodeRoute: typeof HubCodeRoute
   PartCodeRoute: typeof PartCodeRoute
   PoIdRoute: typeof PoIdRoute
@@ -633,6 +645,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkerIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/users/$userId': {
+      id: '/admin/users/$userId'
+      path: '/$userId'
+      fullPath: '/admin/users/$userId'
+      preLoaderRoute: typeof AdminUsersUserIdRouteImport
+      parentRoute: typeof AdminUsersRoute
+    }
     '/subhub/bom/$code': {
       id: '/subhub/bom/$code'
       path: '/$code'
@@ -745,6 +764,18 @@ const SubhubRouteChildren: SubhubRouteChildren = {
 const SubhubRouteWithChildren =
   SubhubRoute._addFileChildren(SubhubRouteChildren)
 
+interface AdminUsersRouteChildren {
+  AdminUsersUserIdRoute: typeof AdminUsersUserIdRoute
+}
+
+const AdminUsersRouteChildren: AdminUsersRouteChildren = {
+  AdminUsersUserIdRoute: AdminUsersUserIdRoute,
+}
+
+const AdminUsersRouteWithChildren = AdminUsersRoute._addFileChildren(
+  AdminUsersRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BomRoute: BomRouteWithChildren,
@@ -759,7 +790,7 @@ const rootRouteChildren: RootRouteChildren = {
   RawMaterialsRoute: RawMaterialsRoute,
   ShortagesRoute: ShortagesRoute,
   SubhubRoute: SubhubRouteWithChildren,
-  AdminUsersRoute: AdminUsersRoute,
+  AdminUsersRoute: AdminUsersRouteWithChildren,
   HubCodeRoute: HubCodeRoute,
   PartCodeRoute: PartCodeRoute,
   PoIdRoute: PoIdRoute,

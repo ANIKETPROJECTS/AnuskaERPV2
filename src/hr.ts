@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { assignEmployeeToShift, createEmployee, createShift, getAdminAttendanceReport, getAdminEmployeeAttendanceHistory, getAdminHrData, getEmployeeAttendanceHistory, getManagerAttendanceReport, getManagerHrData, saveAttendance, updateEmployee, updateShift } from "./hr.server";
+import { assignEmployeeToShift, createEmployee, createShift, getAdminAttendanceReport, getAdminEmployeeAttendanceHistory, getAdminHrData, getAdminSubhubDetails, getEmployeeAttendanceHistory, getManagerAttendanceReport, getManagerHrData, saveAttendance, updateEmployee, updateShift } from "./hr.server";
 import { ATTENDANCE_STATUSES } from "./hr.server";
 
 const managerSchema = z.object({ month: z.string(), date: z.string().optional() });
@@ -21,6 +21,7 @@ const managerReportSchema = z.object({
   endDate: z.string().optional(),
 });
 const adminEmployeeHistorySchema = employeeHistorySchema.extend({ subhubId: z.string().min(1) });
+const subhubDetailsSchema = z.object({ userId: z.string().min(1) });
 
 export const getManagerHrDataFn = createServerFn({ method: "GET" }).validator(managerSchema).handler(({ data }) => getManagerHrData(data.month) as any);
 export const getEmployeeAttendanceHistoryFn = createServerFn({ method: "GET" }).validator(employeeHistorySchema).handler(({ data }) =>
@@ -43,6 +44,7 @@ export const getManagerAttendanceReportFn = createServerFn({ method: "GET" }).va
   }),
 );
 export const getAdminHrDataFn = createServerFn({ method: "GET" }).validator(monthSchema).handler(({ data }) => getAdminHrData(data.month));
+export const getAdminSubhubDetailsFn = createServerFn({ method: "GET" }).validator(subhubDetailsSchema).handler(({ data }) => getAdminSubhubDetails(data.userId));
 export const getAdminAttendanceReportFn = createServerFn({ method: "GET" }).validator(managerReportSchema).handler(({ data }) =>
   getAdminAttendanceReport({
     rangeType: data.rangeType,

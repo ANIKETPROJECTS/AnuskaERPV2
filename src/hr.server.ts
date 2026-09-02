@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "mongodb";
-import { getControlPlaneDatabase, getCurrentUserRecord, type UserDocument } from "./auth.server";
+import { getControlPlaneDatabase, getCurrentUserRecord, type PublicUser, type UserDocument } from "./auth.server";
 import { getMongoDb } from "./mongodb.server";
 
 export const ATTENDANCE_STATUSES = ["Present", "Absent", "Late", "Half-day"] as const;
@@ -81,6 +81,15 @@ export type AdminAttendanceReport = {
   subhubs: AdminHrSubhub[];
   summaries: AdminHrSummary[];
   attendance: AdminAttendanceRecord[];
+};
+
+export type AdminSubhubDetails = {
+  user: PublicUser & {
+    createdAt: string;
+    updatedAt: string;
+  };
+  employees: HrEmployee[];
+  shifts: HrShift[];
 };
 
 export type EmployeeAttendanceHistory = {
@@ -791,6 +800,53 @@ export async function getAdminHrData(monthInput: string): Promise<
     })),
   );
   return { ok: true, data: { month, subhubs: users.map((user) => user.subhubName ?? "SubHub"), summaries } };
+}
+
+export async function getAdminSubhubDetails(userId: string): Promise<
+  { ok: true; data: AdminSubhubDetails } | { ok: false; message: string }
+> {
+  const current = await getCurrentUserRecord("admin");
+  if (current?.role !== "master_admin") return { ok: false, message: "Only the Master Admin can view SubHub details." };
+  if (!userId.trim()) return { ok: false, message: "Choose a SubHub user to view." };
+
+  const controlDb = await getControlPlaneDatabase();
+  const subhub = await controlDb.collection<UserDocument>("users").findOne({
+    _id: userId,
+    panel: "subhub",
+    role: "subhub",
+  });
+  if (!subhub) return { ok: false, message: "That SubHub user could not be found." };
+
+  const db = await getMongoDb(subhub.databaseName);
+  await ensureHrIndexes(db);
+  const [employees, shifts, assignments] = await Promise.all([
+    db.collection<EmployeeDocument>("hr_employees").find({ active: true }).sort({ name: 1 }).toArray(),
+    db.collection<ShiftDocument>("hr_shifts").find().sort({ name: 1 }).toArray(),
+    db.collection<ShiftAssignmentDocument>("hr_shift_assignments").find().toArray(),
+  ]);
+
+  const publicUser: AdminSubhubDetails["user"] = {
+    id: subhub._id,
+    name: subhub.name,
+    email: subhub.email,
+    panel: subhub.panel,
+    subhubName: subhub.subhubName,
+    role: subhub.role,
+    permissions: subhub.permissions,
+    databaseName: subhub.databaseName,
+    active: subhub.active,
+    createdAt: subhub.createdAt.toISOString(),
+    updatedAt: subhub.updatedAt.toISOString(),
+  };
+
+  return {
+    ok: true,
+    data: {
+      user: publicUser,
+      employees: employees.map(serializeEmployee),
+      shifts: serializeShifts(shifts, assignments),
+    },
+  };
 }
 
 function adminReportBounds(input: {
