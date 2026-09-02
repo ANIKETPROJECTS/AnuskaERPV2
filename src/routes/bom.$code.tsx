@@ -144,10 +144,10 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
                 </button>
                 {!readOnly ? (
                   <div className="mt-2 flex justify-end gap-1">
-                    <button type="button" onClick={() => openEditVariant(variant)} aria-label={`Edit ${variant.name}`} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                    <button type="button" onClick={() => openEditVariant(variant)} aria-label={`Edit ${variant.name}`} title={`Edit ${variant.name}`} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
                       <Pencil className="size-3.5" />
                     </button>
-                    <button type="button" onClick={() => removeVariant(variant)} aria-label={`Delete ${variant.name}`} className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                    <button type="button" onClick={() => removeVariant(variant)} aria-label={`Delete ${variant.name}`} title={`Delete ${variant.name}`} className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                       <Trash2 className="size-3.5" />
                     </button>
                   </div>

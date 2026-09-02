@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   LayoutDashboard,
   Layers,
@@ -12,6 +12,8 @@ import {
   Database,
   UserCog,
   UserRoundCog,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useRouter } from "@tanstack/react-router";
 import { logoutFn } from "@/auth";
@@ -45,6 +47,7 @@ export function Shell({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const router = useRouter();
   const { user } = useAuth();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const visibleNav = nav.filter((item) => canAccess(user, item.permission));
   const initials = user?.name
     .split(" ")
@@ -61,55 +64,71 @@ export function Shell({
 
   return (
     <div className="flex min-h-screen">
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
-        <div className="flex items-center gap-3 border-b border-sidebar-border px-5 py-4">
-          <img src="/gadsons-mark.svg" alt="Gadsons" className="size-9 rounded-md" />
-          <div className="leading-tight">
-            <p className="text-sm font-semibold">Gadsons</p>
-            <p className="text-xs text-muted-foreground">Water Purifier Parts ERP</p>
-          </div>
+      <aside className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200 lg:flex ${sidebarCollapsed ? "w-[4.5rem]" : "w-64"}`}>
+        <div className={`flex items-center border-b border-sidebar-border py-4 ${sidebarCollapsed ? "justify-center px-3" : "justify-between gap-3 px-5"}`}>
+          {!sidebarCollapsed ? (
+            <div className="flex min-w-0 items-center gap-3">
+              <img src="/gadsons-mark.svg" alt="Gadsons" className="size-9 rounded-md" />
+              <div className="min-w-0 leading-tight">
+                <p className="text-sm font-semibold">Gadsons</p>
+                <p className="truncate text-xs text-muted-foreground">Water Purifier Parts ERP</p>
+              </div>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            aria-label={sidebarCollapsed ? "Open Admin sidebar" : "Close Admin sidebar"}
+            title={sidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+            className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+          >
+            {sidebarCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+          </button>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Modules
-          </p>
+        <nav className={`flex-1 space-y-1 overflow-y-auto ${sidebarCollapsed ? "p-2" : "p-3"}`}>
+          {!sidebarCollapsed ? <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Modules</p> : null}
           {visibleNav.map((item) => {
             const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
             return (
               <Link
                 key={item.to}
                 to={item.to}
-                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+                title={sidebarCollapsed ? item.label : undefined}
+                className={`flex items-center gap-3 rounded-md py-2 text-sm transition-colors ${
+                  sidebarCollapsed ? "justify-center px-2" : "px-3"
+                } ${
                   active
                     ? "bg-sidebar-accent font-medium text-sidebar-primary"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/60"
                 }`}
               >
                 <item.icon className="size-4" />
-                {item.label}
+                {!sidebarCollapsed ? item.label : null}
               </Link>
             );
           })}
         </nav>
 
-        <div className="border-t border-sidebar-border p-3">
-          <div className="flex items-center gap-3 rounded-md px-2 py-2">
+        <div className={`border-t border-sidebar-border ${sidebarCollapsed ? "p-2" : "p-3"}`}>
+          <div className={`rounded-md py-2 ${sidebarCollapsed ? "flex flex-col items-center gap-2 px-1" : "flex items-center gap-3 px-2"}`}>
             <div className="flex size-8 items-center justify-center rounded-full bg-secondary font-mono text-xs font-semibold">
               {initials}
             </div>
-            <div className="min-w-0 leading-tight">
-              <p className="truncate text-sm font-medium">{user?.name}</p>
-              <p className="text-xs capitalize text-muted-foreground">
-                {user?.role === "master_admin" ? "Master Admin" : user?.role} · Secure session
-              </p>
-            </div>
+            {!sidebarCollapsed ? (
+              <div className="min-w-0 leading-tight">
+                <p className="truncate text-sm font-medium">{user?.name}</p>
+                <p className="text-xs capitalize text-muted-foreground">
+                  {user?.role === "master_admin" ? "Master Admin" : user?.role} · Secure session
+                </p>
+              </div>
+            ) : null}
             <button
               type="button"
               aria-label="Sign out"
               title="Sign out"
               onClick={signOut}
-              className="ml-auto rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+              className={`${sidebarCollapsed ? "" : "ml-auto"} rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground`}
             >
               <LogOut className="size-4" />
             </button>
