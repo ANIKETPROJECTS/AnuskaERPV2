@@ -22,6 +22,15 @@ export const Route = createFileRoute("/bom")({
 });
 
 const emptyProduct: NewProduct = { name: "", code: "", description: "", image: "" };
+type BomSort = "name-asc" | "name-desc" | "variants-desc" | "variants-asc" | "raw-parts-desc" | "raw-parts-asc";
+type CountFilter = "all" | "none" | "1-2" | "3-4" | "5-plus";
+
+function matchesCountFilter(value: number, filter: CountFilter, middleStart: number, middleEnd: number) {
+  if (filter === "all") return true;
+  if (filter === "none") return value === 0;
+  if (filter === "5-plus") return value >= 5;
+  return value >= middleStart && value <= middleEnd;
+}
 
 function Bom() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -36,17 +45,45 @@ function Bom() {
 export function BomPage({ readOnly }: { readOnly: boolean }) {
   const products = useBomProducts();
   const [productSearch, setProductSearch] = useState("");
+  const [sortBy, setSortBy] = useState<BomSort>("name-asc");
+  const [variantFilter, setVariantFilter] = useState<CountFilter>("all");
+  const [rawPartsFilter, setRawPartsFilter] = useState<CountFilter>("all");
   const [showProductForm, setShowProductForm] = useState(false);
   const [productForm, setProductForm] = useState(emptyProduct);
   const [productError, setProductError] = useState("");
   const filteredProducts = useMemo(() => {
     const query = productSearch.trim().toLowerCase();
-    if (!query) return products;
-    return products.filter((product) =>
-      [product.code, product.name, product.description, ...product.variants.flatMap((variant) => [variant.code, variant.name, variant.company])]
-        .some((value) => value.toLowerCase().includes(query)),
-    );
-  }, [productSearch, products]);
+    const filtered = products.filter((product) => {
+      const matchesSearch =
+        !query ||
+        [product.code, product.name, product.description, ...product.variants.flatMap((variant) => [variant.code, variant.name, variant.company])]
+          .some((value) => value.toLowerCase().includes(query));
+      const variantCount = product.variants.length;
+      const productRawPartCount = rawPartCount(product);
+      return (
+        matchesSearch &&
+        matchesCountFilter(variantCount, variantFilter, 1, 2) &&
+        matchesCountFilter(productRawPartCount, rawPartsFilter, 1, 5)
+      );
+    });
+    return filtered.sort((left, right) => {
+      const leftRawParts = rawPartCount(left);
+      const rightRawParts = rawPartCount(right);
+      if (sortBy === "name-asc") return left.name.localeCompare(right.name);
+      if (sortBy === "name-desc") return right.name.localeCompare(left.name);
+      if (sortBy === "variants-desc") return right.variants.length - left.variants.length || left.name.localeCompare(right.name);
+      if (sortBy === "variants-asc") return left.variants.length - right.variants.length || left.name.localeCompare(right.name);
+      if (sortBy === "raw-parts-desc") return rightRawParts - leftRawParts || left.name.localeCompare(right.name);
+      return leftRawParts - rightRawParts || left.name.localeCompare(right.name);
+    });
+  }, [productSearch, products, rawPartsFilter, sortBy, variantFilter]);
+
+  function clearCatalogFilters() {
+    setProductSearch("");
+    setSortBy("name-asc");
+    setVariantFilter("all");
+    setRawPartsFilter("all");
+  }
 
   function openProductForm() {
     setProductForm(emptyProduct);
@@ -94,21 +131,60 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
 
   const content = (
       <section className="space-y-6 p-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium">Parent assemblies</p>
-            <p className="mt-1 text-xs text-muted-foreground">Search product names, product codes, companies, or variant codes.</p>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Parent assemblies</p>
+              <p className="mt-1 text-xs text-muted-foreground">Search product names, product codes, companies, or variant codes.</p>
+            </div>
+            <label className="relative block w-full max-w-xs">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={productSearch}
+                onChange={(event) => setProductSearch(event.target.value)}
+                placeholder="Search BOM products"
+                aria-label="Search BOM products"
+                className="h-9 w-full rounded-md border border-input bg-card pl-9 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+            </label>
           </div>
-          <label className="relative block w-full max-w-xs">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={productSearch}
-              onChange={(event) => setProductSearch(event.target.value)}
-              placeholder="Search BOM products"
-              aria-label="Search BOM products"
-              className="h-9 w-full rounded-md border border-input bg-card pl-9 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-            />
-          </label>
+          <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-3">
+            <label className="text-xs font-medium">
+              Sort by
+              <select value={sortBy} onChange={(event) => setSortBy(event.target.value as BomSort)} className="mt-1.5 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal">
+                <option value="name-asc">Name A–Z</option>
+                <option value="name-desc">Name Z–A</option>
+                <option value="variants-desc">Most variants</option>
+                <option value="variants-asc">Fewest variants</option>
+                <option value="raw-parts-desc">Most raw parts</option>
+                <option value="raw-parts-asc">Fewest raw parts</option>
+              </select>
+            </label>
+            <label className="text-xs font-medium">
+              Filter variants
+              <select value={variantFilter} onChange={(event) => setVariantFilter(event.target.value as CountFilter)} className="mt-1.5 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal">
+                <option value="all">Any variant count</option>
+                <option value="none">No variants</option>
+                <option value="1-2">1–2 variants</option>
+                <option value="3-4">3–4 variants</option>
+                <option value="5-plus">5+ variants</option>
+              </select>
+            </label>
+            <label className="text-xs font-medium">
+              Filter raw parts
+              <select value={rawPartsFilter} onChange={(event) => setRawPartsFilter(event.target.value as CountFilter)} className="mt-1.5 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal">
+                <option value="all">Any raw-part count</option>
+                <option value="none">No raw parts</option>
+                <option value="1-2">1–2 raw parts</option>
+                <option value="3-4">3–4 raw parts</option>
+                <option value="5-plus">5+ raw parts</option>
+              </select>
+            </label>
+            <button type="button" onClick={clearCatalogFilters} className="h-9 rounded-md border border-input px-3 text-xs font-medium text-muted-foreground hover:bg-muted">
+              Clear filters
+            </button>
+            <p className="ml-auto text-xs text-muted-foreground">{filteredProducts.length} of {products.length} parent assemblies</p>
+          </div>
         </div>
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {filteredProducts.map((product) => (
@@ -143,7 +219,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
             </article>
           ))}
         </div>
-        {!filteredProducts.length ? <p className="rounded-md border border-dashed border-border px-5 py-12 text-center text-sm text-muted-foreground">No BOM products or variants match “{productSearch}”.</p> : null}
+        {!filteredProducts.length ? <p className="rounded-md border border-dashed border-border px-5 py-12 text-center text-sm text-muted-foreground">No BOM products match the current search and filters.</p> : null}
       </section>
   );
 

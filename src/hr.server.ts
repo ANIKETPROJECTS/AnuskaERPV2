@@ -60,6 +60,24 @@ export type AdminHrData = {
   summaries: AdminHrSummary[];
 };
 
+export type EmployeeAttendanceHistory = {
+  employee: HrEmployee;
+  shift: HrShift | null;
+  attendance: AttendanceRecord[];
+  summary: AttendanceSummary;
+  startDate: string | null;
+  endDate: string;
+};
+
+export type ManagerAttendanceReport = {
+  subhubName: string;
+  startDate: string;
+  endDate: string;
+  employees: HrEmployee[];
+  attendance: AttendanceRecord[];
+  summary: AttendanceSummary[];
+};
+
 type EmployeeDocument = {
   _id: string;
   name: string;
@@ -123,6 +141,31 @@ function normalizeMonth(value: string): string | null {
   const [year, month] = value.split("-").map(Number);
   if (!year || !month || month < 1 || month > 12) return null;
   return value;
+}
+
+function todayInIndia(): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+      .formatToParts(new Date())
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return `${parts["year"]}-${parts["month"]}-${parts["day"]}`;
+}
+
+function addDays(value: string, days: number): string {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function earlierDate(left: string, right: string): string {
+  return left < right ? left : right;
 }
 
 function monthBounds(month: string): { start: string; end: string } {
@@ -225,6 +268,23 @@ async function readWorkspaceHrData(databaseName: string, month: string): Promise
     db.collection<ShiftDocument>("hr_shifts").find().sort({ name: 1 }).toArray(),
     db.collection<ShiftAssignmentDocument>("hr_shift_assignments").find().toArray(),
     db.collection<AttendanceDocument>("hr_attendance").find({ date: { $gte: bounds.start, $lte: bounds.end } }).sort({ date: -1 }).toArray(),
+  ]);
+  return { employees, shifts, assignments, attendance };
+}
+
+async function readWorkspaceHrDataForRange(databaseName: string, startDate: string, endDate: string): Promise<{
+  employees: EmployeeDocument[];
+  shifts: ShiftDocument[];
+  assignments: ShiftAssignmentDocument[];
+  attendance: AttendanceDocument[];
+}> {
+  const db = await getMongoDb(databaseName);
+  await ensureHrIndexes(db);
+  const [employees, shifts, assignments, attendance] = await Promise.all([
+    db.collection<EmployeeDocument>("hr_employees").find().sort({ active: -1, name: 1 }).toArray(),
+    db.collection<ShiftDocument>("hr_shifts").find().sort({ name: 1 }).toArray(),
+    db.collection<ShiftAssignmentDocument>("hr_shift_assignments").find().toArray(),
+    db.collection<AttendanceDocument>("hr_attendance").find({ date: { $gte: startDate, $lte: endDate } }).sort({ date: -1 }).toArray(),
   ]);
   return { employees, shifts, assignments, attendance };
 }
@@ -346,6 +406,124 @@ export async function getManagerHrData(monthInput: string): Promise<
       month,
       employees: workspace.employees.map(serializeEmployee),
       shifts: serializeShifts(workspace.shifts, workspace.assignments),
+      attendance: workspace.attendance.map(serializeAttendance),
+      summary: buildSummary(workspace.employees, workspace.attendance),
+    },
+  };
+}
+
+export async function getEmployeeAttendanceHistory(input: {
+  employeeId: string;
+  period: "all" | "week" | "month";
+  weekStart?: string;
+  month?: string;
+}): Promise<
+  { ok: true; data: EmployeeAttendanceHistory } | { ok: false; message: string }
+> {
+  const current = await getCurrentUserRecord("subhub");
+  if (!isSubhub(current)) return { ok: false, message: "Only SubHub Managers can view employee attendance history." };
+  if (!input.employeeId.trim()) return { ok: false, message: "Choose an employee to view." };
+
+  const today = todayInIndia();
+  let startDate: string | null = null;
+  let endDate = today;
+  if (input.period === "month") {
+    const month = normalizeMonth(input.month ?? "");
+    if (!month) return { ok: false, message: "Choose a valid report month." };
+    const bounds = monthBounds(month);
+    startDate = bounds.start;
+    endDate = earlierDate(bounds.end, today);
+  } else if (input.period === "week") {
+    const weekStart = normalizeDate(input.weekStart ?? "");
+    if (!weekStart) return { ok: false, message: "Choose a valid week start date." };
+    startDate = weekStart;
+    endDate = earlierDate(addDays(weekStart, 6), today);
+  }
+
+  const db = await getMongoDb(current.databaseName);
+  await ensureHrIndexes(db);
+  const employee = await db.collection<EmployeeDocument>("hr_employees").findOne({ _id: input.employeeId });
+  if (!employee) return { ok: false, message: "That employee does not belong to this workspace." };
+
+  const assignment = await db.collection<ShiftAssignmentDocument>("hr_shift_assignments").findOne({ employeeId: employee._id });
+  const shift = assignment
+    ? await db.collection<ShiftDocument>("hr_shifts").findOne({ _id: assignment.shiftId })
+    : null;
+  const dateFilter = startDate && startDate > endDate
+    ? { $in: [] as string[] }
+    : startDate
+      ? { $gte: startDate, $lte: endDate }
+      : { $lte: endDate };
+  const attendance = await db
+    .collection<AttendanceDocument>("hr_attendance")
+    .find({ employeeId: employee._id, date: dateFilter })
+    .sort({ date: -1 })
+    .toArray();
+  const summary = buildSummary([employee], attendance)[0]!;
+
+  return {
+    ok: true,
+    data: {
+      employee: serializeEmployee(employee),
+      shift: shift
+        ? {
+            id: shift._id,
+            name: shift.name,
+            startTime: shift.startTime,
+            endTime: shift.endTime,
+            assignedEmployeeIds: [employee._id],
+          }
+        : null,
+      attendance: attendance.map(serializeAttendance),
+      summary,
+      startDate,
+      endDate,
+    },
+  };
+}
+
+export async function getManagerAttendanceReport(input: {
+  rangeType: "month" | "date" | "range";
+  month?: string;
+  date?: string;
+  startDate?: string;
+  endDate?: string;
+}): Promise<
+  { ok: true; data: ManagerAttendanceReport } | { ok: false; message: string }
+> {
+  const current = await getCurrentUserRecord("subhub");
+  if (!isSubhub(current)) return { ok: false, message: "Only SubHub Managers can view attendance reports." };
+
+  let startDate = "";
+  let endDate = "";
+  if (input.rangeType === "month") {
+    const month = normalizeMonth(input.month ?? "");
+    if (!month) return { ok: false, message: "Choose a valid report month." };
+    const bounds = monthBounds(month);
+    startDate = bounds.start;
+    endDate = earlierDate(bounds.end, todayInIndia());
+  } else if (input.rangeType === "date") {
+    const date = normalizeDate(input.date ?? "");
+    if (!date) return { ok: false, message: "Choose a valid attendance date." };
+    startDate = date;
+    endDate = date;
+  } else {
+    const rangeStart = normalizeDate(input.startDate ?? "");
+    const rangeEnd = normalizeDate(input.endDate ?? "");
+    if (!rangeStart || !rangeEnd) return { ok: false, message: "Choose a valid start and end date." };
+    if (rangeStart > rangeEnd) return { ok: false, message: "The start date must be before the end date." };
+    startDate = rangeStart;
+    endDate = earlierDate(rangeEnd, todayInIndia());
+  }
+
+  const workspace = await readWorkspaceHrDataForRange(current.databaseName, startDate, endDate);
+  return {
+    ok: true,
+    data: {
+      subhubName: current.subhubName ?? "SubHub",
+      startDate,
+      endDate,
+      employees: workspace.employees.map(serializeEmployee),
       attendance: workspace.attendance.map(serializeAttendance),
       summary: buildSummary(workspace.employees, workspace.attendance),
     },

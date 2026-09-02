@@ -1,12 +1,42 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { assignEmployeeToShift, createEmployee, createShift, getAdminHrData, getManagerHrData, saveAttendance, updateEmployee, updateShift } from "./hr.server";
+import { assignEmployeeToShift, createEmployee, createShift, getAdminHrData, getEmployeeAttendanceHistory, getManagerAttendanceReport, getManagerHrData, saveAttendance, updateEmployee, updateShift } from "./hr.server";
 import { ATTENDANCE_STATUSES } from "./hr.server";
 
 const managerSchema = z.object({ month: z.string(), date: z.string().optional() });
 const monthSchema = z.object({ month: z.string() });
+const employeeHistorySchema = z.object({
+  employeeId: z.string().min(1),
+  period: z.enum(["all", "week", "month"]),
+  weekStart: z.string().optional(),
+  month: z.string().optional(),
+});
+const managerReportSchema = z.object({
+  rangeType: z.enum(["month", "date", "range"]),
+  month: z.string().optional(),
+  date: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+});
 
 export const getManagerHrDataFn = createServerFn({ method: "GET" }).validator(managerSchema).handler(({ data }) => getManagerHrData(data.month) as any);
+export const getEmployeeAttendanceHistoryFn = createServerFn({ method: "GET" }).validator(employeeHistorySchema).handler(({ data }) =>
+  getEmployeeAttendanceHistory({
+    employeeId: data.employeeId,
+    period: data.period,
+    ...(data.month ? { month: data.month } : {}),
+    ...(data.weekStart ? { weekStart: data.weekStart } : {}),
+  }),
+);
+export const getManagerAttendanceReportFn = createServerFn({ method: "GET" }).validator(managerReportSchema).handler(({ data }) =>
+  getManagerAttendanceReport({
+    rangeType: data.rangeType,
+    ...(data.month ? { month: data.month } : {}),
+    ...(data.date ? { date: data.date } : {}),
+    ...(data.startDate ? { startDate: data.startDate } : {}),
+    ...(data.endDate ? { endDate: data.endDate } : {}),
+  }),
+);
 export const getAdminHrDataFn = createServerFn({ method: "GET" }).validator(monthSchema).handler(({ data }) => getAdminHrData(data.month));
 export const createEmployeeFn = createServerFn({ method: "POST" })
   .validator(z.object({ name: z.string(), phoneNumber: z.string().optional(), shiftIds: z.array(z.string()).optional() }))
