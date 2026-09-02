@@ -11,6 +11,7 @@ export const Route = createFileRoute("/hr")({
 });
 
 type AdminTab = "daily" | "monthly";
+type DailyView = "date" | "range";
 type ReportStatusFilter = "all" | AttendanceStatus;
 type ReportSort = "name-asc" | "name-desc" | "present-desc" | "absent-desc" | "late-desc" | "half-day-desc" | "total-desc";
 type HistoryPeriod = "all" | "week" | "month";
@@ -72,7 +73,10 @@ function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
 
 function AdminHr() {
   const [tab, setTab] = useState<AdminTab>("daily");
+  const [dailyView, setDailyView] = useState<DailyView>("date");
   const [dailyDate, setDailyDate] = useState(currentDate);
+  const [dailyStartDate, setDailyStartDate] = useState(() => currentDate());
+  const [dailyEndDate, setDailyEndDate] = useState(() => currentDate());
   const [reportMonth, setReportMonth] = useState(() => currentDate().slice(0, 7));
   const [report, setReport] = useState<AdminAttendanceReport>(emptyReport);
   const [loading, setLoading] = useState(true);
@@ -91,7 +95,9 @@ function AdminHr() {
     try {
       const result = await getAdminAttendanceReportFn({
         data: tab === "daily"
-          ? { rangeType: "date", date: dailyDate }
+          ? dailyView === "date"
+            ? { rangeType: "date", date: dailyDate }
+            : { rangeType: "range", startDate: dailyStartDate, endDate: dailyEndDate }
           : { rangeType: "month", month: reportMonth },
       });
       if (result.ok) setReport(result.data);
@@ -110,7 +116,7 @@ function AdminHr() {
 
   useEffect(() => {
     void load();
-  }, [dailyDate, reportMonth, tab]);
+  }, [dailyDate, dailyEndDate, dailyStartDate, dailyView, reportMonth, tab]);
 
   useEffect(() => {
     setSubhubFilter("all");
@@ -130,7 +136,7 @@ function AdminHr() {
       const matchesSubhub = subhubFilter === "all" || row.subhubId === subhubFilter;
       const matchesEmployee = !query || row.employeeName.toLowerCase().includes(query);
       const matchesStatus = statusFilter === "all"
-        || (tab === "daily" ? dailyStatus === statusFilter : (
+        || (tab === "daily" && dailyView === "date" ? dailyStatus === statusFilter : (
           statusFilter === "Present" ? row.present > 0
             : statusFilter === "Absent" ? row.absent > 0
               : statusFilter === "Late" ? row.late > 0
@@ -147,7 +153,7 @@ function AdminHr() {
       if (sort === "half-day-desc") return right.halfDay - left.halfDay || left.employeeName.localeCompare(right.employeeName);
       return (right.present + right.absent + right.late + right.halfDay) - (left.present + left.absent + left.late + left.halfDay) || left.employeeName.localeCompare(right.employeeName);
     });
-  }, [dailyStatuses, employeeFilter, report.summaries, sort, statusFilter, subhubFilter, tab]);
+  }, [dailyStatuses, dailyView, employeeFilter, report.summaries, sort, statusFilter, subhubFilter, tab]);
 
   const totals = useMemo(() => report.summaries.reduce((total, row) => ({
     employees: total.employees + 1,
@@ -158,10 +164,15 @@ function AdminHr() {
   }), { employees: 0, present: 0, absent: 0, late: 0, halfDay: 0 }), [report.summaries]);
 
   function exportReport() {
-    if (tab === "daily") {
+    if (tab === "daily" && dailyView === "date") {
       downloadCsv(`daily-attendance-${dailyDate}.csv`, [
         ["Date", "SubHub", "SubHub manager", "Employee", "Active", "Status"],
         ...filteredRows.map((row) => [dailyDate, row.subhubName, row.subhubManagerName, row.employeeName, row.active ? "Yes" : "No", dailyStatuses.get(`${row.subhubId}:${row.employeeId}`) ?? "Not marked"]),
+      ]);
+    } else if (tab === "daily") {
+      downloadCsv(`attendance-${dailyStartDate}-to-${dailyEndDate}.csv`, [
+        ["Start date", "End date", "SubHub", "SubHub manager", "Employee", "Active", "Present", "Absent", "Late", "Half-day", "Total marked"],
+        ...filteredRows.map((row) => [dailyStartDate, dailyEndDate, row.subhubName, row.subhubManagerName, row.employeeName, row.active ? "Yes" : "No", row.present, row.absent, row.late, row.halfDay, row.present + row.absent + row.late + row.halfDay]),
       ]);
     } else {
       downloadCsv(`monthly-attendance-${reportMonth}.csv`, [
@@ -185,11 +196,13 @@ function AdminHr() {
             </div>
             <div className="flex flex-wrap items-end gap-2">
               <label className="text-xs font-medium">
-                {tab === "daily" ? "Attendance date" : "Report month"}
+                {tab === "daily" ? "Daily view" : "Report month"}
                 {tab === "daily"
-                  ? <input type="date" value={dailyDate} onChange={(event) => setDailyDate(event.target.value)} className="mt-1.5 block h-9 rounded-md border border-input bg-card px-3 text-sm font-normal" />
+                  ? <select value={dailyView} onChange={(event) => setDailyView(event.target.value as DailyView)} className="mt-1.5 block h-9 rounded-md border border-input bg-card px-3 text-sm font-normal"><option value="date">Single date</option><option value="range">Date range</option></select>
                   : <input type="month" value={reportMonth} onChange={(event) => setReportMonth(event.target.value)} className="mt-1.5 block h-9 rounded-md border border-input bg-card px-3 text-sm font-normal" />}
               </label>
+              {tab === "daily" && dailyView === "date" ? <label className="text-xs font-medium">Attendance date<input type="date" value={dailyDate} onChange={(event) => setDailyDate(event.target.value)} className="mt-1.5 block h-9 rounded-md border border-input bg-card px-3 text-sm font-normal" /></label> : null}
+              {tab === "daily" && dailyView === "range" ? <><label className="text-xs font-medium">Start date<input type="date" value={dailyStartDate} onChange={(event) => setDailyStartDate(event.target.value)} className="mt-1.5 block h-9 rounded-md border border-input bg-card px-3 text-sm font-normal" /></label><label className="text-xs font-medium">End date<input type="date" value={dailyEndDate} onChange={(event) => setDailyEndDate(event.target.value)} className="mt-1.5 block h-9 rounded-md border border-input bg-card px-3 text-sm font-normal" /></label></> : null}
               <button type="button" onClick={() => void load(true)} disabled={loading || refreshing} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-card px-3 text-sm disabled:opacity-50"><RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh</button>
               <button type="button" onClick={exportReport} disabled={!filteredRows.length} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50"><Download className="size-4" /> Export CSV</button>
             </div>
@@ -228,7 +241,7 @@ function AdminHr() {
               </select>
             </label>
             <label className="text-xs font-medium">
-              {tab === "daily" ? "Daily status" : "Has status"}
+              {tab === "daily" && dailyView === "date" ? "Daily status" : "Has status"}
               <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as ReportStatusFilter)} className="mt-1.5 h-9 min-w-36 rounded-md border border-input bg-background px-3 text-sm font-normal">
                 <option value="all">All employees</option>
                 {statuses.map((status) => <option key={status} value={status}>{tab === "daily" ? status : `Has ${status}`}</option>)}
@@ -248,7 +261,7 @@ function AdminHr() {
             </label>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3 text-xs text-muted-foreground">
-            <span>{tab === "daily" ? `Daily report for ${report.startDate ? formatDate(report.startDate) : "selected date"}` : `Monthly report for ${reportMonth}`}</span>
+            <span>{tab === "daily" ? `Daily report for ${report.startDate ? formatDate(report.startDate) : "selected date"}${dailyView === "range" && report.endDate && report.endDate !== report.startDate ? ` – ${formatDate(report.endDate)}` : ""}` : `Monthly report for ${reportMonth}`}</span>
             <span>{filteredRows.length} of {report.summaries.length} employees visible</span>
           </div>
           {loading ? (
@@ -257,7 +270,7 @@ function AdminHr() {
             <Empty icon={<CalendarDays className="mx-auto size-8" />} title="No employees in the report" detail="Employees will appear here after SubHub Managers register them." />
           ) : !filteredRows.length ? (
             <p className="p-10 text-center text-sm text-muted-foreground">No employees match the current filters.</p>
-          ) : tab === "daily" ? (
+          ) : tab === "daily" && dailyView === "date" ? (
             <DailyTable rows={filteredRows} statuses={dailyStatuses} date={dailyDate} onView={setViewingEmployee} />
           ) : (
             <MonthlyTable rows={filteredRows} onView={setViewingEmployee} />
