@@ -135,7 +135,10 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const auth = Route.useLoaderData();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const isSubHubPath = pathname.startsWith("/subhub") || pathname.startsWith("/inventory");
+  const isSubHubPath =
+    pathname.startsWith("/subhub") ||
+    pathname.startsWith("/inventory") ||
+    ((pathname.startsWith("/procurement") || pathname.startsWith("/po/")) && auth.user?.panel === "subhub");
   const isAdminPath = !isSubHubPath && pathname !== "/login";
   const requiredSection = sectionForPath(pathname);
 
@@ -174,6 +177,7 @@ function sectionForPath(pathname: string): string | null {
   if (pathname.startsWith("/hubs")) return "hubs";
   if (pathname.startsWith("/shortages")) return "shortages";
   if (pathname.startsWith("/procurement")) return "procurement";
+  if (pathname.startsWith("/po/")) return "procurement";
   if (pathname.startsWith("/production")) return "production";
   if (pathname.startsWith("/hr")) return "hr";
   if (pathname.startsWith("/inventory")) return "inventory";
@@ -190,6 +194,7 @@ function sectionForPath(pathname: string): string | null {
 
 function panelForPath(pathname: string): "admin" | "subhub" | undefined {
   if (pathname.startsWith("/subhub") || pathname.startsWith("/inventory")) return "subhub";
+  if (pathname.startsWith("/procurement") || pathname.startsWith("/po/")) return undefined;
   if (pathname === "/login") return undefined;
   return "admin";
 }

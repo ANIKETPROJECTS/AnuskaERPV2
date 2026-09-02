@@ -97,7 +97,7 @@ const ADMIN_PERMISSIONS: AccessSection[] = [
   "hr",
 ];
 
-const SUBHUB_PERMISSIONS: AccessSection[] = ["inventory", "hub-manager", "hub-reports", "hr", "bom", "raw-materials"];
+const SUBHUB_PERMISSIONS: AccessSection[] = ["inventory", "hub-manager", "hub-reports", "hr", "bom", "raw-materials", "procurement"];
 const PANEL_PERMISSIONS: Record<Panel, readonly AccessSection[]> = {
   admin: ADMIN_PERMISSIONS,
   subhub: SUBHUB_PERMISSIONS,
@@ -129,7 +129,7 @@ async function ensureControlPlane(): Promise<Db> {
     db.collection("production_reassignments").createIndex({ createdAt: -1 }),
     db.collection<UserDocument>("users").updateMany(
       { panel: { $in: ["admin", "subhub"] } },
-      { $addToSet: { permissions: { $each: ["hr", "bom", "raw-materials"] } } },
+      { $addToSet: { permissions: { $each: ["hr", "bom", "raw-materials", "procurement"] } } },
     ),
   ]).then(() => undefined);
   await indexesPromise;
@@ -417,7 +417,9 @@ export async function getAuthState(panel?: Panel): Promise<{ setupRequired: bool
   const db = await ensureControlPlane();
   const [masterAdminCount, user] = await Promise.all([
     db.collection<UserDocument>("users").countDocuments({ role: "master_admin" }),
-    getUserBySession(panel),
+    panel
+      ? getUserBySession(panel)
+      : Promise.all([getUserBySession("admin"), getUserBySession("subhub")]).then(([admin, subhub]) => admin ?? subhub),
   ]);
   return {
     setupRequired: masterAdminCount === 0,

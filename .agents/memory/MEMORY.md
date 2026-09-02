@@ -3,3 +3,4 @@
 - [MongoDB workspace names](mongodb-workspace-name-limit.md) — keep per-user database names under MongoDB's 38-byte limit while retaining the full user ID in control data.
 - [Panel-isolated sessions](panel-isolated-sessions.md) — keep Admin and SubHub identities in separate server-side sessions and authenticate operations by expected panel.
 - [Hub capacity model](hub-capacity-model.md) — Admin capacity is measured against each hub’s active open target units; blank means no limit.
+- [Server-only module boundaries](server-only-boundaries.md) — keep shared constants out of modules that import server-only auth or database APIs.

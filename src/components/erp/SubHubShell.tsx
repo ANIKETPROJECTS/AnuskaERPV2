@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { Boxes, ClipboardCheck, Database, FileBarChart, Layers, LogOut, PackageOpen, PanelLeftClose, PanelLeftOpen, UserRoundCog } from "lucide-react";
+import { Boxes, ClipboardCheck, Database, FileBarChart, Layers, LogOut, PackageOpen, PanelLeftClose, PanelLeftOpen, ShoppingCart, UserRoundCog } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { logoutFn } from "@/auth";
@@ -11,6 +11,7 @@ const subhubNav = [
   { to: "/subhub/production", label: "Hub Manager", permission: "hub-manager", icon: ClipboardCheck },
   { to: "/subhub/reports", label: "Hub Reports", permission: "hub-reports", icon: FileBarChart },
   { to: "/subhub/hr", label: "HR & Attendance", permission: "hr", icon: UserRoundCog },
+  { to: "/procurement", label: "Procurement", permission: "procurement", icon: ShoppingCart },
   { to: "/subhub/bom", label: "Bill of Materials", permission: "bom", icon: Layers },
   { to: "/subhub/raw-materials", label: "Raw Materials", permission: "raw-materials", icon: Database },
 ] as const;

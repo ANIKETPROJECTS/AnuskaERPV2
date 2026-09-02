@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { ArrowUpRight, ClipboardCheck, FileBarChart, PackageOpen, UserRoundCog } from "lucide-react";
+import { ArrowUpRight, ClipboardCheck, FileBarChart, PackageOpen, ShoppingCart, UserRoundCog } from "lucide-react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { canAccess, useAuth } from "@/components/auth/AuthContext";
 
@@ -66,6 +66,14 @@ function SubHubOverview() {
       label: "HR & Attendance",
       description: "Mark daily attendance, manage shifts, and prepare monthly payroll reports.",
       detail: "Simple daily status entry",
+    },
+    {
+      permission: "procurement",
+      to: "/procurement",
+      icon: ShoppingCart,
+      label: "Procurement",
+      description: "Choose vendors, place SubHub orders, and track delivery progress.",
+      detail: "Workspace-scoped purchase orders",
     },
   ];
 
