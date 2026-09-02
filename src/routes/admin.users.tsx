@@ -290,7 +290,7 @@ function UserManagement() {
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-end gap-3 border-b border-border bg-muted/10 px-5 py-4">
+        <div className="filter-toolbar border-b border-border bg-muted/10 px-5 py-4">
           <label className="min-w-[220px] flex-1 text-xs font-medium">
             Search users
             <span className="relative mt-1.5 block">

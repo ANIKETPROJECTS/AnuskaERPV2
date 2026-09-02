@@ -241,7 +241,7 @@ function RawMaterialsContent({
           <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search raw materials" className="h-9 w-full rounded-md border border-input bg-card pl-9 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
         </label>
       </div>
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-3">
+      <div className="filter-toolbar rounded-lg border border-border bg-card p-3">
         <label className="text-xs font-medium">
           Sort by
           <select value={sortBy} onChange={(event) => onSortChange(event.target.value as RawMaterialSort)} className="mt-1.5 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal">

@@ -185,6 +185,32 @@
   color: var(--primary-foreground);
 }
 
+@layer components {
+  .filter-toolbar {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    gap: 0.75rem;
+    overflow-x: auto;
+  }
+
+  .filter-toolbar > * {
+    flex: 0 0 auto;
+  }
+
+  label:has(> select) {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+
+  label:has(> select) > select {
+    margin-top: 0 !important;
+    margin-left: 0 !important;
+  }
+}
+
 @keyframes user-drawer-enter {
   from {
     opacity: 0;

@@ -24,8 +24,8 @@ export const Route = createFileRoute("/bom")({
 });
 
 const emptyProduct: NewProduct = { name: "", code: "", description: "", image: "" };
-type BomSort = "name-asc" | "name-desc" | "variants-desc" | "variants-asc" | "raw-parts-desc" | "raw-parts-asc";
-type CountFilter = "all" | "none" | "1-2" | "3-4" | "5-plus";
+type BomSort = "name-asc" | "name-desc";
+type CountFilter = "all" | "none";
 type BomView = "grid" | "list" | "matrix";
 
 function requiredMaterialsForVariant(variant: BomVariant) {
@@ -42,11 +42,9 @@ function requiredMaterialsForVariant(variant: BomVariant) {
   });
 }
 
-function matchesCountFilter(value: number, filter: CountFilter, middleStart: number, middleEnd: number) {
+function matchesCountFilter(value: number, filter: CountFilter) {
   if (filter === "all") return true;
-  if (filter === "none") return value === 0;
-  if (filter === "5-plus") return value >= 5;
-  return value >= middleStart && value <= middleEnd;
+  return value === 0;
 }
 
 function Bom() {
@@ -81,19 +79,13 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
       const productRawPartCount = rawPartCount(product);
       return (
         matchesSearch &&
-        matchesCountFilter(variantCount, variantFilter, 1, 2) &&
-        matchesCountFilter(productRawPartCount, rawPartsFilter, 1, 5)
+        matchesCountFilter(variantCount, variantFilter) &&
+        matchesCountFilter(productRawPartCount, rawPartsFilter)
       );
     });
     return filtered.sort((left, right) => {
-      const leftRawParts = rawPartCount(left);
-      const rightRawParts = rawPartCount(right);
       if (sortBy === "name-asc") return left.name.localeCompare(right.name);
-      if (sortBy === "name-desc") return right.name.localeCompare(left.name);
-      if (sortBy === "variants-desc") return right.variants.length - left.variants.length || left.name.localeCompare(right.name);
-      if (sortBy === "variants-asc") return left.variants.length - right.variants.length || left.name.localeCompare(right.name);
-      if (sortBy === "raw-parts-desc") return rightRawParts - leftRawParts || left.name.localeCompare(right.name);
-      return leftRawParts - rightRawParts || left.name.localeCompare(right.name);
+      return right.name.localeCompare(left.name);
     });
   }, [productSearch, products, rawPartsFilter, sortBy, variantFilter]);
 
@@ -171,16 +163,12 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
               />
             </label>
           </div>
-          <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-3">
+          <div className="filter-toolbar rounded-lg border border-border bg-card p-3">
             <label className="text-xs font-medium">
               Sort by
               <select value={sortBy} onChange={(event) => setSortBy(event.target.value as BomSort)} className="mt-1.5 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal">
                 <option value="name-asc">Name A–Z</option>
                 <option value="name-desc">Name Z–A</option>
-                <option value="variants-desc">Most variants</option>
-                <option value="variants-asc">Fewest variants</option>
-                <option value="raw-parts-desc">Most raw parts</option>
-                <option value="raw-parts-asc">Fewest raw parts</option>
               </select>
             </label>
             <label className="text-xs font-medium">
@@ -188,9 +176,6 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
               <select value={variantFilter} onChange={(event) => setVariantFilter(event.target.value as CountFilter)} className="mt-1.5 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal">
                 <option value="all">Any variant count</option>
                 <option value="none">No variants</option>
-                <option value="1-2">1–2 variants</option>
-                <option value="3-4">3–4 variants</option>
-                <option value="5-plus">5+ variants</option>
               </select>
             </label>
             <label className="text-xs font-medium">
@@ -198,9 +183,6 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
               <select value={rawPartsFilter} onChange={(event) => setRawPartsFilter(event.target.value as CountFilter)} className="mt-1.5 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal">
                 <option value="all">Any raw-part count</option>
                 <option value="none">No raw parts</option>
-                <option value="1-2">1–2 raw parts</option>
-                <option value="3-4">3–4 raw parts</option>
-                <option value="5-plus">5+ raw parts</option>
               </select>
             </label>
             <button type="button" onClick={clearCatalogFilters} className="h-9 rounded-md border border-input px-3 text-xs font-medium text-muted-foreground hover:bg-muted">
