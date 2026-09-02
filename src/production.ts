@@ -25,13 +25,17 @@ const orderSchema = z.object({
   notes: z.string().max(500),
 });
 
-const batchOrderSchema = z.object({
-  subhubUserIds: z.array(z.string().min(1)).min(1).max(100),
+const assignmentSchema = z.object({
+  subhubUserId: z.string().min(1),
   productCode: z.string().min(1),
   variantCode: z.string().min(1),
   target: z.number().int().positive(),
   dueDate: z.string().min(10),
   notes: z.string().max(500),
+});
+
+const batchOrderSchema = z.object({
+  assignments: z.array(assignmentSchema).min(1).max(100),
 });
 
 const reportSchema = z.object({

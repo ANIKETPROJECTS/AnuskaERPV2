@@ -565,8 +565,7 @@ export async function createProductionOrder(input: {
   notes: string;
 }): Promise<{ ok: true; order: ProductionOrder } | { ok: false; message: string }> {
   const result = await createProductionOrders({
-    ...input,
-    subhubUserIds: [input.subhubUserId],
+    assignments: [input],
   });
   if (!result.ok) return result;
   const order = result.orders[0];
@@ -575,38 +574,57 @@ export async function createProductionOrder(input: {
 }
 
 export async function createProductionOrders(input: {
-  subhubUserIds: string[];
-  productCode: string;
-  variantCode: string;
-  target: number;
-  dueDate: string;
-  notes: string;
+  assignments: Array<{
+    subhubUserId: string;
+    productCode: string;
+    variantCode: string;
+    target: number;
+    dueDate: string;
+    notes: string;
+  }>;
 }): Promise<{ ok: true; orders: ProductionOrder[] } | { ok: false; message: string }> {
   const current = await getCurrentUserRecord("admin");
   if (!isAdmin(current)) return { ok: false, message: "Only Admin users can create production orders." };
-  if (!Number.isInteger(input.target) || input.target < 1) return { ok: false, message: "Target must be a whole number greater than zero." };
-  const dueDate = normalizeDate(input.dueDate);
-  if (!dueDate) return { ok: false, message: "Enter a valid target date." };
 
   const db = await getControlPlaneDatabase();
-  const subhubUserIds = [...new Set(input.subhubUserIds)];
-  const [subhubs, product] = await Promise.all([
+  const subhubUserIds = [...new Set(input.assignments.map((assignment) => assignment.subhubUserId))];
+  const [subhubs] = await Promise.all([
     db.collection<UserDocument>("users").find({
       _id: { $in: subhubUserIds },
       panel: "subhub",
       role: "subhub",
       active: true,
     }).toArray(),
-    Promise.resolve(bomCatalog.find((item) => item.code === input.productCode)),
   ]);
   if (subhubs.length !== subhubUserIds.length || subhubs.some((subhub) => !subhub.subhubName)) {
     return { ok: false, message: "Select only active SubHub managers with assigned factory names." };
   }
-  const variant = product?.variants.find((item) => item.code === input.variantCode);
-  if (!product || !variant) return { ok: false, message: "Select a valid Float type and variant." };
 
   const now = new Date();
-  const orders: ProductionOrderDocument[] = subhubs.map((subhub) => ({
+  const subhubById = new Map(subhubs.map((subhub) => [subhub._id, subhub]));
+  const validatedAssignments: Array<{
+    assignment: (typeof input.assignments)[number];
+    subhub: UserDocument;
+    product: (typeof bomCatalog)[number];
+    variant: (typeof bomCatalog)[number]["variants"][number];
+    dueDate: string;
+  }> = [];
+
+  for (const [index, assignment] of input.assignments.entries()) {
+    const subhub = subhubById.get(assignment.subhubUserId);
+    if (!subhub?.subhubName) return { ok: false, message: `Assignment ${index + 1}: select an active SubHub manager.` };
+    if (!Number.isInteger(assignment.target) || assignment.target < 1) {
+      return { ok: false, message: `Assignment ${index + 1}: target must be a whole number greater than zero.` };
+    }
+    const dueDate = normalizeDate(assignment.dueDate);
+    if (!dueDate) return { ok: false, message: `Assignment ${index + 1}: enter a valid target date.` };
+    const product = bomCatalog.find((item) => item.code === assignment.productCode);
+    const variant = product?.variants.find((item) => item.code === assignment.variantCode);
+    if (!product || !variant) return { ok: false, message: `Assignment ${index + 1}: select a valid Float type and variant.` };
+    validatedAssignments.push({ assignment, subhub, product, variant, dueDate });
+  }
+
+  const orders: ProductionOrderDocument[] = validatedAssignments.map(({ assignment, subhub, product, variant, dueDate }) => ({
     _id: randomUUID().replace(/-/g, ""),
     orderNumber: `ORD-${now.getTime().toString().slice(-8)}-${randomUUID().replace(/-/g, "").slice(0, 4).toUpperCase()}`,
     subhubUserId: subhub._id,
@@ -615,9 +633,9 @@ export async function createProductionOrders(input: {
     productName: product.name,
     variantCode: variant.code,
     variantName: variant.name,
-    target: input.target,
+    target: assignment.target,
     dueDate,
-    notes: input.notes.trim(),
+    notes: assignment.notes.trim(),
     createdBy: current._id,
     createdAt: now,
     updatedAt: now,
