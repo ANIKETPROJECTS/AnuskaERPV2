@@ -7,9 +7,11 @@ const managerSchema = z.object({ month: z.string(), date: z.string().optional() 
 const monthSchema = z.object({ month: z.string() });
 const employeeHistorySchema = z.object({
   employeeId: z.string().min(1),
-  period: z.enum(["all", "week", "month"]),
+  period: z.enum(["all", "week", "month", "range"]),
   weekStart: z.string().optional(),
   month: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
 });
 const managerReportSchema = z.object({
   rangeType: z.enum(["month", "date", "range"]),
@@ -27,6 +29,8 @@ export const getEmployeeAttendanceHistoryFn = createServerFn({ method: "GET" }).
     period: data.period,
     ...(data.month ? { month: data.month } : {}),
     ...(data.weekStart ? { weekStart: data.weekStart } : {}),
+            ...(data.startDate ? { startDate: data.startDate } : {}),
+            ...(data.endDate ? { endDate: data.endDate } : {}),
   }),
 );
 export const getManagerAttendanceReportFn = createServerFn({ method: "GET" }).validator(managerReportSchema).handler(({ data }) =>
@@ -55,6 +59,8 @@ export const getAdminEmployeeAttendanceHistoryFn = createServerFn({ method: "GET
     period: data.period,
     ...(data.month ? { month: data.month } : {}),
     ...(data.weekStart ? { weekStart: data.weekStart } : {}),
+    ...(data.startDate ? { startDate: data.startDate } : {}),
+    ...(data.endDate ? { endDate: data.endDate } : {}),
   }),
 );
 export const createEmployeeFn = createServerFn({ method: "POST" })

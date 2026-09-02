@@ -445,9 +445,11 @@ export async function getManagerHrData(monthInput: string): Promise<
 
 export async function getEmployeeAttendanceHistory(input: {
   employeeId: string;
-  period: "all" | "week" | "month";
+  period: "all" | "week" | "month" | "range";
   weekStart?: string;
   month?: string;
+  startDate?: string;
+  endDate?: string;
 }): Promise<
   { ok: true; data: EmployeeAttendanceHistory } | { ok: false; message: string }
 > {
@@ -469,6 +471,13 @@ export async function getEmployeeAttendanceHistory(input: {
     if (!weekStart) return { ok: false, message: "Choose a valid week start date." };
     startDate = weekStart;
     endDate = earlierDate(addDays(weekStart, 6), today);
+  } else if (input.period === "range") {
+    const rangeStart = normalizeDate(input.startDate ?? "");
+    const rangeEnd = normalizeDate(input.endDate ?? "");
+    if (!rangeStart || !rangeEnd) return { ok: false, message: "Choose a valid start and end date." };
+    if (rangeStart > rangeEnd) return { ok: false, message: "The start date must be before the end date." };
+    startDate = rangeStart;
+    endDate = earlierDate(rangeEnd, today);
   }
 
   const db = await getMongoDb(current.databaseName);
@@ -861,9 +870,11 @@ export async function getAdminAttendanceReport(input: {
 export async function getAdminEmployeeAttendanceHistory(input: {
   subhubId: string;
   employeeId: string;
-  period: "all" | "week" | "month";
+  period: "all" | "week" | "month" | "range";
   weekStart?: string;
   month?: string;
+  startDate?: string;
+  endDate?: string;
 }): Promise<
   { ok: true; data: EmployeeAttendanceHistory } | { ok: false; message: string }
 > {
@@ -885,6 +896,13 @@ export async function getAdminEmployeeAttendanceHistory(input: {
     if (!weekStart) return { ok: false, message: "Choose a valid week start date." };
     startDate = weekStart;
     endDate = earlierDate(addDays(weekStart, 6), today);
+  } else if (input.period === "range") {
+    const rangeStart = normalizeDate(input.startDate ?? "");
+    const rangeEnd = normalizeDate(input.endDate ?? "");
+    if (!rangeStart || !rangeEnd) return { ok: false, message: "Choose a valid start and end date." };
+    if (rangeStart > rangeEnd) return { ok: false, message: "The start date must be before the end date." };
+    startDate = rangeStart;
+    endDate = earlierDate(rangeEnd, today);
   }
 
   const controlDb = await getControlPlaneDatabase();

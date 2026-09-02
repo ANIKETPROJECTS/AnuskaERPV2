@@ -402,7 +402,8 @@ async function rebalanceProductionOrders(actorId: string): Promise<ProductionRea
   const capacities = await capacityDocumentsFor(activeUsers);
   const workspaceData = await reportsByUserFor(users);
   const reportsByUser = new Map(workspaceData.map(({ user, reports }) => [user._id, reports]));
-  const actor = users.find((user) => user._id === actorId);
+  const actor = users.find((user) => user._id === actorId)
+    ?? await db.collection<UserDocument>("users").findOne({ _id: actorId });
   const actorName = actor?.name ?? "System";
   const actorRole = actor?.role === "subhub" ? "Hub Manager" : actor?.role === "master_admin" ? "Master Admin" : "Admin";
   const loads = new Map<string, number>();
@@ -521,6 +522,51 @@ export async function setHubCapacity(input: {
   const db = await getControlPlaneDatabase();
   if (input.subhubUserId !== current._id) return { ok: false, message: "You can only manage your own hub capacity." };
   if (!current.subhubName) return { ok: false, message: "Your SubHub does not have a name yet." };
+
+  if (input.capacityUnits === null) {
+    await db.collection<HubCapacityDocument>("hub_capacities").deleteOne({ _id: input.subhubUserId });
+  } else {
+    await db.collection<HubCapacityDocument>("hub_capacities").updateOne(
+      { _id: input.subhubUserId },
+      {
+        $set: {
+          capacityUnits: input.capacityUnits,
+          updatedBy: current._id,
+          updatedAt: new Date(),
+        },
+      },
+      { upsert: true },
+    );
+  }
+
+  const reassignments = await rebalanceProductionOrders(current._id);
+  return { ok: true, capacityUnits: input.capacityUnits, reassignments };
+}
+
+export async function setAdminHubCapacity(input: {
+  subhubUserId: string;
+  capacityUnits: number | null;
+}): Promise<
+  { ok: true; capacityUnits: number | null; reassignments: ProductionReassignment[] } |
+  { ok: false; message: string }
+> {
+  const current = await getCurrentUserRecord("admin");
+  if (!isAdmin(current)) return { ok: false, message: "Only Admin users can edit hub capacity." };
+  if (
+    input.capacityUnits !== null &&
+    (!Number.isInteger(input.capacityUnits) || input.capacityUnits < 1)
+  ) {
+    return { ok: false, message: "Capacity must be a whole number greater than zero, or left blank for no limit." };
+  }
+
+  const db = await getControlPlaneDatabase();
+  const hub = await db.collection<UserDocument>("users").findOne({
+    _id: input.subhubUserId,
+    panel: "subhub",
+    role: "subhub",
+    active: true,
+  });
+  if (!hub?.subhubName) return { ok: false, message: "That SubHub is not active or does not have a factory name." };
 
   if (input.capacityUnits === null) {
     await db.collection<HubCapacityDocument>("hub_capacities").deleteOne({ _id: input.subhubUserId });

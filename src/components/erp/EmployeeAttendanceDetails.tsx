@@ -6,7 +6,7 @@ import { SubHubShell } from "@/components/erp/SubHubShell";
 import { Shell } from "@/components/erp/Shell";
 import type { AttendanceStatus, EmployeeAttendanceHistory } from "@/hr.server";
 
-type HistoryPeriod = "all" | "week" | "month";
+type HistoryPeriod = "all" | "week" | "month" | "range";
 
 type EmployeeAttendanceDetailsProps =
   | { mode: "admin"; employeeId: string; subhubId: string }
@@ -31,6 +31,10 @@ function startOfWeek(value: string) {
   return date.toISOString().slice(0, 10);
 }
 
+function startOfMonth(value: string) {
+  return `${value.slice(0, 7)}-01`;
+}
+
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T00:00:00.000Z`));
 }
@@ -53,6 +57,8 @@ export function EmployeeAttendanceDetails(props: EmployeeAttendanceDetailsProps)
   const [period, setPeriod] = useState<HistoryPeriod>("all");
   const [month, setMonth] = useState(() => currentDate().slice(0, 7));
   const [weekStart, setWeekStart] = useState(() => startOfWeek(currentDate()));
+  const [rangeStart, setRangeStart] = useState(() => startOfMonth(currentDate()));
+  const [rangeEnd, setRangeEnd] = useState(() => currentDate());
   const [history, setHistory] = useState<EmployeeAttendanceHistory | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -69,6 +75,8 @@ export function EmployeeAttendanceDetails(props: EmployeeAttendanceDetailsProps)
             period,
             month: period === "month" ? month : undefined,
             weekStart: period === "week" ? weekStart : undefined,
+            startDate: period === "range" ? rangeStart : undefined,
+            endDate: period === "range" ? rangeEnd : undefined,
           },
         })
       : getEmployeeAttendanceHistoryFn({
@@ -77,6 +85,8 @@ export function EmployeeAttendanceDetails(props: EmployeeAttendanceDetailsProps)
             period,
             month: period === "month" ? month : undefined,
             weekStart: period === "week" ? weekStart : undefined,
+            startDate: period === "range" ? rangeStart : undefined,
+            endDate: period === "range" ? rangeEnd : undefined,
           },
         });
     void request
@@ -100,7 +110,7 @@ export function EmployeeAttendanceDetails(props: EmployeeAttendanceDetailsProps)
     return () => {
       cancelled = true;
     };
-  }, [month, period, props.employeeId, props.mode, props.mode === "admin" ? props.subhubId : "", weekStart]);
+  }, [month, period, props.employeeId, props.mode, props.mode === "admin" ? props.subhubId : "", rangeEnd, rangeStart, weekStart]);
 
   const employee = history?.employee;
   const summary = history?.summary;
@@ -138,20 +148,26 @@ export function EmployeeAttendanceDetails(props: EmployeeAttendanceDetailsProps)
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <InfoCard label="Assigned shift" value={history?.shift?.name ?? "No shift assigned"} helper={history?.shift ? `${formatTime12(history.shift.startTime)}–${formatTime12(history.shift.endTime)}` : "Managed by SubHub"} />
-          <InfoCard label="History range" value={period === "all" ? "All time" : period === "week" ? "Selected week" : "Selected month"} helper={rangeLabel || "Loading range…"} />
+          <InfoCard label="History range" value={period === "all" ? "All time" : period === "week" ? "Selected week" : period === "month" ? "Selected month" : "Custom date range"} helper={rangeLabel || "Loading range…"} />
           <InfoCard label="Total marked days" value={String(totalMarked)} helper="Attendance records in range" />
           <InfoCard label="Attendance coverage" value={summary ? "Status report ready" : "Loading report…"} helper="Present, absent, late, and half-day" />
         </div>
 
         <section className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
-            <div><h2 className="font-semibold">Attendance summary</h2><p className="mt-1 text-sm text-muted-foreground">Filter this employee’s saved attendance by all time, week, or month.</p></div>
+            <div><h2 className="font-semibold">Attendance summary</h2><p className="mt-1 text-sm text-muted-foreground">Filter this employee’s saved attendance by all time, week, month, or a custom date range.</p></div>
             <div className="flex flex-wrap items-end gap-2">
               <div className="flex rounded-md border border-input bg-card p-1">
-                {([["all", "All time"], ["week", "Week"], ["month", "Month"]] as Array<[HistoryPeriod, string]>).map(([value, label]) => <button key={value} type="button" onClick={() => setPeriod(value)} className={`rounded px-2.5 py-1.5 text-xs font-medium ${period === value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>{label}</button>)}
+                {([["all", "All time"], ["week", "Week"], ["month", "Month"], ["range", "Date range"]] as Array<[HistoryPeriod, string]>).map(([value, label]) => <button key={value} type="button" onClick={() => setPeriod(value)} className={`rounded px-2.5 py-1.5 text-xs font-medium ${period === value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>{label}</button>)}
               </div>
               {period === "week" ? <label className="text-xs font-medium">Week starting<input type="date" value={weekStart} onChange={(event) => setWeekStart(startOfWeek(event.target.value))} className="mt-1 block h-9 rounded-md border border-input bg-card px-2 text-sm font-normal" /></label> : null}
               {period === "month" ? <label className="text-xs font-medium">Report month<input type="month" value={month} onChange={(event) => setMonth(event.target.value)} className="mt-1 block h-9 rounded-md border border-input bg-card px-2 text-sm font-normal" /></label> : null}
+              {period === "range" ? (
+                <>
+                  <label className="text-xs font-medium">From<input type="date" value={rangeStart} max={currentDate()} onChange={(event) => setRangeStart(event.target.value)} className="mt-1 block h-9 rounded-md border border-input bg-card px-2 text-sm font-normal" /></label>
+                  <label className="text-xs font-medium">To<input type="date" value={rangeEnd} min={rangeStart} max={currentDate()} onChange={(event) => setRangeEnd(event.target.value)} className="mt-1 block h-9 rounded-md border border-input bg-card px-2 text-sm font-normal" /></label>
+                </>
+              ) : null}
             </div>
           </div>
           {summary ? <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5"><Stat label="Present" value={String(summary.present)} helper="Days present" /><Stat label="Absent" value={String(summary.absent)} helper="Days absent" /><Stat label="Half-day" value={String(summary.halfDay)} helper="Half-day records" /><Stat label="Late" value={String(summary.late)} helper="Late records" /><Stat label="Total" value={String(totalMarked)} helper="All marked days" /></div> : null}
@@ -161,7 +177,7 @@ export function EmployeeAttendanceDetails(props: EmployeeAttendanceDetailsProps)
           <div className="border-b border-border bg-muted/20 px-5 py-4"><h2 className="font-semibold">Attendance history</h2><p className="mt-1 text-xs text-muted-foreground">Every saved attendance entry for {employee?.name ?? "this employee"} in the selected range.</p></div>
           {loading ? <p className="p-10 text-center text-sm text-muted-foreground">Loading attendance history…</p> : error ? null : history?.attendance.length ? (
             <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">Day</th><th className="px-5 py-3 font-medium">Status</th><th className="px-5 py-3 text-right font-medium">Last updated</th></tr></thead><tbody>{history.attendance.map((record) => <tr key={record.id} className="border-b border-border/70 last:border-0"><td className="tabular px-5 py-3 font-medium">{formatDate(record.date)}</td><td className="px-5 py-3 text-muted-foreground">{formatWeekday(record.date)}</td><td className="px-5 py-3"><span className={`inline-flex rounded-md border px-2 py-1 text-xs font-medium ${statusClass(record.status)}`}>{record.status}</span></td><td className="px-5 py-3 text-right text-xs text-muted-foreground">{new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(new Date(record.updatedAt))}</td></tr>)}</tbody></table></div>
-          ) : <div className="p-10 text-center"><CalendarDays className="mx-auto size-8 text-muted-foreground" /><p className="mt-3 font-medium">No attendance saved for this range</p><p className="mt-1 text-sm text-muted-foreground">Choose another week or month, or return to the attendance report.</p></div>}
+          ) : <div className="p-10 text-center"><CalendarDays className="mx-auto size-8 text-muted-foreground" /><p className="mt-3 font-medium">No attendance saved for this range</p><p className="mt-1 text-sm text-muted-foreground">Choose another week, month, or date range, or return to the attendance report.</p></div>}
         </section>
       </div>
     </div>

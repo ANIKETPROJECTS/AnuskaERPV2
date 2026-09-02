@@ -12,6 +12,7 @@ import {
   reassignProductionOrder,
   saveDailyProduction,
   searchWorkspace,
+  setAdminHubCapacity,
   setHubCapacity,
 } from "./production.server";
 export type { OrderNotification, WorkspaceSearchResult, WorkspaceSearchScope } from "./production.server";
@@ -77,6 +78,7 @@ export const createProductionOrderFn = createServerFn({ method: "POST" }).valida
 export const createProductionOrdersFn = createServerFn({ method: "POST" }).validator(batchOrderSchema).handler(({ data }) => createProductionOrders(data));
 export const saveDailyProductionFn = createServerFn({ method: "POST" }).validator(reportSchema).handler(({ data }) => saveDailyProduction(data));
 export const setHubCapacityFn = createServerFn({ method: "POST" }).validator(capacitySchema).handler(({ data }) => setHubCapacity(data));
+export const setAdminHubCapacityFn = createServerFn({ method: "POST" }).validator(capacitySchema).handler(({ data }) => setAdminHubCapacity(data));
 export const getProductionOrderActivityFn = createServerFn({ method: "POST" }).validator(activitySchema).handler(({ data }) => getProductionOrderActivity(data.orderId, data.panel));
 export const reassignProductionOrderFn = createServerFn({ method: "POST" }).validator(reassignSchema).handler(({ data }) => reassignProductionOrder(data));
 export const searchWorkspaceFn = createServerFn({ method: "POST" }).validator(searchSchema).handler(({ data }) => searchWorkspace(data.query, data.panel, data.scope));

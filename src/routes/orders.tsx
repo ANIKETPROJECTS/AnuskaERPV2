@@ -16,13 +16,14 @@ import {
   History,
   Plus,
   RefreshCw,
+  Save,
   Settings2,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
-import { getAdminProductionDashboardFn, getProductionOrderActivityFn, listAssignableSubhubsFn, reassignProductionOrderFn } from "@/production";
+import { getAdminProductionDashboardFn, getProductionOrderActivityFn, listAssignableSubhubsFn, reassignProductionOrderFn, setAdminHubCapacityFn } from "@/production";
 import type { AdminProductionDashboard, AssignableSubhub, ProductionOrder, ProductionOrderActivity } from "@/production.server";
 import { num } from "@/lib/erp-data";
 
@@ -43,6 +44,31 @@ function statusTone(status: ProductionOrder["status"]): "good" | "warn" | "bad" 
   return "neutral";
 }
 
+type OrderDateField = "all" | "assigned" | "due";
+type OrderSort = "assigned-newest" | "assigned-oldest" | "due-soonest" | "due-latest" | "target-high" | "remaining-high" | "progress-high";
+type SaveHubCapacity = (subhubUserId: string, capacityUnits: number | null) => Promise<{ ok: true } | { ok: false; message: string }>;
+
+function dateOnly(value: string) {
+  if (!value.includes("T")) return value.slice(0, 10);
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value.slice(0, 10);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(parsed).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]),
+  );
+  return `${parts["year"]}-${parts["month"]}-${parts["day"]}`;
+}
+
+function formatOrderDate(value: string) {
+  const parsed = new Date(value.includes("T") ? value : `${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: value.includes("T") ? "Asia/Kolkata" : "UTC" }).format(parsed);
+}
+
 function Orders() {
   const [dashboard, setDashboard] = useState<AdminProductionDashboard | null>(null);
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
@@ -53,6 +79,14 @@ function Orders() {
   const [activities, setActivities] = useState<Record<string, ProductionOrderActivity[]>>({});
   const [activityLoading, setActivityLoading] = useState("");
   const [reassigningOrderId, setReassigningOrderId] = useState("");
+  const [search, setSearch] = useState("");
+  const [subhubFilter, setSubhubFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<ProductionOrder["status"] | "all">("all");
+  const [dateField, setDateField] = useState<OrderDateField>("all");
+  const [dateValue, setDateValue] = useState("");
+  const [sort, setSort] = useState<OrderSort>("assigned-newest");
+  const [savingCapacityId, setSavingCapacityId] = useState("");
+  const [capacitySuccess, setCapacitySuccess] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,6 +108,36 @@ function Orders() {
   const totalProduced = orders.reduce((sum, order) => sum + order.produced, 0);
   const totalRemaining = orders.reduce((sum, order) => sum + order.remaining, 0);
   const completion = totalTarget ? Math.round((totalProduced / totalTarget) * 100) : 0;
+  const filteredOrders = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const filtered = orders.filter((order) => {
+      const searchable = [
+        order.orderNumber,
+        order.subhubName,
+        order.productCode,
+        order.productName,
+        order.variantCode,
+        order.variantName,
+        order.notes,
+      ].join(" ").toLowerCase();
+      const matchesSearch = !query || searchable.includes(query);
+      const matchesSubhub = subhubFilter === "all" || order.subhubUserId === subhubFilter;
+      const matchesStatus = statusFilter === "all" || order.status === statusFilter;
+      const matchesDate = !dateValue || dateField === "all"
+        || (dateField === "assigned" && dateOnly(order.createdAt) === dateValue)
+        || (dateField === "due" && order.dueDate === dateValue);
+      return matchesSearch && matchesSubhub && matchesStatus && matchesDate;
+    });
+    return [...filtered].sort((left, right) => {
+      if (sort === "assigned-oldest") return left.createdAt.localeCompare(right.createdAt);
+      if (sort === "due-soonest") return left.dueDate.localeCompare(right.dueDate) || right.createdAt.localeCompare(left.createdAt);
+      if (sort === "due-latest") return right.dueDate.localeCompare(left.dueDate) || right.createdAt.localeCompare(left.createdAt);
+      if (sort === "target-high") return right.target - left.target || right.createdAt.localeCompare(left.createdAt);
+      if (sort === "remaining-high") return right.remaining - left.remaining || right.createdAt.localeCompare(left.createdAt);
+      if (sort === "progress-high") return (right.target ? right.produced / right.target : 0) - (left.target ? left.produced / left.target : 0);
+      return right.createdAt.localeCompare(left.createdAt);
+    });
+  }, [dateField, dateValue, orders, search, sort, statusFilter, subhubFilter]);
 
   async function toggleActivity(orderId: string) {
     if (expandedOrderId === orderId) {
@@ -107,6 +171,21 @@ function Orders() {
     setReassigningOrderId("");
   }
 
+  async function saveHubCapacity(subhubUserId: string, capacityUnits: number | null) {
+    setSavingCapacityId(subhubUserId);
+    setCapacitySuccess("");
+    setError("");
+    const result = await setAdminHubCapacityFn({ data: { subhubUserId, capacityUnits } });
+    if (!result.ok) {
+      setError(result.message);
+    } else {
+      setCapacitySuccess(`Hub capacity updated${result.reassignments.length ? ` · ${result.reassignments.length} order${result.reassignments.length === 1 ? "" : "s"} automatically reassigned` : ""}.`);
+      await load();
+    }
+    setSavingCapacityId("");
+    return result;
+  }
+
   return (
     <Shell
       title="Orders & Production Targets"
@@ -131,6 +210,7 @@ function Orders() {
         </div>
 
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+        {capacitySuccess ? <p role="status" className="rounded-md border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-700">{capacitySuccess}</p> : null}
         <Panel title="Hub capacity & workload" description="Capacity is declared by each Hub Manager. Admin can use this live data to assign work and monitor automatic reassignment.">
           <div className="divide-y divide-border">
             {loading && !dashboard ? (
@@ -140,6 +220,8 @@ function Orders() {
                 <HubCapacityRow
                   key={hub.userId}
                   hub={hub}
+                  saving={savingCapacityId === hub.userId}
+                  onSave={saveHubCapacity}
                 />
               ))
             ) : (
@@ -184,35 +266,113 @@ function Orders() {
                </Link>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[860px] text-sm">
-                <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    <th className="px-5 py-3 font-medium">Order / SubHub</th>
-                    <th className="px-5 py-3 font-medium">Product variant</th>
-                    <th className="px-5 py-3 text-right font-medium">Target</th>
-                    <th className="px-5 py-3 text-right font-medium">Produced</th>
-                    <th className="px-5 py-3 text-right font-medium">Due date</th>
-                    <th className="px-5 py-3 text-right font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map((order) => (
-                    <OrderRow
-                      key={order.id}
-                      order={order}
-                      subhubs={subhubs}
-                      activity={activities[order.id] ?? []}
-                      activityLoading={activityLoading === order.id}
-                      reassigning={reassigningOrderId === order.id}
-                      activityOpen={expandedOrderId === order.id}
-                      onToggleActivity={() => void toggleActivity(order.id)}
-                      onReassign={(subhubUserId, reason) => void reassignOrder(order.id, subhubUserId, reason)}
+            <>
+              <div className="overflow-x-auto border-b border-border">
+                <div className="flex min-w-max items-end gap-3 px-5 py-4">
+                  <label className="text-xs font-medium">
+                    Search orders
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Order, SubHub, Float, variant, notes…"
+                      className="mt-1.5 h-9 w-72 rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus:border-primary"
                     />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </label>
+                  <label className="text-xs font-medium">
+                    SubHub
+                    <select value={subhubFilter} onChange={(event) => setSubhubFilter(event.target.value)} className="mt-1.5 h-9 min-w-48 rounded-md border border-input bg-background px-3 text-sm font-normal">
+                      <option value="all">All SubHubs</option>
+                      {subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.subhubName}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-xs font-medium">
+                    Status
+                    <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className="mt-1.5 h-9 min-w-40 rounded-md border border-input bg-background px-3 text-sm font-normal">
+                      <option value="all">All statuses</option>
+                      <option value="Unstarted">Unstarted</option>
+                      <option value="In progress">In progress</option>
+                      <option value="Complete">Complete</option>
+                      <option value="Over target">Over target</option>
+                    </select>
+                  </label>
+                  <label className="text-xs font-medium">
+                    Date field
+                    <select
+                      value={dateField}
+                      onChange={(event) => {
+                        const nextField = event.target.value as OrderDateField;
+                        setDateField(nextField);
+                        if (nextField === "all") setDateValue("");
+                      }}
+                      className="mt-1.5 h-9 min-w-36 rounded-md border border-input bg-background px-3 text-sm font-normal"
+                    >
+                      <option value="all">All dates</option>
+                      <option value="assigned">Assigned on</option>
+                      <option value="due">Due on</option>
+                    </select>
+                  </label>
+                  <label className="text-xs font-medium">
+                    Specific date
+                    <input type="date" value={dateValue} onChange={(event) => setDateValue(event.target.value)} disabled={dateField === "all"} className="mt-1.5 h-9 rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50" />
+                  </label>
+                  <label className="text-xs font-medium">
+                    Sort by
+                    <select value={sort} onChange={(event) => setSort(event.target.value as OrderSort)} className="mt-1.5 h-9 min-w-44 rounded-md border border-input bg-background px-3 text-sm font-normal">
+                      <option value="assigned-newest">Assigned newest</option>
+                      <option value="assigned-oldest">Assigned oldest</option>
+                      <option value="due-soonest">Due date soonest</option>
+                      <option value="due-latest">Due date latest</option>
+                      <option value="target-high">Largest target</option>
+                      <option value="remaining-high">Most remaining</option>
+                      <option value="progress-high">Highest progress</option>
+                    </select>
+                  </label>
+                  <button type="button" onClick={() => { setSearch(""); setSubhubFilter("all"); setStatusFilter("all"); setDateField("all"); setDateValue(""); setSort("assigned-newest"); }} disabled={!search && subhubFilter === "all" && statusFilter === "all" && dateField === "all" && !dateValue && sort === "assigned-newest"} className="h-9 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40">
+                    Reset
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3 text-xs text-muted-foreground">
+                <span>{filteredOrders.length} of {orders.length} assigned orders shown</span>
+                <span>{dateField === "assigned" && dateValue ? `Assigned on ${formatOrderDate(dateValue)}` : dateField === "due" && dateValue ? `Due on ${formatOrderDate(dateValue)}` : "All assignment dates"}</span>
+              </div>
+              {!filteredOrders.length ? (
+                <p className="p-10 text-center text-sm text-muted-foreground">No assigned orders match the current filters.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1320px] text-sm">
+                    <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="px-5 py-3 font-medium">Order / SubHub</th>
+                        <th className="px-5 py-3 font-medium">Product variant</th>
+                        <th className="px-5 py-3 text-right font-medium">Target</th>
+                        <th className="px-5 py-3 text-right font-medium">Produced</th>
+                        <th className="px-5 py-3 font-medium">Progress</th>
+                        <th className="px-5 py-3 text-right font-medium">Remaining</th>
+                        <th className="px-5 py-3 font-medium">Assigned</th>
+                        <th className="px-5 py-3 font-medium">Due date</th>
+                        <th className="px-5 py-3 text-right font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredOrders.map((order) => (
+                        <OrderRow
+                          key={order.id}
+                          order={order}
+                          subhubs={subhubs}
+                          activity={activities[order.id] ?? []}
+                          activityLoading={activityLoading === order.id}
+                          reassigning={reassigningOrderId === order.id}
+                          activityOpen={expandedOrderId === order.id}
+                          onToggleActivity={() => void toggleActivity(order.id)}
+                          onReassign={(subhubUserId, reason) => void reassignOrder(order.id, subhubUserId, reason)}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
         </Panel>
       </div>
@@ -221,13 +381,40 @@ function Orders() {
   );
 }
 
-function HubCapacityRow({ hub }: { hub: AdminProductionDashboard["hubs"][number] }) {
+function HubCapacityRow({
+  hub,
+  saving,
+  onSave,
+}: {
+  hub: AdminProductionDashboard["hubs"][number];
+  saving: boolean;
+  onSave: SaveHubCapacity;
+}) {
+  const [capacityValue, setCapacityValue] = useState(hub.capacityUnits === null ? "" : String(hub.capacityUnits));
+  const [validationError, setValidationError] = useState("");
   const capacityLabel = hub.capacityUnits === null ? "No limit" : num(hub.capacityUnits);
   const loadLabel = hub.capacityUnits === null
     ? `${num(hub.openUnits)} open units`
     : `${num(hub.openUnits)} / ${num(hub.capacityUnits)} units`;
   const status = hub.overloaded ? "Overloaded" : hub.capacityUnits === null ? "Unrestricted" : "Within capacity";
   const statusTone = hub.overloaded ? "bad" : hub.capacityUnits === null ? "neutral" : "good";
+  const isDirty = capacityValue !== (hub.capacityUnits === null ? "" : String(hub.capacityUnits));
+
+  useEffect(() => {
+    setCapacityValue(hub.capacityUnits === null ? "" : String(hub.capacityUnits));
+  }, [hub.capacityUnits]);
+
+  async function submitCapacity() {
+    const trimmed = capacityValue.trim();
+    const parsed = trimmed === "" ? null : Number(trimmed);
+    if (parsed !== null && (!Number.isInteger(parsed) || parsed < 1)) {
+      setValidationError("Enter a whole number greater than zero, or leave blank for no limit.");
+      return;
+    }
+    setValidationError("");
+    const result = await onSave(hub.userId, parsed);
+    if (!result.ok) setValidationError(result.message);
+  }
 
   return (
     <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center">
@@ -242,10 +429,33 @@ function HubCapacityRow({ hub }: { hub: AdminProductionDashboard["hubs"][number]
         </div>
         <Tag tone={statusTone}>{status}</Tag>
       </div>
-      <div className="flex items-center gap-2 rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">
-        <Settings2 className="size-4 text-muted-foreground" />
-        <span><span className="text-xs uppercase tracking-wide text-muted-foreground">Declared capacity</span><span className="tabular ml-2 font-semibold">{capacityLabel}</span></span>
-      </div>
+      <form onSubmit={(event) => { event.preventDefault(); void submitCapacity(); }} className="flex flex-col items-start gap-1">
+        <div className="flex items-center gap-2 rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">
+          <Settings2 className="size-4 text-muted-foreground" />
+          <label className="flex items-center gap-2">
+            <span className="whitespace-nowrap text-xs uppercase tracking-wide text-muted-foreground">Declared capacity</span>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={capacityValue}
+              onChange={(event) => setCapacityValue(event.target.value)}
+              placeholder="No limit"
+              aria-label={`Declared capacity for ${hub.subhubName}`}
+              className="h-8 w-28 rounded-md border border-input bg-background px-2 text-right text-sm font-semibold outline-none focus:border-primary"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={!isDirty || saving}
+            className="inline-flex h-8 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Save className="size-3.5" /> {saving ? "Saving…" : "Save"}
+          </button>
+        </div>
+        <p className="pl-8 text-[11px] text-muted-foreground">Blank means no limit{!isDirty && capacityValue === "" ? "" : ` · Current: ${capacityLabel}`}</p>
+        {validationError ? <p className="pl-8 text-xs text-destructive">{validationError}</p> : null}
+      </form>
       {hub.overloaded ? <AlertTriangle className="size-5 text-destructive" aria-label="Hub is overloaded" /> : null}
     </div>
   );
@@ -283,6 +493,7 @@ function OrderRow({
         <td className="px-5 py-4">
           <p className="tabular font-semibold">{order.orderNumber}</p>
           <p className="mt-1 text-xs text-muted-foreground">{order.subhubName}</p>
+          {order.notes ? <p className="mt-2 max-w-64 text-xs text-muted-foreground"><span className="font-medium text-foreground">Notes:</span> {order.notes}</p> : null}
           <button type="button" onClick={onToggleActivity} className="mt-2 text-xs font-medium text-primary hover:underline">
             {activityLoading ? "Loading activity…" : activityOpen ? "Hide activity" : "View activity"}
           </button>
@@ -321,12 +532,22 @@ function OrderRow({
         </td>
         <td className="tabular px-5 py-4 text-right font-semibold">{num(order.target)}</td>
         <td className="tabular px-5 py-4 text-right">{num(order.produced)}</td>
+        <td className="px-5 py-4">
+          <div className="min-w-32">
+            <div className="h-2 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${Math.min(100, order.target ? (order.produced / order.target) * 100 : 0)}%` }} />
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">{order.target ? Math.round((order.produced / order.target) * 100) : 0}% complete</p>
+          </div>
+        </td>
+        <td className="tabular px-5 py-4 text-right font-medium">{num(order.remaining)}</td>
+        <td className="tabular px-5 py-4 text-muted-foreground">{formatOrderDate(order.createdAt)}</td>
         <td className="tabular px-5 py-4 text-right text-muted-foreground">{order.dueDate}</td>
         <td className="px-5 py-4 text-right"><Tag tone={statusTone(order.status)}>{order.status}</Tag></td>
       </tr>
       {activityOpen ? (
         <tr className="border-b border-border/70">
-          <td colSpan={6} className="bg-muted/10 px-5 py-4">
+          <td colSpan={9} className="bg-muted/10 px-5 py-4">
             <ActivityTimeline activities={activity ?? []} loading={activityLoading} />
           </td>
         </tr>
