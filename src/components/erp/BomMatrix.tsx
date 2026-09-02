@@ -1,3 +1,5 @@
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { type BomProduct } from "@/lib/bom-store";
 import { subparts } from "@/lib/erp-data";
 
@@ -23,17 +25,77 @@ export function BomMatrix({
   const partCodes = Array.from(new Set(products.flatMap((product) => product.variants.flatMap((variant) => Object.keys(variant.parts)))));
   const partByCode = new Map(subparts.map((part) => [part.code, part]));
   const rows = partCodes.map((code) => ({ code, part: partByCode.get(code) }));
+  const matrixRef = useRef<HTMLDivElement>(null);
+  const [scrollState, setScrollState] = useState({ canScrollLeft: false, canScrollRight: false });
+
+  useEffect(() => {
+    const element = matrixRef.current;
+    if (!element) return;
+
+    const updateScrollState = () => {
+      const maxScrollLeft = element.scrollWidth - element.clientWidth;
+      setScrollState({
+        canScrollLeft: element.scrollLeft > 2,
+        canScrollRight: maxScrollLeft - element.scrollLeft > 2,
+      });
+    };
+
+    updateScrollState();
+    element.addEventListener("scroll", updateScrollState, { passive: true });
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateScrollState);
+    resizeObserver?.observe(element);
+    return () => {
+      element.removeEventListener("scroll", updateScrollState);
+      resizeObserver?.disconnect();
+    };
+  }, [products.length, variants.length, rows.length]);
+
+  function scrollMatrix(direction: "left" | "right") {
+    matrixRef.current?.scrollBy({
+      left: direction === "left" ? -520 : 520,
+      behavior: "smooth",
+    });
+  }
 
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
-      <div className="border-b border-border px-5 py-4">
-        <p className="text-sm font-semibold">{title}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+        <div>
+          <p className="text-sm font-semibold">{title}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+        </div>
+        {variants.length ? (
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-muted-foreground">
+              {scrollState.canScrollLeft || scrollState.canScrollRight ? "Scroll horizontally to view all variants" : "All variants visible"}
+            </p>
+            <div className="flex rounded-md border border-input bg-white">
+              <button
+                type="button"
+                onClick={() => scrollMatrix("left")}
+                disabled={!scrollState.canScrollLeft}
+                aria-label="Scroll BOM matrix left"
+                className="inline-flex size-8 items-center justify-center border-r border-input text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollMatrix("right")}
+                disabled={!scrollState.canScrollRight}
+                aria-label="Scroll BOM matrix right"
+                className="inline-flex size-8 items-center justify-center text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
       {!variants.length ? (
         <p className="p-12 text-center text-sm text-muted-foreground">No variants are available for the selected BOM products.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div ref={matrixRef} tabIndex={0} aria-label="BOM matrix table. Scroll horizontally to view more variants." className="overflow-x-auto outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
           <table className="w-full min-w-max text-sm">
             <caption className="sr-only">{title}</caption>
             <thead className="border-b border-border bg-muted/20 text-left text-[10px] uppercase tracking-wide text-muted-foreground">
