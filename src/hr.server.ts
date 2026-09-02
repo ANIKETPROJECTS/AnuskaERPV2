@@ -53,12 +53,34 @@ export type ManagerHrData = {
 export type AdminHrSummary = AttendanceSummary & {
   subhubId: string;
   subhubName: string;
+  subhubManagerName: string;
 };
 
 export type AdminHrData = {
   month: string;
   subhubs: string[];
   summaries: AdminHrSummary[];
+};
+
+export type AdminHrSubhub = {
+  id: string;
+  name: string;
+  managerName: string;
+};
+
+export type AdminAttendanceRecord = AttendanceRecord & {
+  employeeName: string;
+  subhubId: string;
+  subhubName: string;
+  subhubManagerName: string;
+};
+
+export type AdminAttendanceReport = {
+  startDate: string;
+  endDate: string;
+  subhubs: AdminHrSubhub[];
+  summaries: AdminHrSummary[];
+  attendance: AdminAttendanceRecord[];
 };
 
 export type EmployeeAttendanceHistory = {
@@ -201,6 +223,10 @@ function emptyManagerData(): ManagerHrData {
 
 function emptyAdminData(): AdminHrData {
   return { month: "", subhubs: [], summaries: [] };
+}
+
+function emptyAdminAttendanceReport(): AdminAttendanceReport {
+  return { startDate: "", endDate: "", subhubs: [], summaries: [], attendance: [] };
 }
 
 async function ensureHrIndexes(db: Db): Promise<void> {
@@ -752,7 +778,155 @@ export async function getAdminHrData(monthInput: string): Promise<
       ...summary,
       subhubId: user._id,
       subhubName: user.subhubName ?? "SubHub",
+      subhubManagerName: user.name,
     })),
   );
   return { ok: true, data: { month, subhubs: users.map((user) => user.subhubName ?? "SubHub"), summaries } };
+}
+
+function adminReportBounds(input: {
+  rangeType: "month" | "date" | "range";
+  month?: string;
+  date?: string;
+  startDate?: string;
+  endDate?: string;
+}): { ok: true; startDate: string; endDate: string } | { ok: false; message: string } {
+  if (input.rangeType === "month") {
+    const month = normalizeMonth(input.month ?? "");
+    if (!month) return { ok: false, message: "Choose a valid report month." };
+    const bounds = monthBounds(month);
+    return { ok: true, startDate: bounds.start, endDate: earlierDate(bounds.end, todayInIndia()) };
+  }
+  if (input.rangeType === "date") {
+    const date = normalizeDate(input.date ?? "");
+    if (!date) return { ok: false, message: "Choose a valid attendance date." };
+    return { ok: true, startDate: date, endDate: date };
+  }
+  const startDate = normalizeDate(input.startDate ?? "");
+  const requestedEndDate = normalizeDate(input.endDate ?? "");
+  if (!startDate || !requestedEndDate) return { ok: false, message: "Choose a valid start and end date." };
+  if (startDate > requestedEndDate) return { ok: false, message: "The start date must be before the end date." };
+  return { ok: true, startDate, endDate: earlierDate(requestedEndDate, todayInIndia()) };
+}
+
+export async function getAdminAttendanceReport(input: {
+  rangeType: "month" | "date" | "range";
+  month?: string;
+  date?: string;
+  startDate?: string;
+  endDate?: string;
+}): Promise<
+  { ok: true; data: AdminAttendanceReport } | { ok: false; data: AdminAttendanceReport; message: string }
+> {
+  const current = await getCurrentUserRecord("admin");
+  if (!isAdmin(current)) return { ok: false, data: emptyAdminAttendanceReport(), message: "Only Admin users can view HR reports across SubHubs." };
+  const bounds = adminReportBounds(input);
+  if (!bounds.ok) return { ok: false, data: emptyAdminAttendanceReport(), message: bounds.message };
+
+  const controlDb = await getControlPlaneDatabase();
+  const users = await controlDb.collection<UserDocument>("users")
+    .find({ panel: "subhub", role: "subhub", active: true })
+    .sort({ subhubName: 1, name: 1 })
+    .toArray();
+  const workspaces = await Promise.all(users.map(async (user) => ({
+    user,
+    data: await readWorkspaceHrDataForRange(user.databaseName, bounds.startDate, bounds.endDate),
+  })));
+  const subhubs = users.map((user) => ({ id: user._id, name: user.subhubName ?? "SubHub", managerName: user.name }));
+  const summaries = workspaces.flatMap(({ user, data }) =>
+    buildSummary(data.employees, data.attendance).map((summary) => ({
+      ...summary,
+      subhubId: user._id,
+      subhubName: user.subhubName ?? "SubHub",
+      subhubManagerName: user.name,
+    })),
+  );
+  const attendance = workspaces.flatMap(({ user, data }) => {
+    const employeesById = new Map(data.employees.map((employee) => [employee._id, employee.name]));
+    return data.attendance.map((record) => ({
+      ...serializeAttendance(record),
+      employeeName: employeesById.get(record.employeeId) ?? "Employee",
+      subhubId: user._id,
+      subhubName: user.subhubName ?? "SubHub",
+      subhubManagerName: user.name,
+    }));
+  });
+
+  return {
+    ok: true,
+    data: { startDate: bounds.startDate, endDate: bounds.endDate, subhubs, summaries, attendance },
+  };
+}
+
+export async function getAdminEmployeeAttendanceHistory(input: {
+  subhubId: string;
+  employeeId: string;
+  period: "all" | "week" | "month";
+  weekStart?: string;
+  month?: string;
+}): Promise<
+  { ok: true; data: EmployeeAttendanceHistory } | { ok: false; message: string }
+> {
+  const current = await getCurrentUserRecord("admin");
+  if (!isAdmin(current)) return { ok: false, message: "Only Admin users can view employee attendance history." };
+  if (!input.subhubId.trim() || !input.employeeId.trim()) return { ok: false, message: "Choose an employee to view." };
+
+  const today = todayInIndia();
+  let startDate: string | null = null;
+  let endDate = today;
+  if (input.period === "month") {
+    const month = normalizeMonth(input.month ?? "");
+    if (!month) return { ok: false, message: "Choose a valid report month." };
+    const bounds = monthBounds(month);
+    startDate = bounds.start;
+    endDate = earlierDate(bounds.end, today);
+  } else if (input.period === "week") {
+    const weekStart = normalizeDate(input.weekStart ?? "");
+    if (!weekStart) return { ok: false, message: "Choose a valid week start date." };
+    startDate = weekStart;
+    endDate = earlierDate(addDays(weekStart, 6), today);
+  }
+
+  const controlDb = await getControlPlaneDatabase();
+  const subhub = await controlDb.collection<UserDocument>("users").findOne({
+    _id: input.subhubId,
+    panel: "subhub",
+    role: "subhub",
+    active: true,
+  });
+  if (!subhub) return { ok: false, message: "That SubHub is not available." };
+
+  const db = await getMongoDb(subhub.databaseName);
+  await ensureHrIndexes(db);
+  const employee = await db.collection<EmployeeDocument>("hr_employees").findOne({ _id: input.employeeId });
+  if (!employee) return { ok: false, message: "That employee does not belong to this SubHub." };
+
+  const assignment = await db.collection<ShiftAssignmentDocument>("hr_shift_assignments").findOne({ employeeId: employee._id });
+  const shift = assignment ? await db.collection<ShiftDocument>("hr_shifts").findOne({ _id: assignment.shiftId }) : null;
+  const dateFilter = startDate && startDate > endDate
+    ? { $in: [] as string[] }
+    : startDate
+      ? { $gte: startDate, $lte: endDate }
+      : { $lte: endDate };
+  const attendance = await db.collection<AttendanceDocument>("hr_attendance")
+    .find({ employeeId: employee._id, date: dateFilter })
+    .sort({ date: -1 })
+    .toArray();
+  const summary = buildSummary([employee], attendance)[0]!;
+
+  return {
+    ok: true,
+    data: {
+      employee: serializeEmployee(employee),
+      subhubName: subhub.subhubName ?? "SubHub",
+      subhubManagerName: subhub.name,
+      shift: shift
+        ? { id: shift._id, name: shift.name, startTime: shift.startTime, endTime: shift.endTime, assignedEmployeeIds: [employee._id] }
+        : null,
+      attendance: attendance.map(serializeAttendance),
+      summary,
+      startDate,
+      endDate,
+    },
+  };
 }

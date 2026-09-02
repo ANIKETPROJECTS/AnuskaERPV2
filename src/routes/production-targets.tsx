@@ -83,6 +83,20 @@ function ProductionTargets() {
     setAssignments((current) => [...current, { ...assignment, id: nextId.current }]);
   }
 
+  function addAssignmentForSubhub(assignment: AssignmentDraft) {
+    nextId.current += 1;
+    setAssignments((current) => [
+      ...current,
+      {
+        ...emptyAssignment(nextId.current),
+        subhubUserId: assignment.subhubUserId,
+        productCode: assignment.productCode,
+        variantCode: assignment.variantCode,
+        dueDate: assignment.dueDate,
+      },
+    ]);
+  }
+
   function removeAssignment(id: number) {
     setAssignments((current) => current.length === 1 ? current : current.filter((assignment) => assignment.id !== id));
   }
@@ -175,6 +189,7 @@ function ProductionTargets() {
                 canRemove={assignments.length > 1}
                 onChange={updateAssignment}
                 onDuplicate={duplicateAssignment}
+                onAddForSubhub={addAssignmentForSubhub}
                 onRemove={removeAssignment}
               />
             ))}
@@ -201,6 +216,7 @@ function AssignmentRow({
   canRemove,
   onChange,
   onDuplicate,
+  onAddForSubhub,
   onRemove,
 }: {
   assignment: AssignmentDraft;
@@ -210,6 +226,7 @@ function AssignmentRow({
   canRemove: boolean;
   onChange: (id: number, patch: Partial<Omit<AssignmentDraft, "id">>) => void;
   onDuplicate: (assignment: AssignmentDraft) => void;
+  onAddForSubhub: (assignment: AssignmentDraft) => void;
   onRemove: (id: number) => void;
 }) {
   const product = bomCatalog.find((item) => item.code === assignment.productCode) ?? bomCatalog[0];
@@ -227,6 +244,9 @@ function AssignmentRow({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button type="button" onClick={() => onAddForSubhub(assignment)} disabled={!assignment.subhubUserId} className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-40" title="Add another target for this SubHub">
+            <Plus className="size-3.5" /> Add for this SubHub
+          </button>
           <button type="button" onClick={() => onDuplicate(assignment)} className="inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium hover:bg-muted" title="Duplicate this target row">
             <Copy className="size-3.5" /> Duplicate
           </button>
