@@ -266,7 +266,7 @@ function SubhubAssignmentCard({
   const firstAssignment = group.assignments[0];
 
   return (
-    <article className="overflow-hidden rounded-lg border border-border bg-card">
+    <article className="overflow-visible rounded-lg border border-border bg-card">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border bg-muted/20 px-4 py-4">
         <div className="min-w-64 flex-1">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">SubHub card {index + 1}</p>

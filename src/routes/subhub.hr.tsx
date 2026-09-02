@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AlertTriangle, CalendarDays, Check, Download, Eye, Pencil, Plus, RefreshCw, Save, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
@@ -620,13 +620,13 @@ function SubhubHr() {
                       <p className="mt-1 text-xs text-muted-foreground">SubHub: {data.subhubName || "—"} · Manager: {data.subhubManagerName || "—"}</p>
                     </div>
                      <div className="flex flex-wrap items-center justify-end gap-2">
-                       <button
-                         type="button"
-                         onClick={() => setViewingEmployeeId(employee.id)}
-                         className="inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted"
-                       >
+                        <Link
+                          to="/subhub/hr/employee/$employeeId"
+                          params={{ employeeId: employee.id }}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted"
+                        >
                          <Eye className="size-3.5" /> View
-                       </button>
+                        </Link>
                       {statuses.map((status) => (
                         <button
                           key={status}
@@ -740,9 +740,9 @@ function SubhubHr() {
                           <option value="">No shift</option>
                           {data.shifts.map((shift) => <option key={shift.id} value={shift.id}>{shift.name} · {formatTime12(shift.startTime)}–{formatTime12(shift.endTime)}</option>)}
                         </select>
-                         <button type="button" onClick={() => setViewingEmployeeId(employee.id)} className="inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium hover:bg-muted" aria-label={`View ${employee.name}`}>
+                          <Link to="/subhub/hr/employee/$employeeId" params={{ employeeId: employee.id }} className="inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium hover:bg-muted" aria-label={`View ${employee.name}`}>
                            <Eye className="size-3.5" /> View
-                         </button>
+                          </Link>
                         <button type="button" onClick={() => { setEditingId(employee.id); setEditingName(employee.name); setEditingPhone(employee.phoneNumber); }} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted" aria-label={`Edit ${employee.name}`}><Pencil className="size-4" /></button>
                         <button type="button" disabled={saving} onClick={() => void toggleEmployee(employee)} className="rounded-md border border-input px-2 py-1 text-xs hover:bg-muted">{employee.active ? "Deactivate" : "Reactivate"}</button>
                       </>
@@ -880,9 +880,9 @@ function SubhubHr() {
                         <td className="tabular px-5 py-3 text-right text-primary">{row.halfDay}</td>
                         <td className="tabular px-5 py-3 text-right font-semibold">{row.present + row.absent + row.late + row.halfDay}</td>
                         <td className="px-5 py-3 text-right">
-                          <button type="button" onClick={() => setViewingEmployeeId(row.employeeId)} className="inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium hover:bg-muted">
+                          <Link to="/subhub/hr/employee/$employeeId" params={{ employeeId: row.employeeId }} className="inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium hover:bg-muted">
                             <Eye className="size-3.5" /> View
-                          </button>
+                          </Link>
                         </td>
                       </tr>
                     ))}

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarCheck, CalendarDays, Download, Eye, RefreshCw, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
@@ -271,15 +271,14 @@ function AdminHr() {
           ) : !filteredRows.length ? (
             <p className="p-10 text-center text-sm text-muted-foreground">No employees match the current filters.</p>
           ) : tab === "daily" && dailyView === "date" ? (
-            <DailyTable rows={filteredRows} statuses={dailyStatuses} date={dailyDate} onView={setViewingEmployee} />
+            <DailyTable rows={filteredRows} statuses={dailyStatuses} date={dailyDate} />
           ) : (
-            <MonthlyTable rows={filteredRows} onView={setViewingEmployee} />
+            <MonthlyTable rows={filteredRows} />
           )}
         </section>
         <p className="text-xs text-muted-foreground">Reports are read-only in Master Admin. Attendance entries and employee records remain managed inside each SubHub workspace.</p>
       </div>
 
-      {viewingEmployee ? <AdminEmployeeDetailsDialog employee={viewingEmployee} onClose={() => setViewingEmployee(null)} /> : null}
     </Shell>
   );
 }
@@ -288,12 +287,10 @@ function DailyTable({
   rows,
   statuses,
   date,
-  onView,
 }: {
   rows: AdminHrSummary[];
   statuses: Map<string, AttendanceStatus>;
   date: string;
-  onView: (row: AdminHrSummary) => void;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -309,7 +306,7 @@ function DailyTable({
               <td className="px-5 py-3 text-muted-foreground">{row.subhubManagerName}</td>
               <td className="px-5 py-3">{row.employeeName}{!row.active ? <span className="ml-2 text-xs text-muted-foreground">(Archived)</span> : null}</td>
               <td className="px-5 py-3">{status ? <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-medium ${statusClass(status)}`}>{status}</span> : <span className="text-xs text-muted-foreground">Not marked</span>}</td>
-              <td className="px-5 py-3 text-right"><button type="button" onClick={() => onView(row)} className="inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium hover:bg-muted"><Eye className="size-3.5" /> View</button></td>
+              <td className="px-5 py-3 text-right"><Link to="/hr/employee/$subhubId/$employeeId" params={{ subhubId: row.subhubId, employeeId: row.employeeId }} className="inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium hover:bg-muted"><Eye className="size-3.5" /> View</Link></td>
             </tr>;
           })}
         </tbody>
@@ -318,7 +315,7 @@ function DailyTable({
   );
 }
 
-function MonthlyTable({ rows, onView }: { rows: AdminHrSummary[]; onView: (row: AdminHrSummary) => void }) {
+function MonthlyTable({ rows }: { rows: AdminHrSummary[] }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[1080px] text-sm">
@@ -335,7 +332,7 @@ function MonthlyTable({ rows, onView }: { rows: AdminHrSummary[]; onView: (row: 
             <td className="tabular px-5 py-3 text-right text-warning">{row.late}</td>
             <td className="tabular px-5 py-3 text-right text-primary">{row.halfDay}</td>
             <td className="tabular px-5 py-3 text-right font-semibold">{row.present + row.absent + row.late + row.halfDay}</td>
-            <td className="px-5 py-3 text-right"><button type="button" onClick={() => onView(row)} className="inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium hover:bg-muted"><Eye className="size-3.5" /> View</button></td>
+            <td className="px-5 py-3 text-right"><Link to="/hr/employee/$subhubId/$employeeId" params={{ subhubId: row.subhubId, employeeId: row.employeeId }} className="inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium hover:bg-muted"><Eye className="size-3.5" /> View</Link></td>
           </tr>)}
         </tbody>
       </table>
