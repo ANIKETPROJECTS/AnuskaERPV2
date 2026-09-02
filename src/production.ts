@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
   createProductionOrder,
+  createProductionOrders,
   getAdminProductionDashboard,
   getManagerProductionData,
   getOrderNotifications,
@@ -17,6 +18,15 @@ export type { OrderNotification, WorkspaceSearchResult, WorkspaceSearchScope } f
 
 const orderSchema = z.object({
   subhubUserId: z.string().min(1),
+  productCode: z.string().min(1),
+  variantCode: z.string().min(1),
+  target: z.number().int().positive(),
+  dueDate: z.string().min(10),
+  notes: z.string().max(500),
+});
+
+const batchOrderSchema = z.object({
+  subhubUserIds: z.array(z.string().min(1)).min(1).max(100),
   productCode: z.string().min(1),
   variantCode: z.string().min(1),
   target: z.number().int().positive(),
@@ -60,6 +70,7 @@ export const listProductionOrdersFn = createServerFn({ method: "GET" }).handler(
 export const getManagerProductionDataFn = createServerFn({ method: "GET" }).handler(() => getManagerProductionData());
 export const getAdminProductionDashboardFn = createServerFn({ method: "GET" }).handler(() => getAdminProductionDashboard());
 export const createProductionOrderFn = createServerFn({ method: "POST" }).validator(orderSchema).handler(({ data }) => createProductionOrder(data));
+export const createProductionOrdersFn = createServerFn({ method: "POST" }).validator(batchOrderSchema).handler(({ data }) => createProductionOrders(data));
 export const saveDailyProductionFn = createServerFn({ method: "POST" }).validator(reportSchema).handler(({ data }) => saveDailyProduction(data));
 export const setHubCapacityFn = createServerFn({ method: "POST" }).validator(capacitySchema).handler(({ data }) => setHubCapacity(data));
 export const getProductionOrderActivityFn = createServerFn({ method: "POST" }).validator(activitySchema).handler(({ data }) => getProductionOrderActivity(data.orderId, data.panel));

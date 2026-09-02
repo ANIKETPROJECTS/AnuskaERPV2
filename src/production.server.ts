@@ -564,6 +564,24 @@ export async function createProductionOrder(input: {
   dueDate: string;
   notes: string;
 }): Promise<{ ok: true; order: ProductionOrder } | { ok: false; message: string }> {
+  const result = await createProductionOrders({
+    ...input,
+    subhubUserIds: [input.subhubUserId],
+  });
+  if (!result.ok) return result;
+  const order = result.orders[0];
+  if (!order) return { ok: false, message: "The production order could not be created." };
+  return { ok: true, order };
+}
+
+export async function createProductionOrders(input: {
+  subhubUserIds: string[];
+  productCode: string;
+  variantCode: string;
+  target: number;
+  dueDate: string;
+  notes: string;
+}): Promise<{ ok: true; orders: ProductionOrder[] } | { ok: false; message: string }> {
   const current = await getCurrentUserRecord("admin");
   if (!isAdmin(current)) return { ok: false, message: "Only Admin users can create production orders." };
   if (!Number.isInteger(input.target) || input.target < 1) return { ok: false, message: "Target must be a whole number greater than zero." };
@@ -571,25 +589,28 @@ export async function createProductionOrder(input: {
   if (!dueDate) return { ok: false, message: "Enter a valid target date." };
 
   const db = await getControlPlaneDatabase();
-  const [subhub, product] = await Promise.all([
-    db.collection<UserDocument>("users").findOne({
-      _id: input.subhubUserId,
+  const subhubUserIds = [...new Set(input.subhubUserIds)];
+  const [subhubs, product] = await Promise.all([
+    db.collection<UserDocument>("users").find({
+      _id: { $in: subhubUserIds },
       panel: "subhub",
       role: "subhub",
       active: true,
-    }),
+    }).toArray(),
     Promise.resolve(bomCatalog.find((item) => item.code === input.productCode)),
   ]);
-  if (!subhub?.subhubName) return { ok: false, message: "Select an active SubHub manager." };
+  if (subhubs.length !== subhubUserIds.length || subhubs.some((subhub) => !subhub.subhubName)) {
+    return { ok: false, message: "Select only active SubHub managers with assigned factory names." };
+  }
   const variant = product?.variants.find((item) => item.code === input.variantCode);
   if (!product || !variant) return { ok: false, message: "Select a valid Float type and variant." };
 
   const now = new Date();
-  const order: ProductionOrderDocument = {
+  const orders: ProductionOrderDocument[] = subhubs.map((subhub) => ({
     _id: randomUUID().replace(/-/g, ""),
-    orderNumber: `ORD-${now.getTime().toString().slice(-8)}`,
+    orderNumber: `ORD-${now.getTime().toString().slice(-8)}-${randomUUID().replace(/-/g, "").slice(0, 4).toUpperCase()}`,
     subhubUserId: subhub._id,
-    subhubName: subhub.subhubName,
+    subhubName: subhub.subhubName!,
     productCode: product.code,
     productName: product.name,
     variantCode: variant.code,
@@ -600,20 +621,37 @@ export async function createProductionOrder(input: {
     createdBy: current._id,
     createdAt: now,
     updatedAt: now,
-  };
-  await db.collection<ProductionOrderDocument>("production_orders").insertOne(order);
-  await recordOrderActivity(db, {
-    orderId: order._id,
-    action: "created",
-    actorId: current._id,
-    actorName: current.name,
-    actorRole: current.role === "master_admin" ? "Master Admin" : "Admin",
-    summary: `Order created and assigned to ${order.subhubName}`,
-    details: `${order.variantName} · target ${order.target.toLocaleString()} units · due ${order.dueDate}`,
-  });
+  }));
+  await db.collection<ProductionOrderDocument>("production_orders").insertMany(orders);
+  await db.collection<OrderActivityDocument>("production_order_activity").insertMany(
+    orders.map((order) => ({
+      _id: randomUUID().replace(/-/g, ""),
+      orderId: order._id,
+      action: "created" as const,
+      actorId: current._id,
+      actorName: current.name,
+      actorRole: current.role === "master_admin" ? "Master Admin" : "Admin",
+      summary: `Order created and assigned to ${order.subhubName}`,
+      details: `${order.variantName} · target ${order.target.toLocaleString()} units · due ${order.dueDate}`,
+      createdAt: now,
+    })),
+  );
   await rebalanceProductionOrders(current._id);
-  const savedOrder = await db.collection<ProductionOrderDocument>("production_orders").findOne({ _id: order._id });
-  return { ok: true, order: summarizeOrder(savedOrder ?? order, []) };
+  const savedOrders = await db.collection<ProductionOrderDocument>("production_orders")
+    .find({ _id: { $in: orders.map((order) => order._id) } })
+    .toArray();
+  const users = await allSubhubUsers();
+  const reportsByUser = await Promise.all(users.map(async (user) => ({
+    userId: user._id,
+    reports: await reportsForDatabase(user.databaseName),
+  })));
+  return {
+    ok: true,
+    orders: savedOrders.map((order) => summarizeOrder(
+      order,
+      reportsByUser.find((item) => item.userId === order.subhubUserId)?.reports ?? [],
+    )),
+  };
 }
 
 export async function reassignProductionOrder(input: {

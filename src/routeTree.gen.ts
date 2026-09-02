@@ -18,6 +18,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as ProcurementRouteImport } from './routes/procurement'
 import { Route as ProductionRouteImport } from './routes/production'
+import { Route as ProductionTargetsRouteImport } from './routes/production-targets'
 import { Route as RawMaterialsRouteImport } from './routes/raw-materials'
 import { Route as ShortagesRouteImport } from './routes/shortages'
 import { Route as SubhubRouteImport } from './routes/subhub'
@@ -82,6 +83,11 @@ const ProcurementRoute = ProcurementRouteImport.update({
 const ProductionRoute = ProductionRouteImport.update({
   id: '/production',
   path: '/production',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductionTargetsRoute = ProductionTargetsRouteImport.update({
+  id: '/production-targets',
+  path: '/production-targets',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RawMaterialsRoute = RawMaterialsRouteImport.update({
@@ -195,6 +201,7 @@ export interface FileRoutesByFullPath {
   '/orders': typeof OrdersRoute
   '/procurement': typeof ProcurementRoute
   '/production': typeof ProductionRoute
+  '/production-targets': typeof ProductionTargetsRoute
   '/raw-materials': typeof RawMaterialsRoute
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
@@ -226,6 +233,7 @@ export interface FileRoutesByTo {
   '/orders': typeof OrdersRoute
   '/procurement': typeof ProcurementRoute
   '/production': typeof ProductionRoute
+  '/production-targets': typeof ProductionTargetsRoute
   '/raw-materials': typeof RawMaterialsRoute
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
@@ -258,6 +266,7 @@ export interface FileRoutesById {
   '/orders': typeof OrdersRoute
   '/procurement': typeof ProcurementRoute
   '/production': typeof ProductionRoute
+  '/production-targets': typeof ProductionTargetsRoute
   '/raw-materials': typeof RawMaterialsRoute
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
@@ -291,6 +300,7 @@ export interface FileRouteTypes {
     | '/orders'
     | '/procurement'
     | '/production'
+    | '/production-targets'
     | '/raw-materials'
     | '/shortages'
     | '/subhub'
@@ -322,6 +332,7 @@ export interface FileRouteTypes {
     | '/orders'
     | '/procurement'
     | '/production'
+    | '/production-targets'
     | '/raw-materials'
     | '/shortages'
     | '/subhub'
@@ -353,6 +364,7 @@ export interface FileRouteTypes {
     | '/orders'
     | '/procurement'
     | '/production'
+    | '/production-targets'
     | '/raw-materials'
     | '/shortages'
     | '/subhub'
@@ -385,6 +397,7 @@ export interface RootRouteChildren {
   OrdersRoute: typeof OrdersRoute
   ProcurementRoute: typeof ProcurementRoute
   ProductionRoute: typeof ProductionRoute
+  ProductionTargetsRoute: typeof ProductionTargetsRoute
   RawMaterialsRoute: typeof RawMaterialsRoute
   ShortagesRoute: typeof ShortagesRoute
   SubhubRoute: typeof SubhubRouteWithChildren
@@ -459,6 +472,13 @@ declare module '@tanstack/react-router' {
       path: '/production'
       fullPath: '/production'
       preLoaderRoute: typeof ProductionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/production-targets': {
+      id: '/production-targets'
+      path: '/production-targets'
+      fullPath: '/production-targets'
+      preLoaderRoute: typeof ProductionTargetsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/raw-materials': {
@@ -673,6 +693,7 @@ const rootRouteChildren: RootRouteChildren = {
   OrdersRoute: OrdersRoute,
   ProcurementRoute: ProcurementRoute,
   ProductionRoute: ProductionRoute,
+  ProductionTargetsRoute: ProductionTargetsRoute,
   RawMaterialsRoute: RawMaterialsRoute,
   ShortagesRoute: ShortagesRoute,
   SubhubRoute: SubhubRouteWithChildren,
