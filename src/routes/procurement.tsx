@@ -22,6 +22,7 @@ import { useAuth } from "@/components/auth/AuthContext";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
+import { TablePagination } from "@/components/erp/TablePagination";
 import {
   createProcurementOrderFn,
   createVendorFn,
@@ -116,6 +117,8 @@ function Procurement() {
   const [orderDate, setOrderDate] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [orderPage, setOrderPage] = useState(1);
+  const [orderPageSize, setOrderPageSize] = useState(10);
   const [selectedVendorId, setSelectedVendorId] = useState("");
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [vendorFormMode, setVendorFormMode] = useState<"create" | "edit" | null>(null);
@@ -168,6 +171,17 @@ function Procurement() {
         return b.orderDate.localeCompare(a.orderDate);
       });
   }, [data.orders, fromDate, orderDate, query, sortBy, statusFilter, subhubFilter, toDate, vendorFilter]);
+
+  useEffect(() => {
+    setOrderPage(1);
+  }, [fromDate, orderDate, query, sortBy, statusFilter, subhubFilter, toDate, vendorFilter]);
+
+  const paginatedOrders = useMemo(() => {
+    const pageCount = Math.max(1, Math.ceil(filteredOrders.length / orderPageSize));
+    const currentPage = Math.min(orderPage, pageCount);
+    const start = (currentPage - 1) * orderPageSize;
+    return filteredOrders.slice(start, start + orderPageSize);
+  }, [filteredOrders, orderPage, orderPageSize]);
 
   const visibleVendors = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -283,7 +297,7 @@ function Procurement() {
             clearFilters={clearFilters}
           />
           <Panel title="Procurement orders" description={`${filteredOrders.length} of ${data.orders.length} orders · every row is stored in MongoDB`}>
-            {loading ? <Loading /> : <OrderTable orders={filteredOrders} isAdmin={isAdmin} onAdvance={(order) => void advanceOrder(order)} />}
+            {loading ? <Loading /> : <OrderTable orders={paginatedOrders} total={filteredOrders.length} page={orderPage} pageSize={orderPageSize} onPageChange={setOrderPage} onPageSizeChange={setOrderPageSize} isAdmin={isAdmin} onAdvance={(order) => void advanceOrder(order)} />}
           </Panel>
           {isAdmin ? <AdminReports data={data} /> : null}
         </>
@@ -349,14 +363,17 @@ function DateFilter({ label, value, onChange }: { label: string; value: string; 
   return <label className="shrink-0 text-xs font-medium">{label}<input type="date" value={value} onChange={(event) => onChange(event.target.value)} className="mt-1.5 h-9 rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus:border-primary" /></label>;
 }
 
-function OrderTable({ orders, isAdmin, onAdvance }: { orders: ProcurementOrder[]; isAdmin: boolean; onAdvance: (order: ProcurementOrder) => void }) {
+function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeChange, isAdmin, onAdvance }: { orders: ProcurementOrder[]; total: number; page: number; pageSize: number; onPageChange: (page: number) => void; onPageSizeChange: (pageSize: number) => void; isAdmin: boolean; onAdvance: (order: ProcurementOrder) => void }) {
   return orders.length ? (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[1120px] text-sm">
-        <thead className="border-b border-border bg-muted/15 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Order</th>{isAdmin ? <th className="px-5 py-3 font-medium">SubHub</th> : null}<th className="px-5 py-3 font-medium">Vendor</th><th className="px-5 py-3 font-medium">Material</th><th className="px-5 py-3 text-right font-medium">Qty</th><th className="px-5 py-3 text-right font-medium">Amount</th><th className="px-5 py-3 font-medium">Ordered</th><th className="px-5 py-3 font-medium">Expected</th><th className="px-5 py-3 font-medium">Status</th><th className="px-5 py-3 text-right font-medium">Action</th></tr></thead>
-        <tbody>{orders.map((order) => { const next = nextStatus(order.status); return <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40"><td className="px-5 py-3"><Link to="/po/$id" params={{ id: order.id }} className="font-semibold text-primary hover:underline">{order.orderNumber}</Link><p className="mt-1 text-[11px] text-muted-foreground">{order.notes || "No notes"}</p></td>{isAdmin ? <td className="px-5 py-3 text-xs">{order.subhubName}</td> : null}<td className="px-5 py-3 font-medium">{order.vendorName}</td><td className="px-5 py-3"><span className="font-medium">{order.materialName}</span><span className="tabular ml-2 text-xs text-muted-foreground">{order.materialCode}</span></td><td className="tabular px-5 py-3 text-right">{num(order.quantity)}</td><td className="tabular px-5 py-3 text-right">{inr(order.totalAmount)}</td><td className="tabular whitespace-nowrap px-5 py-3 text-muted-foreground">{formatDate(order.orderDate)}</td><td className="tabular whitespace-nowrap px-5 py-3 text-muted-foreground">{formatDate(order.expectedDelivery)}</td><td className="px-5 py-3"><Tag tone={statusTone(order.status)}>{order.status}</Tag></td><td className="px-5 py-3 text-right">{next ? <button type="button" onClick={() => onAdvance(order)} className="inline-flex items-center gap-1 rounded-md border border-primary/25 bg-primary/5 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10" title={`Move to ${next}`}><ArrowRight className="size-3.5" /> Advance</button> : <span className="text-xs text-muted-foreground">Complete</span>}</td></tr>; })}</tbody>
-      </table>
-    </div>
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[1120px] text-sm">
+          <thead className="border-b border-border bg-muted/15 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Order</th>{isAdmin ? <th className="px-5 py-3 font-medium">SubHub</th> : null}<th className="px-5 py-3 font-medium">Vendor</th><th className="px-5 py-3 font-medium">Material</th><th className="px-5 py-3 text-right font-medium">Qty</th><th className="px-5 py-3 text-right font-medium">Amount</th><th className="px-5 py-3 font-medium">Ordered</th><th className="px-5 py-3 font-medium">Expected</th><th className="px-5 py-3 font-medium">Status</th><th className="px-5 py-3 text-right font-medium">Action</th></tr></thead>
+          <tbody>{orders.map((order) => { const next = nextStatus(order.status); return <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40"><td className="px-5 py-3"><Link to="/po/$id" params={{ id: order.id }} className="font-semibold text-primary hover:underline">{order.orderNumber}</Link><p className="mt-1 text-[11px] text-muted-foreground">{order.notes || "No notes"}</p></td>{isAdmin ? <td className="px-5 py-3 text-xs">{order.subhubName}</td> : null}<td className="px-5 py-3 font-medium">{order.vendorName}</td><td className="px-5 py-3"><span className="font-medium">{order.materialName}</span><span className="tabular ml-2 text-xs text-muted-foreground">{order.materialCode}</span></td><td className="tabular px-5 py-3 text-right">{num(order.quantity)}</td><td className="tabular px-5 py-3 text-right">{inr(order.totalAmount)}</td><td className="tabular whitespace-nowrap px-5 py-3 text-muted-foreground">{formatDate(order.orderDate)}</td><td className="tabular whitespace-nowrap px-5 py-3 text-muted-foreground">{formatDate(order.expectedDelivery)}</td><td className="px-5 py-3"><Tag tone={statusTone(order.status)}>{order.status}</Tag></td><td className="px-5 py-3 text-right">{next ? <button type="button" onClick={() => onAdvance(order)} className="inline-flex items-center gap-1 rounded-md border border-primary/25 bg-primary/5 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10" title={`Move to ${next}`}><ArrowRight className="size-3.5" /> Advance</button> : <span className="text-xs text-muted-foreground">Complete</span>}</td></tr>; })}</tbody>
+        </table>
+      </div>
+      <TablePagination total={total} page={page} pageSize={pageSize} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} />
+    </>
   ) : <EmptyState icon={<ShoppingCart className="size-7" />} title="No procurement orders found" description="Create an order or change the current search and filters." />;
 }
 
