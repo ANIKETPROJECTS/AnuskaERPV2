@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { ImagePlus, LayoutGrid, List, Plus, Search, Upload, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ImagePlus, LayoutGrid, List, Plus, Search, Upload, X } from "lucide-react";
 import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
@@ -65,8 +65,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
   const [variantFilter, setVariantFilter] = useState<CountFilter>("all");
   const [rawPartsFilter, setRawPartsFilter] = useState<CountFilter>("all");
   const [view, setView] = useState<BomView>("grid");
-  const [selectedVariantByProduct, setSelectedVariantByProduct] = useState<Record<string, string>>({});
-  const [selectedMaterialByProduct, setSelectedMaterialByProduct] = useState<Record<string, string>>({});
+  const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
   const [showProductForm, setShowProductForm] = useState(false);
   const [productForm, setProductForm] = useState(emptyProduct);
   const [productError, setProductError] = useState("");
@@ -104,9 +103,8 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
     setRawPartsFilter("all");
   }
 
-  function selectVariant(productCode: string, variantId: string) {
-    setSelectedVariantByProduct((current) => ({ ...current, [productCode]: variantId }));
-    setSelectedMaterialByProduct((current) => ({ ...current, [productCode]: "" }));
+  function toggleProduct(productCode: string) {
+    setExpandedProducts((current) => ({ ...current, [productCode]: !current[productCode] }));
   }
 
   function openProductForm() {
@@ -267,75 +265,80 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
         ) : (
           <div className="space-y-3">
             {filteredProducts.map((product) => {
-              const selectedVariant =
-                product.variants.find((variant) => variant.id === selectedVariantByProduct[product.code]) ??
-                product.variants[0] ??
-                null;
-              const requiredMaterials = selectedVariant ? requiredMaterialsForVariant(selectedVariant) : [];
-              const selectedMaterial =
-                requiredMaterials.find((material) => material.code === selectedMaterialByProduct[product.code]) ??
-                requiredMaterials[0] ??
-                null;
+              const expanded = Boolean(expandedProducts[product.code]);
 
               return (
                 <article key={product.code} className="panel overflow-hidden">
-                  <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-start">
-                    <div className="flex h-28 w-full shrink-0 items-center justify-center rounded-md bg-white p-2 lg:w-36">
-                      <img src={product.image} alt={`${product.name} component assembly`} className="h-full w-full object-contain" />
+                  <div className="flex flex-wrap items-center gap-3 p-4">
+                    <button type="button" onClick={() => toggleProduct(product.code)} aria-expanded={expanded} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="tabular block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{product.code}</span>
+                        <span className="mt-1 block text-lg font-semibold">{product.name}</span>
+                        <span className="mt-1 block truncate text-xs text-muted-foreground">{product.description}</span>
+                      </span>
+                    </button>
+                    <div className="flex flex-wrap items-center gap-4 text-xs">
+                      <span><span className="uppercase tracking-wide text-muted-foreground">Variants</span> <strong className="ml-1">{product.variants.length}</strong></span>
+                      <span><span className="uppercase tracking-wide text-muted-foreground">Raw parts</span> <strong className="ml-1">{rawPartCount(product)}</strong></span>
+                      <span className="font-medium text-primary">{expanded ? "Hide variants" : "View variants"}</span>
+                      {readOnly ? (
+                        <Link to="/subhub/bom/$code" params={{ code: product.code }} className="font-semibold text-primary hover:underline">Open structure →</Link>
+                      ) : (
+                        <Link to="/bom/$code" params={{ code: product.code }} className="font-semibold text-primary hover:underline">Open structure →</Link>
+                      )}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="tabular text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{product.code}</p>
-                      <h2 className="mt-1 text-lg font-semibold">{product.name}</h2>
-                      <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">{product.description}</p>
-                      <div className="mt-4 flex flex-wrap items-center gap-4 text-xs">
-                        <span><span className="uppercase tracking-wide text-muted-foreground">Variants</span> <strong className="ml-1">{product.variants.length}</strong></span>
-                        <span><span className="uppercase tracking-wide text-muted-foreground">Raw parts</span> <strong className="ml-1">{rawPartCount(product)}</strong></span>
-                        {readOnly ? (
-                          <Link to="/subhub/bom/$code" params={{ code: product.code }} className="font-semibold text-primary hover:underline">Open structure →</Link>
+                  </div>
+                  {expanded ? (
+                    <div className="border-t border-border bg-muted/10 px-4 py-4 sm:px-6">
+                      <div className="space-y-3 border-l-2 border-primary/20 pl-4">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Variants and required materials</p>
+                        {!product.variants.length ? (
+                          <p className="rounded-md border border-dashed border-border bg-card px-4 py-5 text-sm text-muted-foreground">No variants have been added to this assembly.</p>
                         ) : (
-                          <Link to="/bom/$code" params={{ code: product.code }} className="font-semibold text-primary hover:underline">Open structure →</Link>
+                          product.variants.map((variant) => {
+                            const requiredMaterials = requiredMaterialsForVariant(variant);
+                            return (
+                              <div key={variant.id} className="rounded-lg border border-border bg-card p-4">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                  <div>
+                                    <p className="tabular text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{variant.code}</p>
+                                    <p className="mt-1 font-semibold">{variant.name}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">{variant.company}</p>
+                                  </div>
+                                  <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">{requiredMaterials.length} required materials</span>
+                                </div>
+                                <div className="mt-4 border-l-2 border-border pl-4">
+                                  <p className="text-xs font-medium text-muted-foreground">Required materials</p>
+                                  {requiredMaterials.length ? (
+                                    <div className="mt-2 space-y-2">
+                                      {requiredMaterials.map((material) => (
+                                        <div key={material.code} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/70 bg-muted/20 px-3 py-2 text-xs">
+                                          <div className="min-w-0">
+                                            <p className="font-medium">{material.name}</p>
+                                            <p className="tabular mt-0.5 text-muted-foreground">{material.code} · {material.material}</p>
+                                          </div>
+                                          <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
+                                            <span>Qty <strong className="text-foreground">{material.quantity}</strong></span>
+                                            <span>{material.source ?? "—"}</span>
+                                            <span>{material.weight !== undefined ? `${material.weight} kg` : "—"}</span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <p className="mt-2 text-xs text-muted-foreground">No required materials are defined for this variant.</p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
                         )}
                       </div>
                     </div>
-                    <div className="w-full rounded-lg border border-border bg-muted/20 p-3 lg:max-w-sm">
-                      <label className="block text-xs font-medium">
-                        Select variant
-                        <select
-                          value={selectedVariant?.id ?? ""}
-                          onChange={(event) => selectVariant(product.code, event.target.value)}
-                          disabled={!product.variants.length}
-                          className="mt-1.5 h-9 w-full rounded-md border border-input bg-white px-2 text-sm font-normal disabled:opacity-60"
-                        >
-                          {!product.variants.length ? <option value="">No variants available</option> : null}
-                          {product.variants.map((variant) => (
-                            <option key={variant.id} value={variant.id}>{variant.name} · {variant.code} · {variant.company}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="mt-3 block text-xs font-medium">
-                        Required material
-                        <select
-                          value={selectedMaterial?.code ?? ""}
-                          onChange={(event) => setSelectedMaterialByProduct((current) => ({ ...current, [product.code]: event.target.value }))}
-                          disabled={!requiredMaterials.length}
-                          className="mt-1.5 h-9 w-full rounded-md border border-input bg-white px-2 text-sm font-normal disabled:opacity-60"
-                        >
-                          {!requiredMaterials.length ? <option value="">No required materials</option> : null}
-                          {requiredMaterials.map((material) => (
-                            <option key={material.code} value={material.code}>{material.name} · {material.code} · Qty {material.quantity}</option>
-                          ))}
-                        </select>
-                      </label>
-                      {selectedMaterial ? (
-                        <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-border pt-3 text-xs">
-                          <span className="text-muted-foreground">Material</span><strong className="text-right">{selectedMaterial.material}</strong>
-                          <span className="text-muted-foreground">Quantity</span><strong className="text-right">{selectedMaterial.quantity} per assembly</strong>
-                          <span className="text-muted-foreground">Source</span><strong className="text-right">{selectedMaterial.source ?? "—"}</strong>
-                          <span className="text-muted-foreground">Unit weight</span><strong className="text-right">{selectedMaterial.weight !== undefined ? `${selectedMaterial.weight} kg` : "—"}</strong>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
+                  ) : null}
                 </article>
               );
             })}
