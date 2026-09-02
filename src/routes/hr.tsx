@@ -2,6 +2,7 @@ import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 import { CalendarCheck, CalendarDays, Download, Eye, RefreshCw, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
+import { TablePagination } from "@/components/erp/TablePagination";
 import { getAdminAttendanceReportFn, getAdminEmployeeAttendanceHistoryFn } from "@/hr";
 import type { AdminAttendanceReport, AdminHrSummary, AttendanceStatus, EmployeeAttendanceHistory } from "@/hr.server";
 
@@ -93,6 +94,10 @@ function AdminHrPage() {
   const [statusFilter, setStatusFilter] = useState<ReportStatusFilter>("all");
   const [sort, setSort] = useState<ReportSort>("name-asc");
   const [viewingEmployee, setViewingEmployee] = useState<EmployeeReference | null>(null);
+  const [dailyPage, setDailyPage] = useState(1);
+  const [dailyPageSize, setDailyPageSize] = useState(10);
+  const [monthlyPage, setMonthlyPage] = useState(1);
+  const [monthlyPageSize, setMonthlyPageSize] = useState(10);
 
   async function load(showRefresh = false) {
     if (showRefresh) setRefreshing(true);
@@ -160,6 +165,18 @@ function AdminHrPage() {
       return (right.present + right.absent + right.late + right.halfDay) - (left.present + left.absent + left.late + left.halfDay) || left.employeeName.localeCompare(right.employeeName);
     });
   }, [dailyStatuses, dailyView, employeeFilter, report.summaries, sort, statusFilter, subhubFilter, tab]);
+
+  useEffect(() => {
+    if (tab === "daily") setDailyPage(1);
+    else setMonthlyPage(1);
+  }, [filteredRows, tab]);
+
+  const page = tab === "daily" ? dailyPage : monthlyPage;
+  const pageSize = tab === "daily" ? dailyPageSize : monthlyPageSize;
+  const paginatedRows = useMemo(
+    () => filteredRows.slice((page - 1) * pageSize, page * pageSize),
+    [filteredRows, page, pageSize],
+  );
 
   const totals = useMemo(() => report.summaries.reduce((total, row) => ({
     employees: total.employees + 1,
@@ -277,10 +294,19 @@ function AdminHrPage() {
           ) : !filteredRows.length ? (
             <p className="p-10 text-center text-sm text-muted-foreground">No employees match the current filters.</p>
           ) : tab === "daily" && dailyView === "date" ? (
-            <DailyTable rows={filteredRows} statuses={dailyStatuses} date={dailyDate} />
+            <DailyTable rows={paginatedRows} statuses={dailyStatuses} date={dailyDate} />
           ) : (
-            <MonthlyTable rows={filteredRows} />
+            <MonthlyTable rows={paginatedRows} />
           )}
+          {!loading && filteredRows.length ? (
+            <TablePagination
+              total={filteredRows.length}
+              page={page}
+              pageSize={pageSize}
+              onPageChange={tab === "daily" ? setDailyPage : setMonthlyPage}
+              onPageSizeChange={tab === "daily" ? setDailyPageSize : setMonthlyPageSize}
+            />
+          ) : null}
         </section>
         <p className="text-xs text-muted-foreground">Reports are read-only in Master Admin. Attendance entries and employee records remain managed inside each SubHub workspace.</p>
       </div>

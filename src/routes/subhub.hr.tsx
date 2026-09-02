@@ -2,6 +2,7 @@ import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 import { AlertTriangle, CalendarDays, Check, Download, Eye, Pencil, Plus, RefreshCw, Save, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
+import { TablePagination } from "@/components/erp/TablePagination";
 import {
   assignEmployeeToShiftFn,
   createEmployeeFn,
@@ -218,6 +219,10 @@ function SubhubHrPage() {
   const [reportSearch, setReportSearch] = useState("");
   const [reportStatusFilter, setReportStatusFilter] = useState<ReportStatusFilter>("all");
   const [reportSort, setReportSort] = useState<ReportSort>("name-asc");
+  const [attendancePage, setAttendancePage] = useState(1);
+  const [attendancePageSize, setAttendancePageSize] = useState(10);
+  const [reportPage, setReportPage] = useState(1);
+  const [reportPageSize, setReportPageSize] = useState(10);
 
   async function load(showNotice = false) {
     setLoading(true);
@@ -546,6 +551,27 @@ function SubhubHrPage() {
     });
   }, [reportData.summary, reportSearch, reportSort, reportStatusFilter]);
 
+  const activeEmployees = useMemo(
+    () => data.employees.filter((employee) => employee.active),
+    [data.employees],
+  );
+  const paginatedEmployees = useMemo(
+    () => activeEmployees.slice((attendancePage - 1) * attendancePageSize, attendancePage * attendancePageSize),
+    [activeEmployees, attendancePage, attendancePageSize],
+  );
+  const paginatedReportRows = useMemo(
+    () => filteredReportRows.slice((reportPage - 1) * reportPageSize, reportPage * reportPageSize),
+    [filteredReportRows, reportPage, reportPageSize],
+  );
+
+  useEffect(() => {
+    setAttendancePage(1);
+  }, [activeEmployees]);
+
+  useEffect(() => {
+    setReportPage(1);
+  }, [filteredReportRows]);
+
   return (
     <SubHubShell>
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-card px-6 py-5">
@@ -614,11 +640,11 @@ function SubhubHrPage() {
             </div>
             {loading ? (
               <p className="p-8 text-center text-sm text-muted-foreground">Loading employees…</p>
-            ) : data.employees.filter((employee) => employee.active).length === 0 ? (
+            ) : activeEmployees.length === 0 ? (
               <Empty icon={<Users className="mx-auto size-8" />} title="No employees registered" detail="Register employees before recording attendance." />
             ) : (
               <div className="divide-y divide-border">
-                {data.employees.filter((employee) => employee.active).map((employee) => (
+                {paginatedEmployees.map((employee) => (
                   <div key={employee.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
                     <div>
                       <p className="font-medium">{employee.name}</p>
@@ -652,6 +678,15 @@ function SubhubHrPage() {
                 ))}
               </div>
             )}
+            {!loading && activeEmployees.length ? (
+              <TablePagination
+                total={activeEmployees.length}
+                page={attendancePage}
+                pageSize={attendancePageSize}
+                onPageChange={setAttendancePage}
+                onPageSizeChange={setAttendancePageSize}
+              />
+            ) : null}
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-4">
               <p className="text-xs text-muted-foreground">Statuses: Present, Absent, Late, or Half-day.</p>
               <button type="button" onClick={() => void saveAttendance()} disabled={loading || saving} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">
@@ -872,7 +907,7 @@ function SubhubHrPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredReportRows.map((row) => (
+                    {paginatedReportRows.map((row) => (
                       <tr key={row.employeeId} className="border-b border-border/70 last:border-0">
                         <td className="px-5 py-3">
                           <p className="font-medium">{row.employeeName}</p>
@@ -896,6 +931,15 @@ function SubhubHrPage() {
                 </table>
               </div>
             )}
+            {!reportLoading && filteredReportRows.length ? (
+              <TablePagination
+                total={filteredReportRows.length}
+                page={reportPage}
+                pageSize={reportPageSize}
+                onPageChange={setReportPage}
+                onPageSizeChange={setReportPageSize}
+              />
+            ) : null}
           </section>
         ) : null}
       </section>
