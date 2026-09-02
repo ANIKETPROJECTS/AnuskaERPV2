@@ -38,6 +38,8 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
   const [variantSearch, setVariantSearch] = useState("");
   const [showVariantForm, setShowVariantForm] = useState(false);
   const [editingVariant, setEditingVariant] = useState<BomVariant | null>(null);
+  const [variantToDelete, setVariantToDelete] = useState<BomVariant | null>(null);
+  const [variantNotice, setVariantNotice] = useState("");
 
   useEffect(() => {
     if (!product) return;
@@ -73,26 +75,32 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
 
   function openCreateVariant() {
     setEditingVariant(null);
+    setVariantNotice("");
     setShowVariantForm(true);
   }
 
   function openEditVariant(variant: BomVariant) {
     setEditingVariant(variant);
+    setVariantNotice("");
     setShowVariantForm(true);
   }
 
-  function removeVariant(variant: BomVariant) {
-    if (!window.confirm(`Delete ${variant.name}? Its raw-part quantities will be removed from this product.`)) return;
-    deleteBomVariant(currentProduct.code, variant.id);
+  function confirmDeleteVariant() {
+    if (!variantToDelete) return;
+    deleteBomVariant(currentProduct.code, variantToDelete.id);
+    setVariantNotice(`${variantToDelete.name} was deleted.`);
+    setVariantToDelete(null);
   }
 
   function saveVariant(input: NewVariant) {
     if (editingVariant) {
       updateBomVariant(currentProduct.code, editingVariant.id, input);
       setSelectedVariantId(editingVariant.id);
+      setVariantNotice(`${input.name} was updated.`);
     } else {
       const created = addBomVariant(currentProduct.code, input);
       if (created) setSelectedVariantId(created.id);
+      setVariantNotice(`${input.name} was created.`);
     }
     setShowVariantForm(false);
     setEditingVariant(null);
@@ -143,12 +151,28 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
                   <p className="mt-1 text-xs text-muted-foreground">{variant.company}</p>
                 </button>
                 {!readOnly ? (
-                  <div className="mt-2 flex justify-end gap-1">
-                    <button type="button" onClick={() => openEditVariant(variant)} aria-label={`Edit ${variant.name}`} title={`Edit ${variant.name}`} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-                      <Pencil className="size-3.5" />
+                  <div className="mt-3 flex justify-end gap-2 border-t border-border/70 pt-2">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openEditVariant(variant);
+                      }}
+                      aria-label={`Edit ${variant.name}`}
+                      className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-input px-2.5 text-xs font-medium text-foreground hover:bg-muted"
+                    >
+                      <Pencil className="size-3.5" /> Edit
                     </button>
-                    <button type="button" onClick={() => removeVariant(variant)} aria-label={`Delete ${variant.name}`} title={`Delete ${variant.name}`} className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-                      <Trash2 className="size-3.5" />
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setVariantToDelete(variant);
+                      }}
+                      aria-label={`Delete ${variant.name}`}
+                      className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-destructive/30 px-2.5 text-xs font-medium text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="size-3.5" /> Delete
                     </button>
                   </div>
                 ) : null}
@@ -161,6 +185,11 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
         </aside>
 
         <main className="space-y-5">
+          {variantNotice ? (
+            <p role="status" className="rounded-md border border-success/25 bg-success/5 px-4 py-3 text-sm text-success">
+              {variantNotice}
+            </p>
+          ) : null}
           <div className="panel overflow-hidden">
             <div className="flex flex-wrap items-center gap-4 border-b border-border px-5 py-4">
               <img src={product.image} alt={`${product.name} assembly`} className="size-16 rounded-md border border-border bg-white object-contain p-1" />
@@ -223,6 +252,25 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
           }}
           onSave={saveVariant}
         />
+      ) : null}
+      {variantToDelete ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-variant-title">
+          <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-destructive">Delete BOM variant</p>
+            <h2 id="delete-variant-title" className="mt-2 text-xl font-semibold">Delete {variantToDelete.name}?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              This removes the variant and its raw-part quantities from {product.name}. This action cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
+              <button type="button" onClick={() => setVariantToDelete(null)} className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted">
+                Cancel
+              </button>
+              <button type="button" onClick={confirmDeleteVariant} className="inline-flex items-center gap-2 rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:opacity-90">
+                <Trash2 className="size-4" /> Delete variant
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </Shell>
   );
