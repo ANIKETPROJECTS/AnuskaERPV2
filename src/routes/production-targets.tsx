@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, CalendarRange, Copy, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarRange, ChevronDown, Copy, Plus, Search, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { Kpi, Panel } from "@/components/erp/bits";
@@ -324,6 +324,14 @@ function AssignmentItem({
   const product = bomCatalog.find((item) => item.code === assignment.productCode) ?? bomCatalog[0];
   const selectedVariant = product?.variants.find((variant) => variant.code === assignment.variantCode);
   const variantOptions = useMemo(() => product?.variants ?? [], [product]);
+  const floatTypeOptions = useMemo(
+    () => bomCatalog.map((item) => ({ value: item.code, label: `${item.name} · ${item.code}`, search: `${item.name} ${item.code}` })),
+    [],
+  );
+  const searchableVariantOptions = useMemo(
+    () => variantOptions.map((variant) => ({ value: variant.code, label: `${variant.name} · ${variant.company} · ${variant.code}`, search: `${variant.name} ${variant.company} ${variant.code}` })),
+    [variantOptions],
+  );
 
   return (
     <div className="p-4">
@@ -343,22 +351,24 @@ function AssignmentItem({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-        <label className="block text-sm font-medium">
-          Float type
-          <select required value={assignment.productCode} onChange={(event) => {
-            const nextProduct = bomCatalog.find((item) => item.code === event.target.value);
-            onChange(assignment.id, { productCode: event.target.value, variantCode: nextProduct?.variants[0]?.code ?? "" });
-          }} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary">
-            {bomCatalog.map((item) => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}
-          </select>
-        </label>
+        <SearchableSelect
+          label="Float type"
+          value={assignment.productCode}
+          options={floatTypeOptions}
+          required
+          onChange={(value) => {
+            const nextProduct = bomCatalog.find((item) => item.code === value);
+            onChange(assignment.id, { productCode: value, variantCode: nextProduct?.variants[0]?.code ?? "" });
+          }}
+        />
 
-        <label className="block text-sm font-medium">
-          Variant
-          <select required value={assignment.variantCode} onChange={(event) => onChange(assignment.id, { variantCode: event.target.value })} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary">
-            {variantOptions.map((variant) => <option key={variant.code} value={variant.code}>{variant.name} · {variant.company} · {variant.code}</option>)}
-          </select>
-        </label>
+        <SearchableSelect
+          label="Variant"
+          value={assignment.variantCode}
+          options={searchableVariantOptions}
+          required
+          onChange={(value) => onChange(assignment.id, { variantCode: value })}
+        />
 
         <label className="block text-sm font-medium">
           Target quantity
@@ -378,6 +388,101 @@ function AssignmentItem({
           <input value={assignment.notes} onChange={(event) => onChange(assignment.id, { notes: event.target.value })} placeholder="Shift or delivery instructions…" className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" />
         </label>
       </div>
+    </div>
+  );
+}
+
+type SearchableOption = {
+  value: string;
+  label: string;
+  search?: string;
+};
+
+function SearchableSelect({
+  label,
+  value,
+  options,
+  onChange,
+  required = false,
+}: {
+  label: string;
+  value: string;
+  options: SearchableOption[];
+  onChange: (value: string) => void;
+  required?: boolean;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selected = options.find((option) => option.value === value);
+  const filteredOptions = options.filter((option) => `${option.label} ${option.search ?? ""}`.toLowerCase().includes(query.trim().toLowerCase()));
+
+  useEffect(() => {
+    if (!open) return;
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [open]);
+
+  function toggle() {
+    setOpen((current) => !current);
+    setQuery("");
+  }
+
+  function selectOption(option: SearchableOption) {
+    onChange(option.value);
+    setOpen(false);
+    setQuery("");
+  }
+
+  return (
+    <div ref={containerRef} className="relative block text-sm font-medium">
+      {label}
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={toggle}
+        className="mt-1.5 flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-left text-sm font-normal outline-none focus:border-primary"
+      >
+        <span className={`truncate ${selected ? "text-foreground" : "text-muted-foreground"}`}>{selected?.label ?? `Select ${label.toLowerCase()}`}</span>
+        <ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {required && !value ? <input required tabIndex={-1} value="" onChange={() => undefined} className="pointer-events-none absolute h-px w-px opacity-0" aria-label={label} /> : null}
+      {open ? (
+        <div className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded-md border border-border bg-card shadow-lg">
+          <div className="border-b border-border p-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+              <input
+                autoFocus
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }}
+                placeholder={`Search ${label.toLowerCase()}…`}
+                className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm font-normal outline-none focus:border-primary"
+                aria-label={`Search ${label}`}
+              />
+            </div>
+          </div>
+          <div role="listbox" className="max-h-64 overflow-y-auto p-1">
+            {filteredOptions.length ? filteredOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={option.value === value}
+                onClick={() => selectOption(option)}
+                className={`block w-full rounded px-2.5 py-2 text-left text-sm hover:bg-muted ${option.value === value ? "bg-primary/10 font-medium text-primary" : ""}`}
+              >
+                {option.label}
+              </button>
+            )) : <p className="px-2.5 py-3 text-sm text-muted-foreground">No matching {label.toLowerCase()} found.</p>}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
