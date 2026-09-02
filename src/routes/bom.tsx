@@ -1,8 +1,9 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, ImagePlus, LayoutGrid, List, Plus, Search, Upload, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ImagePlus, LayoutGrid, List, Plus, Search, Table2, Upload, X } from "lucide-react";
 import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
+import { BomMatrix } from "@/components/erp/BomMatrix";
 import { useAuth } from "@/components/auth/AuthContext";
 import { useBomProducts, addBomProduct, rawPartCount, type BomVariant, type NewProduct } from "@/lib/bom-store";
 import { subparts } from "@/lib/erp-data";
@@ -25,7 +26,7 @@ export const Route = createFileRoute("/bom")({
 const emptyProduct: NewProduct = { name: "", code: "", description: "", image: "" };
 type BomSort = "name-asc" | "name-desc" | "variants-desc" | "variants-asc" | "raw-parts-desc" | "raw-parts-asc";
 type CountFilter = "all" | "none" | "1-2" | "3-4" | "5-plus";
-type BomView = "grid" | "list";
+type BomView = "grid" | "list" | "matrix";
 
 function requiredMaterialsForVariant(variant: BomVariant) {
   return Object.entries(variant.parts).map(([code, quantity]) => {
@@ -223,6 +224,14 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                 >
                   <List className="size-3.5" /> List
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setView("matrix")}
+                  aria-pressed={view === "matrix"}
+                  className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium ${view === "matrix" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                >
+                  <Table2 className="size-3.5" /> Matrix
+                </button>
               </div>
               <p className="text-xs text-muted-foreground">{filteredProducts.length} of {products.length} parent assemblies</p>
             </div>
@@ -262,7 +271,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
               </article>
             ))}
           </div>
-        ) : (
+        ) : view === "list" ? (
           <div className="space-y-3">
             {filteredProducts.map((product) => {
               const expanded = Boolean(expandedProducts[product.code]);
@@ -346,6 +355,8 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
               );
             })}
           </div>
+        ) : (
+          <BomMatrix products={filteredProducts} title="All Float types BOM matrix" description="Compare every matching Float type and variant against its required raw materials." />
         )}
         {!filteredProducts.length ? <p className="rounded-md border border-dashed border-border px-5 py-12 text-center text-sm text-muted-foreground">No BOM products match the current search and filters.</p> : null}
       </section>

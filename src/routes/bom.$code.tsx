@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Check, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, Pencil, Plus, Search, Table2, Trash2, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { BomMatrix } from "@/components/erp/BomMatrix";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { Panel, Tag } from "@/components/erp/bits";
@@ -36,6 +37,7 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
   const product = products.find((item) => item.code === code);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(product?.variants[0]?.id ?? null);
   const [variantSearch, setVariantSearch] = useState("");
+  const [structureView, setStructureView] = useState<"detail" | "matrix">("detail");
   const [showVariantForm, setShowVariantForm] = useState(false);
   const [editingVariant, setEditingVariant] = useState<BomVariant | null>(null);
   const [variantToDelete, setVariantToDelete] = useState<BomVariant | null>(null);
@@ -194,19 +196,51 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
             <div className="flex flex-wrap items-center gap-4 border-b border-border px-5 py-4">
               <img src={product.image} alt={`${product.name} assembly`} className="size-16 rounded-md border border-border bg-white object-contain p-1" />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Raw subparts</p>
-                <h2 className="mt-1 text-lg font-semibold">{selectedVariant?.name ?? "No variant selected"}</h2>
+                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{structureView === "matrix" ? "BOM matrix" : "Raw subparts"}</p>
+                 <h2 className="mt-1 text-lg font-semibold">{structureView === "matrix" ? `${product.name} variants` : selectedVariant?.name ?? "No variant selected"}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {selectedVariant ? `${selectedVariant.company} · ${selectedVariant.code}` : "Create a variant-specific BOM to begin."}
+                   {structureView === "matrix"
+                     ? "Compare every variant against its required raw materials."
+                     : selectedVariant
+                       ? `${selectedVariant.company} · ${selectedVariant.code}`
+                       : "Create a variant-specific BOM to begin."}
                 </p>
               </div>
-              {!readOnly ? (
-                <button type="button" onClick={openCreateVariant} className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium">
-                  <Plus className="size-4" /> Add variant
-                </button>
-              ) : null}
+               <div className="flex flex-wrap items-center gap-3">
+                 <div className="flex rounded-md border border-input bg-white p-1" aria-label="Structure view">
+                   <button
+                     type="button"
+                     onClick={() => setStructureView("detail")}
+                     aria-pressed={structureView === "detail"}
+                     className={`rounded px-2.5 py-1.5 text-xs font-medium ${structureView === "detail" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                   >
+                     Detail
+                   </button>
+                   <button
+                     type="button"
+                     onClick={() => setStructureView("matrix")}
+                     aria-pressed={structureView === "matrix"}
+                     className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium ${structureView === "matrix" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                   >
+                     <Table2 className="size-3.5" /> Matrix
+                   </button>
+                 </div>
+                 {!readOnly ? (
+                   <button type="button" onClick={openCreateVariant} className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium">
+                     <Plus className="size-4" /> Add variant
+                   </button>
+                 ) : null}
+               </div>
             </div>
-            {selectedVariant ? <PartsTable variant={selectedVariant} /> : readOnly ? <p className="p-12 text-center text-sm text-muted-foreground">No variant selected.</p> : <EmptyVariantState onAdd={openCreateVariant} />}
+             {structureView === "matrix" ? (
+               <BomMatrix products={[currentProduct]} title={`${product.name} BOM matrix`} />
+             ) : selectedVariant ? (
+               <PartsTable variant={selectedVariant} />
+             ) : readOnly ? (
+               <p className="p-12 text-center text-sm text-muted-foreground">No variant selected.</p>
+             ) : (
+               <EmptyVariantState onAdd={openCreateVariant} />
+             )}
           </div>
         </main>
       </div>
