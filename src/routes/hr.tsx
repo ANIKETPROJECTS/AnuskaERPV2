@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { CalendarCheck, CalendarDays, Download, Eye, RefreshCw, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
@@ -72,6 +72,12 @@ function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
 }
 
 function AdminHr() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  if (pathname !== "/hr") return <Outlet />;
+  return <AdminHrPage />;
+}
+
+function AdminHrPage() {
   const [tab, setTab] = useState<AdminTab>("daily");
   const [dailyView, setDailyView] = useState<DailyView>("date");
   const [dailyDate, setDailyDate] = useState(currentDate);

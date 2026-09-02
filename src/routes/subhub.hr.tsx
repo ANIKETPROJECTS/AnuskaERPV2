@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { AlertTriangle, CalendarDays, Check, Download, Eye, Pencil, Plus, RefreshCw, Save, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
@@ -179,6 +179,12 @@ function downloadCsv(filename: string, rows: Array<Array<string | number>>) {
 }
 
 function SubhubHr() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  if (pathname !== "/subhub/hr") return <Outlet />;
+  return <SubhubHrPage />;
+}
+
+function SubhubHrPage() {
   const [tab, setTab] = useState<HrTab>("attendance");
   const [data, setData] = useState<ManagerHrData>(emptyData);
   const [selectedDate, setSelectedDate] = useState(currentDate);
