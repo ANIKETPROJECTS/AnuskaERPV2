@@ -301,15 +301,18 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                           product.variants.map((variant) => {
                             const requiredMaterials = requiredMaterialsForVariant(variant);
                             return (
-                              <div key={variant.id} className="rounded-lg border border-border bg-card p-4">
-                                <div className="flex flex-wrap items-start justify-between gap-3">
-                                  <div>
-                                    <p className="tabular text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{variant.code}</p>
-                                    <p className="mt-1 font-semibold">{variant.name}</p>
-                                    <p className="mt-1 text-xs text-muted-foreground">{variant.company}</p>
-                                  </div>
+                              <details key={variant.id} className="group rounded-lg border border-border bg-card">
+                                <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3 p-4 [&::-webkit-details-marker]:hidden">
+                                  <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                                    <ChevronRight className="size-4 transition-transform group-open:rotate-90" />
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="tabular block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{variant.code}</span>
+                                    <span className="mt-1 block font-semibold">{variant.name}</span>
+                                    <span className="mt-1 block text-xs text-muted-foreground">{variant.company}</span>
+                                  </span>
                                   <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">{requiredMaterials.length} required materials</span>
-                                </div>
+                                </summary>
                                 <div className="mt-4 border-l-2 border-border pl-4">
                                   <p className="text-xs font-medium text-muted-foreground">Required materials</p>
                                   {requiredMaterials.length ? (
@@ -332,7 +335,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                                     <p className="mt-2 text-xs text-muted-foreground">No required materials are defined for this variant.</p>
                                   )}
                                 </div>
-                              </div>
+                              </details>
                             );
                           })
                         )}
