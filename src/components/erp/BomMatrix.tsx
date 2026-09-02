@@ -100,9 +100,9 @@ export function BomMatrix({
             <caption className="sr-only">{title}</caption>
             <thead className="border-b border-border bg-muted/20 text-left text-[10px] uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th scope="col" className="sticky left-0 z-40 w-[250px] min-w-[250px] bg-muted/20 px-5 py-3 font-medium shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)]">Raw subpart</th>
-                <th scope="col" className="sticky left-[250px] z-40 w-[100px] min-w-[100px] bg-muted/20 px-4 py-3 font-medium">Source</th>
-                <th scope="col" className="sticky left-[350px] z-40 w-[90px] min-w-[90px] bg-muted/20 px-4 py-3 text-right font-medium shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)]">₹ / unit</th>
+                <th scope="col" className="sticky left-0 z-40 w-[250px] min-w-[250px] bg-card px-5 py-3 font-medium shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)]">Raw subpart</th>
+                <th scope="col" className="sticky left-[250px] z-40 w-[100px] min-w-[100px] bg-card px-4 py-3 font-medium">Source</th>
+                <th scope="col" className="sticky left-[350px] z-40 w-[90px] min-w-[90px] bg-card px-4 py-3 text-right font-medium shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)]">₹ / unit</th>
                 {variants.map(({ key, productCode, productName, variant }) => (
                   <th scope="col" key={key} className="min-w-[125px] px-4 py-3 text-center font-medium">
                     <span className="tabular block text-foreground">{variant.code}</span>
