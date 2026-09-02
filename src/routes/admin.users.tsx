@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Check, Database, Eye, KeyRound, Pencil, Plus, Search, ShieldCheck, Trash2, UserCog, X } from "lucide-react";
 import {
@@ -75,6 +75,12 @@ function emptyForm(): UserFormState {
 }
 
 function UserManagement() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  if (pathname !== "/admin/users") return <Outlet />;
+  return <UserManagementPage />;
+}
+
+function UserManagementPage() {
   const auth = useAuth();
   const router = useRouter();
   const result = Route.useLoaderData();
