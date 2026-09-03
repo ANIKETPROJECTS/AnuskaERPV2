@@ -13,7 +13,7 @@ import {
   type BomVariant,
   type NewVariant,
 } from "@/lib/bom-store";
-import { subparts } from "@/lib/erp-data";
+import { addRawMaterial, useRawMaterials, type NewRawMaterial, type RawMaterial } from "@/lib/raw-material-store";
 
 export const Route = createFileRoute("/bom/$code")({
   head: () => ({
@@ -34,6 +34,7 @@ function BomStructure() {
 
 export function BomStructurePage({ code, readOnly }: { code: string; readOnly: boolean }) {
   const products = useBomProducts();
+  const materials = useRawMaterials();
   const product = products.find((item) => item.code === code);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(product?.variants[0]?.id ?? null);
   const [variantSearch, setVariantSearch] = useState("");
@@ -235,7 +236,7 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
              {structureView === "matrix" ? (
                <BomMatrix products={[currentProduct]} title={`${product.name} BOM matrix`} />
              ) : selectedVariant ? (
-               <PartsTable variant={selectedVariant} />
+                <PartsTable variant={selectedVariant} materials={materials} />
              ) : readOnly ? (
                <p className="p-12 text-center text-sm text-muted-foreground">No variant selected.</p>
              ) : (
@@ -280,6 +281,8 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
           productName={product.name}
           initial={editingVariant ?? emptyVariant}
           editing={Boolean(editingVariant)}
+          materials={materials}
+          onAddRawPart={(input) => addRawMaterial(input)}
           onClose={() => {
             setShowVariantForm(false);
             setEditingVariant(null);
@@ -310,10 +313,10 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
   );
 }
 
-function PartsTable({ variant }: { variant: BomVariant }) {
+function PartsTable({ variant, materials }: { variant: BomVariant; materials: RawMaterial[] }) {
   const parts = Object.entries(variant.parts)
-    .map(([code, quantity]) => ({ part: subparts.find((item) => item.code === code), quantity }))
-    .filter((item): item is { part: (typeof subparts)[number]; quantity: number } => Boolean(item.part));
+    .map(([code, quantity]) => ({ part: materials.find((item) => item.code === code), quantity }))
+    .filter((item): item is { part: RawMaterial; quantity: number } => Boolean(item.part));
 
   return (
     <div className="overflow-x-auto">
@@ -360,19 +363,24 @@ function VariantForm({
   productName,
   initial,
   editing,
+  materials,
+  onAddRawPart,
   onClose,
   onSave,
 }: {
   productName: string;
   initial: NewVariant;
   editing: boolean;
+  materials: RawMaterial[];
+  onAddRawPart: (input: NewRawMaterial) => RawMaterial | undefined;
   onClose: () => void;
   onSave: (value: NewVariant) => void;
 }) {
   const [form, setForm] = useState<NewVariant>({ ...initial, parts: { ...initial.parts } });
   const [partSearch, setPartSearch] = useState("");
   const [error, setError] = useState("");
-  const filteredParts = subparts.filter((part) => {
+  const [showRawPartCreator, setShowRawPartCreator] = useState(false);
+  const filteredParts = materials.filter((part) => {
     const query = partSearch.trim().toLowerCase();
     return !query || [part.name, part.code, part.material].some((value) => value.toLowerCase().includes(query));
   });
@@ -447,6 +455,16 @@ function VariantForm({
               <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
               <input value={partSearch} onChange={(event) => setPartSearch(event.target.value)} placeholder="Search raw parts" aria-label="Search raw parts" className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm outline-none focus:border-primary" />
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                setShowRawPartCreator(true);
+              }}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-dashed border-primary/40 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/5"
+            >
+              <Plus className="size-3.5" /> Add a raw part not listed
+            </button>
             <div className="mt-2 max-h-64 overflow-y-auto rounded-md border border-border">
               {filteredParts.map((part) => {
                 const selected = Object.prototype.hasOwnProperty.call(form.parts, part.code);
@@ -478,6 +496,83 @@ function VariantForm({
           </button>
         </div>
       </form>
+      {showRawPartCreator ? (
+        <RawPartCreator
+          onClose={() => setShowRawPartCreator(false)}
+          onSave={(input) => {
+            const created = onAddRawPart(input);
+            if (!created) return "A raw part with that code already exists.";
+            setForm((current) => ({
+              ...current,
+              parts: { ...current.parts, [created.code]: current.parts[created.code] ?? 1 },
+            }));
+            setPartSearch("");
+            setShowRawPartCreator(false);
+            setError("");
+            return undefined;
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function RawPartCreator({
+  onClose,
+  onSave,
+}: {
+  onClose: () => void;
+  onSave: (input: NewRawMaterial) => string | undefined;
+}) {
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [material, setMaterial] = useState("");
+  const [source, setSource] = useState<NewRawMaterial["source"]>("Other");
+  const [error, setError] = useState("");
+
+  function save() {
+    const input: NewRawMaterial = {
+      code: code.trim().toUpperCase(),
+      name: name.trim(),
+      description: description.trim(),
+      material: material.trim(),
+      source,
+    };
+    if (input.code.length < 2 || input.name.length < 2 || input.description.length < 5 || input.material.length < 2) {
+      setError("Enter a code, name, description, and material.");
+      return;
+    }
+    const message = onSave(input);
+    if (message) setError(message);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="dialog" aria-modal="true" aria-labelledby="raw-part-creator-title">
+      <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Raw material catalog</p>
+            <h2 id="raw-part-creator-title" className="mt-2 text-xl font-semibold">Add raw part</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Create the missing component and add it to this variant.</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close add raw part" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted">
+            <X className="size-5" />
+          </button>
+        </div>
+        <div className="mt-6 space-y-3">
+          <label className="block text-sm font-medium">Raw-part code<input required value={code} onChange={(event) => setCode(event.target.value)} placeholder="GP006-050" className="tabular mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" /></label>
+          <label className="block text-sm font-medium">Name<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Float bracket" className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" /></label>
+          <label className="block text-sm font-medium">Material<input required value={material} onChange={(event) => setMaterial(event.target.value)} placeholder="Nylon 66" className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" /></label>
+          <label className="block text-sm font-medium">Description<textarea required value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Describe the raw part" rows={3} className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary" /></label>
+          <label className="block text-sm font-medium">Source<select value={source} onChange={(event) => setSource(event.target.value as NewRawMaterial["source"])} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary"><option value="Molded">Molded</option><option value="Purchased">Purchased</option><option value="Other">Other</option></select></label>
+          {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}
+        </div>
+        <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
+          <button type="button" onClick={onClose} className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted">Cancel</button>
+          <button type="button" onClick={save} className="rule-header inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium"><Plus className="size-4" /> Add and select</button>
+        </div>
+      </div>
     </div>
   );
 }

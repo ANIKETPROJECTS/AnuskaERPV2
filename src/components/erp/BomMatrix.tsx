@@ -1,7 +1,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { type BomProduct } from "@/lib/bom-store";
-import { subparts } from "@/lib/erp-data";
+import { useRawMaterials } from "@/lib/raw-material-store";
 
 type BomMatrixProps = {
   products: BomProduct[];
@@ -14,6 +14,7 @@ export function BomMatrix({
   title = "BOM matrix",
   description = "Quantity of each raw subpart required per finished unit.",
 }: BomMatrixProps) {
+  const materials = useRawMaterials();
   const variants = products.flatMap((product) =>
     product.variants.map((variant) => ({
       key: `${product.code}-${variant.id}`,
@@ -23,7 +24,7 @@ export function BomMatrix({
     })),
   );
   const partCodes = Array.from(new Set(products.flatMap((product) => product.variants.flatMap((variant) => Object.keys(variant.parts)))));
-  const partByCode = new Map(subparts.map((part) => [part.code, part]));
+  const partByCode = new Map(materials.map((part) => [part.code, part]));
   const rows = partCodes.map((code) => ({ code, part: partByCode.get(code) }));
   const matrixRef = useRef<HTMLDivElement>(null);
   const [scrollState, setScrollState] = useState({ canScrollLeft: false, canScrollRight: false });
