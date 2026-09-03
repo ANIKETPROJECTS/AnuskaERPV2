@@ -6,7 +6,7 @@ import { SubHubShell } from "@/components/erp/SubHubShell";
 import { BomMatrix } from "@/components/erp/BomMatrix";
 import { useAuth } from "@/components/auth/AuthContext";
 import { useBomProducts, addBomProduct, rawPartCount, type BomVariant, type NewProduct } from "@/lib/bom-store";
-import { subparts } from "@/lib/erp-data";
+import { useRawMaterials, type RawMaterial } from "@/lib/raw-material-store";
 
 export const Route = createFileRoute("/bom")({
   head: () => ({
@@ -28,9 +28,9 @@ type BomSort = "name-asc" | "name-desc";
 type CountFilter = "all" | "none";
 type BomView = "grid" | "list" | "matrix";
 
-function requiredMaterialsForVariant(variant: BomVariant) {
+function requiredMaterialsForVariant(variant: BomVariant, materials: RawMaterial[]) {
   return Object.entries(variant.parts).map(([code, quantity]) => {
-    const part = subparts.find((item) => item.code === code);
+    const part = materials.find((item) => item.code === code);
     return {
       code,
       name: part?.name ?? code,
@@ -59,6 +59,7 @@ function Bom() {
 
 export function BomPage({ readOnly }: { readOnly: boolean }) {
   const products = useBomProducts();
+  const materials = useRawMaterials();
   const [productSearch, setProductSearch] = useState("");
   const [sortBy, setSortBy] = useState<BomSort>("name-asc");
   const [variantFilter, setVariantFilter] = useState<CountFilter>("all");
@@ -290,7 +291,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                           <p className="rounded-md border border-dashed border-border bg-card px-4 py-5 text-sm text-muted-foreground">No variants have been added to this assembly.</p>
                         ) : (
                           product.variants.map((variant) => {
-                            const requiredMaterials = requiredMaterialsForVariant(variant);
+                             const requiredMaterials = requiredMaterialsForVariant(variant, materials);
                             return (
                               <details key={variant.id} className="group rounded-lg border border-border bg-card">
                                 <summary className="flex cursor-pointer list-none flex-wrap items-center gap-3 p-4 [&::-webkit-details-marker]:hidden">

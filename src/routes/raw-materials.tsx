@@ -4,23 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { Panel } from "@/components/erp/bits";
-import { subparts } from "@/lib/erp-data";
-
-type RawMaterial = {
-  code: string;
-  name: string;
-  description: string;
-  material: string;
-  source: "Molded" | "Purchased" | "Other";
-};
-
-const seededMaterials: RawMaterial[] = subparts.map((part) => ({
-  code: part.code,
-  name: part.name,
-  description: `${part.source} raw part used in parent-product BOM assemblies.`,
-  material: part.material,
-  source: part.source,
-}));
+import { deleteRawMaterial, useRawMaterials, updateRawMaterial, addRawMaterial, type RawMaterial } from "@/lib/raw-material-store";
 type RawMaterialSort = "code-asc" | "code-desc" | "name-asc" | "name-desc" | "material-asc" | "source-asc";
 type SourceFilter = "all" | RawMaterial["source"];
 type PageSize = 10 | 25 | 50 | "all";
@@ -35,7 +19,7 @@ function RawMaterials() {
 }
 
 export function RawMaterialsPage({ readOnly }: { readOnly: boolean }) {
-  const [materials, setMaterials] = useState<RawMaterial[]>(seededMaterials);
+  const materials = useRawMaterials();
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState<RawMaterialSort>("code-asc");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
@@ -98,15 +82,12 @@ export function RawMaterialsPage({ readOnly }: { readOnly: boolean }) {
 
   function removeMaterial(item: RawMaterial) {
     if (!window.confirm(`Delete ${item.name} (${item.code})? This will remove it from the raw-material catalog.`)) return;
-    setMaterials((current) => current.filter((material) => material.code !== item.code));
+    deleteRawMaterial(item.code);
   }
 
   function saveMaterial(item: RawMaterial) {
-    setMaterials((current) =>
-      editingMaterial
-        ? current.map((material) => (material.code === editingMaterial.code ? item : material))
-        : [...current, item],
-    );
+    if (editingMaterial) updateRawMaterial(editingMaterial.code, item);
+    else addRawMaterial(item);
     setShowCreator(false);
     setEditingMaterial(null);
   }
