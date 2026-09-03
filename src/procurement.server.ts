@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Db } from "mongodb";
 import { getCurrentUserRecord, getControlPlaneDatabase } from "./auth.server";
 import { subparts } from "./lib/erp-data";
-import { PROCUREMENT_STATUSES, type ProcurementStatus } from "./lib/procurement-types";
+import { MISCELLANEOUS_VENDOR_ID, ONE_OFF_MATERIAL_CODE, PROCUREMENT_STATUSES, type ProcurementStatus } from "./lib/procurement-types";
 
 export { PROCUREMENT_STATUSES };
 export type { ProcurementStatus };
@@ -482,6 +482,7 @@ export async function createProcurementOrder(input: {
   vendorId?: string | undefined;
   newVendor?: NewVendorInput | undefined;
   materialCode: string;
+  materialName?: string | undefined;
   quantity: number;
   unitPrice: number;
   orderDate: string;
@@ -497,8 +498,17 @@ export async function createProcurementOrder(input: {
     const expectedDelivery = parseDate(input.expectedDelivery);
     if (!orderDate || !expectedDelivery) return { ok: false, message: "Enter valid order and expected delivery dates." };
     if (expectedDelivery < orderDate) return { ok: false, message: "Expected delivery cannot be before the order date." };
-    const material = subparts.find((part) => part.code === input.materialCode);
-    if (!material) return { ok: false, message: "Select a valid raw material." };
+    const catalogMaterial = subparts.find((part) => part.code === input.materialCode);
+    const customMaterialName = clean(input.materialName);
+    const material = catalogMaterial ?? (customMaterialName
+      ? {
+          code: input.materialCode === ONE_OFF_MATERIAL_CODE
+            ? `MISC-${customMaterialName.toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 38)}-${randomUUID().slice(0, 6).toUpperCase()}`
+            : input.materialCode,
+          name: customMaterialName,
+        }
+      : null);
+    if (!material) return { ok: false, message: "Select a raw material or enter a one-off material name." };
     if (!Number.isInteger(input.quantity) || input.quantity < 1) return { ok: false, message: "Quantity must be a whole number greater than zero." };
     if (!Number.isFinite(input.unitPrice) || input.unitPrice < 0) return { ok: false, message: "Unit price cannot be negative." };
     const db = await getProcurementDb();
@@ -517,7 +527,22 @@ export async function createProcurementOrder(input: {
       destinationName = destination.subhubName ? `${destination.subhubName} · ${destination.name}` : destination.name;
     }
     let vendor: ProcurementVendor | undefined;
-    if (input.vendorId) {
+    if (input.vendorId === MISCELLANEOUS_VENDOR_ID) {
+      const miscellaneousVendorName = clean(input.newVendor?.name);
+      if (!miscellaneousVendorName) return { ok: false, message: "Enter the miscellaneous supplier name." };
+      const escapedName = miscellaneousVendorName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const existingVendor = await db.collection<VendorDocument>("procurement_vendors").findOne({
+        name: { $regex: `^${escapedName}$`, $options: "i" },
+        status: "active",
+      });
+      vendor = existingVendor
+        ? toVendor(existingVendor)
+        : await createVendorRecord(db, user._id, {
+            ...input.newVendor,
+            name: miscellaneousVendorName,
+            categories: [...(input.newVendor?.categories ?? []), "Miscellaneous"],
+          });
+    } else if (input.vendorId) {
       const vendorDocument = await db.collection<VendorDocument>("procurement_vendors").findOne({ _id: input.vendorId, status: "active" });
       if (!vendorDocument) return { ok: false, message: "Select an active vendor." };
       vendor = toVendor(vendorDocument);

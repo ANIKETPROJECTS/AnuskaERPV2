@@ -32,8 +32,8 @@ import {
   updateVendorFn,
 } from "@/procurement";
 import type { ProcurementData, ProcurementOrder, ProcurementStatus, ProcurementVendor } from "@/procurement.server";
-import { PROCUREMENT_STATUSES } from "@/lib/procurement-types";
-import { subparts } from "@/lib/erp-data";
+import { MISCELLANEOUS_VENDOR_ID, ONE_OFF_MATERIAL_CODE, PROCUREMENT_STATUSES } from "@/lib/procurement-types";
+import { useRawMaterials } from "@/lib/raw-material-store";
 
 export const Route = createFileRoute("/procurement")({
   loader: () => getProcurementDataFn(),
@@ -408,13 +408,16 @@ function VendorForm({ mode, vendor, onClose, onSaved }: { mode: "create" | "edit
 }
 
 function OrderForm({ data, isAdmin, onClose, onSaved }: { data: ProcurementData; isAdmin: boolean; onClose: () => void; onSaved: (message: string) => Promise<void> }) {
+  const materials = useRawMaterials();
   const [vendorId, setVendorId] = useState("");
   const [addingVendor, setAddingVendor] = useState(false);
   const [newVendorName, setNewVendorName] = useState("");
   const [newVendorPhone, setNewVendorPhone] = useState("");
   const [newVendorEmail, setNewVendorEmail] = useState("");
+  const [miscellaneousVendorName, setMiscellaneousVendorName] = useState("");
   const [subhubUserId, setSubhubUserId] = useState("");
-  const [materialCode, setMaterialCode] = useState(subparts[0]?.code ?? "");
+  const [materialCode, setMaterialCode] = useState(materials[0]?.code ?? ONE_OFF_MATERIAL_CODE);
+  const [customMaterialName, setCustomMaterialName] = useState("");
   const [quantity, setQuantity] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
   const [orderDate, setOrderDate] = useState(today());
@@ -422,6 +425,9 @@ function OrderForm({ data, isAdmin, onClose, onSaved }: { data: ProcurementData;
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const selectedMaterial = materials.find((material) => material.code === materialCode);
+  const isMiscellaneousVendor = !addingVendor && vendorId === MISCELLANEOUS_VENDOR_ID;
+  const isOneOffMaterial = materialCode === ONE_OFF_MATERIAL_CODE;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -439,13 +445,21 @@ function OrderForm({ data, isAdmin, onClose, onSaved }: { data: ProcurementData;
       setError("Enter the new vendor name.");
       return;
     }
+    if (isMiscellaneousVendor && !miscellaneousVendorName.trim()) {
+      setError("Enter the miscellaneous supplier name.");
+      return;
+    }
+    if (isOneOffMaterial && !customMaterialName.trim()) {
+      setError("Enter the name of the one-off material.");
+      return;
+    }
     setBusy(true);
-    const response = await createProcurementOrderFn({ data: { vendorId: addingVendor ? undefined : vendorId || undefined, newVendor: addingVendor ? { name: newVendorName, phone: newVendorPhone, email: newVendorEmail } : undefined, subhubUserId: isAdmin ? subhubUserId : undefined, materialCode, quantity: parsedQuantity, unitPrice: parsedPrice, orderDate, expectedDelivery, notes } });
+    const response = await createProcurementOrderFn({ data: { vendorId: addingVendor ? undefined : vendorId || undefined, newVendor: addingVendor ? { name: newVendorName, phone: newVendorPhone, email: newVendorEmail } : isMiscellaneousVendor ? { name: miscellaneousVendorName, categories: ["Miscellaneous"] } : undefined, subhubUserId: isAdmin ? subhubUserId : undefined, materialCode, materialName: isOneOffMaterial ? customMaterialName : selectedMaterial?.name, quantity: parsedQuantity, unitPrice: parsedPrice, orderDate, expectedDelivery, notes } });
     if (!response.ok) setError(response.message);
     else await onSaved(`${response.order.orderNumber} was created successfully.`);
     setBusy(false);
   }
-  return <Drawer title="New procurement order" subtitle={isAdmin ? "Create an order for a selected SubHub and vendor." : "Create an order for this SubHub. You can add a new vendor without leaving the form."} onClose={onClose}><form onSubmit={submit} className="space-y-4"><label className="block text-sm font-medium">{isAdmin ? "Destination SubHub" : "Destination"}{isAdmin ? <select required value={subhubUserId} onChange={(event) => setSubhubUserId(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="">Select SubHub</option>{data.subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.name}</option>)}</select> : <div className="mt-1.5 rounded-md border border-border bg-muted/20 px-3 py-2.5 text-sm">{data.orders[0]?.subhubName ?? "This SubHub workspace"}</div>}</label><div><div className="flex items-center justify-between gap-3"><label className="text-sm font-medium">{addingVendor ? "New vendor" : "Vendor"}</label><button type="button" onClick={() => { setAddingVendor(!addingVendor); setVendorId(""); }} className="text-xs font-medium text-primary hover:underline">{addingVendor ? "Choose existing vendor" : "＋ Add new vendor"}</button></div>{addingVendor ? <div className="mt-1.5 grid gap-3 sm:grid-cols-2"><TextField label="Vendor name" value={newVendorName} required onChange={setNewVendorName} placeholder="New vendor name" /><TextField label="Phone" value={newVendorPhone} onChange={setNewVendorPhone} /><TextField label="Email" type="email" value={newVendorEmail} onChange={setNewVendorEmail} /></div> : <select required value={vendorId} onChange={(event) => setVendorId(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"><option value="">Select active vendor</option>{data.vendors.filter((vendor) => vendor.status === "active").map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}{vendor.categories.length ? ` · ${vendor.categories.join(", ")}` : ""}</option>)}</select>}</div><div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-medium">Raw material<select required value={materialCode} onChange={(event) => setMaterialCode(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm">{subparts.map((part) => <option key={part.code} value={part.code}>{part.name} · {part.code}</option>)}</select></label><TextField label="Quantity" type="number" required value={quantity} onChange={setQuantity} placeholder="1000" /><TextField label="Unit price (₹)" type="number" required value={unitPrice} onChange={setUnitPrice} placeholder="125" /><TextField label="Order date" type="date" required value={orderDate} onChange={setOrderDate} /><TextField label="Expected delivery" type="date" required value={expectedDelivery} onChange={setExpectedDelivery} /></div><label className="block text-sm font-medium">Notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} placeholder="Delivery instructions, quotation reference, or remarks…" className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary" /></label>{error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}<DrawerActions busy={busy} submitLabel="Create order" onClose={onClose} /></form></Drawer>;
+  return <Drawer title="New procurement order" subtitle={isAdmin ? "Create an order for a selected SubHub and vendor." : "Create an order for this SubHub. You can add a new vendor without leaving the form."} onClose={onClose}><form onSubmit={submit} className="space-y-4"><label className="block text-sm font-medium">{isAdmin ? "Destination SubHub" : "Destination"}{isAdmin ? <select required value={subhubUserId} onChange={(event) => setSubhubUserId(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">Select SubHub</option>{data.subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.name}</option>)}</select> : <div className="mt-1.5 rounded-md border border-border bg-muted/20 px-3 py-2.5 text-sm">{data.orders[0]?.subhubName ?? "This SubHub workspace"}</div>}</label><div><div className="flex items-center justify-between gap-3"><label className="text-sm font-medium">{addingVendor ? "New vendor" : "Vendor"}</label><button type="button" onClick={() => { setAddingVendor(!addingVendor); setVendorId(""); }} className="text-xs font-medium text-primary hover:underline">{addingVendor ? "Choose existing vendor" : "＋ Add new vendor"}</button></div>{addingVendor ? <div className="mt-1.5 grid gap-3 sm:grid-cols-2"><TextField label="Vendor name" value={newVendorName} required onChange={setNewVendorName} placeholder="New vendor name" /><TextField label="Phone" value={newVendorPhone} onChange={setNewVendorPhone} /><TextField label="Email" type="email" value={newVendorEmail} onChange={setNewVendorEmail} /></div> : <><select required value={vendorId} onChange={(event) => setVendorId(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">Select active vendor</option><option value={MISCELLANEOUS_VENDOR_ID}>Miscellaneous</option>{data.vendors.filter((vendor) => vendor.status === "active").map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}{vendor.categories.length ? ` · ${vendor.categories.join(", ")}` : ""}</option>)}</select>{isMiscellaneousVendor ? <div className="mt-3 rounded-md border border-primary/25 bg-primary/5 p-3"><TextField label="Miscellaneous supplier name" value={miscellaneousVendorName} required onChange={setMiscellaneousVendorName} placeholder="Local hardware shop" /><p className="mt-1.5 text-xs text-muted-foreground">This supplier will be saved in the vendor directory for future orders.</p></div> : null}</>}</div><div className="grid gap-4 sm:grid-cols-2"><label className="block text-sm font-medium">Raw material<select required value={materialCode} onChange={(event) => setMaterialCode(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">Select raw material</option>{materials.map((material) => <option key={material.code} value={material.code}>{material.name} · {material.code}</option>)}<option value={ONE_OFF_MATERIAL_CODE}>New one-off material…</option></select></label>{isOneOffMaterial ? <TextField label="One-off material name" value={customMaterialName} required onChange={setCustomMaterialName} placeholder="Pair of scissors or duct tape" /> : <div /> }<TextField label="Quantity" type="number" required value={quantity} onChange={setQuantity} placeholder="1000" /><TextField label="Unit price (₹)" type="number" required value={unitPrice} onChange={setUnitPrice} placeholder="125" /><TextField label="Order date" type="date" required value={orderDate} onChange={setOrderDate} /><TextField label="Expected delivery" type="date" required value={expectedDelivery} onChange={setExpectedDelivery} /></div><label className="block text-sm font-medium">Notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} placeholder="Delivery instructions, quotation reference, or remarks…" className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary" /></label>{error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}<DrawerActions busy={busy} submitLabel="Create order" onClose={onClose} /></form></Drawer>;
 }
 
 function TextField({ label, value, onChange, type = "text", required = false, placeholder }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean; placeholder?: string }) {
