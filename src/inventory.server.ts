@@ -15,9 +15,8 @@ export type InventoryItem = {
   category: InventoryCategory;
   unit: "pcs";
   quantity: number;
-  batches: number;
   price: number;
-  updatedAt: string | null;
+  loggedAt: string | null;
 };
 
 export type InventoryMovement = {
@@ -77,8 +76,8 @@ type InventoryItemDocument = {
   category?: InventoryCategory;
   unit?: "pcs";
   quantity: number;
-  batches: number;
   price?: number;
+  createdAt?: Date;
   updatedAt: Date;
   updatedBy: string;
 };
@@ -217,7 +216,7 @@ async function applyInventoryDelta(input: {
         updatedAt: now,
         updatedBy: input.updatedBy,
       },
-      $setOnInsert: { batches: 0 },
+      $setOnInsert: { createdAt: now },
     },
     { upsert: true },
   );
@@ -381,9 +380,8 @@ function serializeInventoryItem(record: InventoryItemDocument): InventoryItem {
     category: record.category || part?.source || "Purchased",
     unit: record.unit ?? "pcs",
     quantity: record.quantity,
-    batches: record.batches ?? 0,
     price: record.price ?? part?.rate ?? 0,
-    updatedAt: record.updatedAt?.toISOString() ?? null,
+    loggedAt: record.createdAt?.toISOString() ?? record.updatedAt?.toISOString() ?? null,
   };
 }
 
