@@ -56,7 +56,6 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
       </header>
       <section className="space-y-6 p-6">
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
-        {data.consistencyWarnings.map((warning) => <p key={warning} role="status" className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">{warning}</p>)}
         {view === "raw-materials" ? <InventoryTable inventoryType="Raw Material" items={data.items.filter((item) => item.category === "Raw Material")} loading={loading} /> : null}
         {view === "final-products" ? <InventoryTable inventoryType="Float" items={data.items.filter((item) => item.category === "Float")} loading={loading} /> : null}
          {view === "history" ? <HistoryTable movements={data.batchMovements} loading={loading} /> : null}
