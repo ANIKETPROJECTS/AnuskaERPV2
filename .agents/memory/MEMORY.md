@@ -5,3 +5,4 @@
 - [Hub capacity model](hub-capacity-model.md) — Admin capacity is measured against each hub’s active open target units; blank means no limit.
 - [Server-only module boundaries](server-only-boundaries.md) — keep shared constants out of modules that import server-only auth or database APIs.
 - [Batch inventory traceability](batch-inventory-traceability.md) — batch and aggregate stock must move atomically; production uses FIFO with explicit split overrides.
+- [Quality adjustment grid](quality-adjustment-grid.md) — use one signed, reasoned adjustment row per raw material or final product.

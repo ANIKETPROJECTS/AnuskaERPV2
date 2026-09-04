@@ -1,11 +1,11 @@
 import { createFileRoute, Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
-import { ArrowDownAZ, ArrowDownCircle, ArrowUpAZ, ArrowUpCircle, Check, Package, Plus, RefreshCw, Search, ShieldAlert, SlidersHorizontal, Trash2 } from "lucide-react";
+import { ArrowDownAZ, ArrowDownCircle, ArrowUpAZ, ArrowUpCircle, Check, Package, RefreshCw, Search, ShieldAlert, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { Panel, Tag } from "@/components/erp/bits";
 import { TablePagination } from "@/components/erp/TablePagination";
-import { adjustSubhubInventoryFn, getSubhubInventoryFn, recordQualityIssuesFn } from "@/inventory";
-import type { BatchMovement, InventoryBatch, InventoryItem, QualityIssue, SubhubInventoryData } from "@/inventory.server";
+import { adjustSubhubInventoryBatchFn, adjustSubhubInventoryFn, getSubhubInventoryFn } from "@/inventory";
+import type { BatchMovement, InventoryBatch, InventoryItem, SubhubInventoryData } from "@/inventory.server";
 import { num } from "@/lib/erp-data";
 
 export type View = "inventory" | "raw-materials" | "final-products" | "history" | "adjustment" | "quality" | "batches";
@@ -105,62 +105,100 @@ function BatchRegister({ batches, loading }: { batches: InventoryBatch[]; loadin
   return <Panel title="Batch register" description="Source-reconciled receipt, molding, final-product, manual and legacy batches."><div className="filter-toolbar border-b border-border p-4"><label className="relative min-w-[220px] flex-1 text-xs font-medium text-muted-foreground">Search<label className="relative mt-1 block"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><input aria-label="Search batches" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Batch, item or source" className="h-9 w-full rounded-md border border-input pl-9 pr-3 text-sm" /></label></label><label className="text-xs font-medium text-muted-foreground">Category<select value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">All categories</option><option>Raw Material</option><option>Float</option></select></label><label className="text-xs font-medium text-muted-foreground">Source<select value={source} onChange={(event) => setSource(event.target.value)}><option value="all">All sources</option>{[...new Set(batches.map((batch) => batch.source))].map((value) => <option key={value}>{value}</option>)}</select></label><label className="text-xs font-medium text-muted-foreground">Status<select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option><option>Available</option><option>Depleted</option></select></label><label className="text-xs font-medium text-muted-foreground">Sort<select value={sortKey} onChange={(event) => setSortKey(event.target.value as typeof sortKey)}><option value="loggedAt">Logged date</option><option value="batchCode">Batch code</option><option value="availableQuantity">Available</option></select></label><button type="button" onClick={() => setDirection(direction === "asc" ? "desc" : "asc")} className="h-9 rounded-md border border-input bg-white px-3 text-sm">{direction === "asc" ? "Oldest / A–Z" : "Newest / Z–A"}</button></div>{loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading batches…</p> : <><div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3">Batch code</th><th className="px-5 py-3">Item / source</th><th className="px-5 py-3 text-right">Received</th><th className="px-5 py-3 text-right">Produced</th><th className="px-5 py-3 text-right">Consumed</th><th className="px-5 py-3 text-right">Defective</th><th className="px-5 py-3 text-right">Available</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Logged</th></tr></thead><tbody>{visible.map((batch) => <tr key={batch.id} className="border-b border-border/70"><td className="tabular px-5 py-3 text-xs font-medium"><Link to="/inventory/batches/$batchId" params={{ batchId: batch.id }} className="text-primary hover:underline">{batch.batchCode}</Link></td><td className="px-5 py-3"><p className="font-medium">{batch.itemName}</p><p className="text-xs text-muted-foreground">{batch.itemCode} · {batch.source}</p></td><td className="tabular px-5 py-3 text-right">{num(batch.receivedQuantity)}</td><td className="tabular px-5 py-3 text-right">{num(batch.producedQuantity)}</td><td className="tabular px-5 py-3 text-right">{num(batch.consumedQuantity)}</td><td className="tabular px-5 py-3 text-right">{num(batch.defectiveQuantity)}</td><td className="tabular px-5 py-3 text-right font-semibold">{num(batch.availableQuantity)}</td><td className="px-5 py-3"><Tag tone={batch.availableQuantity ? "good" : "warn"}>{batch.status}</Tag></td><td className="tabular whitespace-nowrap px-5 py-3 text-xs text-muted-foreground">{batch.loggedAt.slice(0, 16).replace("T", " ")}</td></tr>)}</tbody></table></div><TablePagination total={rows.length} page={page} pageSize={15} pageSizeOptions={[15]} onPageChange={setPage} onPageSizeChange={() => undefined} /></>}</Panel>;
 }
 
-type QualityDraft = { id: number; code: string; batchId?: string; issue: QualityIssue; quantity: string; notes: string };
-
 function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryData; loading: boolean; onSaved: () => Promise<void> }) {
-  const [nextId, setNextId] = useState(2);
-  const [rows, setRows] = useState<QualityDraft[]>([{ id: 1, code: "", issue: "Faulty", quantity: "", notes: "" }]);
+  const [changes, setChanges] = useState<Record<string, { quantity: string; reason: string }>>({});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const availableItems = data.items.filter((item) => item.quantity > 0);
-  const updateRow = (id: number, changes: Partial<QualityDraft>) => setRows((current) => current.map((row) => row.id === id ? { ...row, ...changes } : row));
-  const addRow = () => {
-    setRows((current) => [...current, { id: nextId, code: "", issue: "Faulty", quantity: "", notes: "" }]);
-    setNextId((current) => current + 1);
+  const updateChange = (code: string, field: "quantity" | "reason", value: string) => {
+    setChanges((current) => ({ ...current, [code]: { quantity: current[code]?.quantity ?? "", reason: current[code]?.reason ?? "", [field]: value } }));
+    setMessage("");
+    setError("");
   };
-  const removeRow = (id: number) => setRows((current) => current.length === 1 ? current : current.filter((row) => row.id !== id));
+  const clearChange = (code: string) => {
+    setChanges((current) => {
+      const next = { ...current };
+      delete next[code];
+      return next;
+    });
+  };
 
   async function save() {
     setError("");
     setMessage("");
-    const invalidRow = rows.find((row) => !row.code || !Number.isInteger(Number(row.quantity)) || Number(row.quantity) < 1);
-    if (invalidRow) {
-      setError("Select an item and enter a whole-number quantity for every row.");
+    const adjustments = data.items
+      .map((item) => ({ item, draft: changes[item.code], quantity: Number(changes[item.code]?.quantity) }))
+      .filter(({ draft, quantity }) => draft && draft.quantity.trim() !== "" && quantity !== 0);
+    if (!adjustments.length) {
+      setError("Enter a quantity change for at least one item. Use a positive number to add or a negative number to reduce.");
+      return;
+    }
+    const invalidReason = adjustments.find(({ draft }) => !draft?.reason.trim() || draft.reason.trim().length < 2);
+    if (invalidReason) {
+      setError("Enter a reason for every quantity change.");
+      return;
+    }
+    const invalidQuantity = adjustments.find(({ quantity }) => !Number.isInteger(quantity));
+    if (invalidQuantity) {
+      setError("Every quantity change must be a whole number. Use positive numbers to add and negative numbers to reduce.");
+      return;
+    }
+    const overdrawn = adjustments.find(({ item, quantity }) => quantity < 0 && Math.abs(quantity) > item.quantity);
+    if (overdrawn) {
+      setError(`${overdrawn.item.name} only has ${num(overdrawn.item.quantity)} ${overdrawn.item.unit} available.`);
       return;
     }
     setSaving(true);
-    const result = await recordQualityIssuesFn({ data: { issues: rows.map((row) => ({ code: row.code, batchId: row.batchId, issue: row.issue, quantity: Number(row.quantity), notes: row.notes })) } });
+    const result = await adjustSubhubInventoryBatchFn({
+      data: {
+        adjustments: adjustments.map(({ item, draft, quantity }) => ({
+          code: item.code,
+          action: quantity > 0 ? "add" as const : "remove" as const,
+          quantity: Math.abs(quantity),
+          reason: draft!.reason.trim(),
+          notes: "Quality management adjustment",
+        })),
+      },
+    });
     if (!result.ok) {
       setError(result.message);
     } else {
-      setMessage(`${rows.length} quality adjustment${rows.length === 1 ? "" : "s"} saved and inventory reduced.`);
-      setRows([{ id: nextId, code: "", issue: "Faulty", quantity: "", notes: "" }]);
-      setNextId((current) => current + 1);
+      setMessage(`${adjustments.length} quality adjustment${adjustments.length === 1 ? "" : "s"} saved.`);
+      setChanges({});
       await onSaved();
     }
     setSaving(false);
   }
 
   return <div className="space-y-6">
-    <Panel title="Record quality issues" description="Add multiple faulty, damaged, rejected, expired, or other non-conforming stock records, then save them together. Each quantity is deducted immediately and logged for Master Admin review.">
+    <Panel title="Quick quality adjustments" description="Review every raw material and final product in one list. Enter a positive number to add stock or a negative number to reduce it, then explain the change.">
       <div className="p-5">
-        <div className="space-y-3">{rows.map((row, index) => {
-          const selected = data.items.find((item) => item.code === row.code);
-          return <div key={row.id} className="rounded-md border border-border bg-muted/20 p-4">
-            <div className="mb-3 flex items-center justify-between gap-3"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quality record {index + 1}</p>{rows.length > 1 ? <button type="button" onClick={() => removeRow(row.id)} className="inline-flex items-center gap-1 text-xs text-destructive hover:underline"><Trash2 className="size-3.5" /> Remove</button> : null}</div>
-            <div className="grid gap-4 md:grid-cols-3">
-              <label className="text-sm font-medium">Inventory item<select value={row.code} onChange={(event) => { const code = event.target.value; const batchId = data.batches.filter((batch) => batch.itemCode === code && batch.availableQuantity > 0).sort((a, b) => a.loggedAt.localeCompare(b.loggedAt))[0]?.id; updateRow(row.id, batchId ? { code, batchId } : { code }); }} className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="">Select an item</option>{availableItems.map((item) => <option key={item.code} value={item.code}>{item.name} · {item.code} · {num(item.quantity)} available</option>)}</select></label>
-              <label className="text-sm font-medium">Batch <span className="font-normal text-muted-foreground">(FIFO preselected)</span><select value={row.batchId ?? ""} disabled={!row.code} onChange={(event) => updateRow(row.id, event.target.value ? { batchId: event.target.value } : { batchId: "" })} className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="">Automatic FIFO</option>{data.batches.filter((batch) => batch.itemCode === row.code && batch.availableQuantity > 0).sort((a, b) => a.loggedAt.localeCompare(b.loggedAt)).map((batch) => <option key={batch.id} value={batch.id}>{batch.batchCode} · {num(batch.availableQuantity)} available</option>)}</select></label>
-              <label className="text-sm font-medium">Quality issue<select value={row.issue} onChange={(event) => updateRow(row.id, { issue: event.target.value as QualityIssue })} className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="Faulty">Faulty</option><option value="Damaged">Damaged</option><option value="Rejected">Rejected</option><option value="Expired">Expired</option><option value="Other">Other</option></select></label>
-              <label className="text-sm font-medium">Quantity<input type="number" min="1" step="1" value={row.quantity} onChange={(event) => updateRow(row.id, { quantity: event.target.value })} className="tabular mt-1.5 h-10 w-full rounded-md border border-input px-3 text-sm" />{selected ? <span className="mt-1 block text-xs text-muted-foreground">Available: {num(selected.quantity)} {selected.unit}</span> : null}</label>
-              <label className="text-sm font-medium md:col-span-3">Notes <span className="font-normal text-muted-foreground">(optional)</span><textarea value={row.notes} onChange={(event) => updateRow(row.id, { notes: event.target.value })} rows={2} placeholder="Describe the defect, damage, inspection reference, or disposition…" className="mt-1.5 w-full resize-none rounded-md border border-input px-3 py-2 text-sm outline-none focus:border-primary" /></label>
-            </div>
-          </div>;
-        })}</div>
-        <button type="button" onClick={addRow} className="mt-4 inline-flex items-center gap-2 rounded-md border border-dashed border-primary/50 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5"><Plus className="size-4" /> Add another quality record</button>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/15 bg-primary/5 px-4 py-3 text-sm">
+          <p><span className="font-medium">Fast entry:</span> use <span className="tabular font-semibold text-success">+</span> to add and <span className="tabular font-semibold text-destructive">−</span> to reduce.</p>
+          <p className="text-xs text-muted-foreground">{data.items.length} inventory item{data.items.length === 1 ? "" : "s"} listed</p>
+        </div>
+        {loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading inventory items…</p> : data.items.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">No raw materials or final products are available.</p> : <div className="overflow-x-auto rounded-md border border-border">
+          <table className="w-full min-w-[860px] text-sm">
+            <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr><th className="px-4 py-3 font-medium">Item</th><th className="px-4 py-3 font-medium">Type</th><th className="px-4 py-3 text-right font-medium">Current stock</th><th className="w-44 px-4 py-3 font-medium">Change <span className="font-normal normal-case tracking-normal">(＋ add / − reduce)</span></th><th className="min-w-[280px] px-4 py-3 font-medium">Reason</th><th className="w-24 px-4 py-3 text-right font-medium">Status</th></tr>
+            </thead>
+            <tbody>{data.items.map((item) => {
+              const draft = changes[item.code] ?? { quantity: "", reason: "" };
+              const quantity = Number(draft.quantity);
+              const hasChange = draft.quantity.trim() !== "" && Number.isInteger(quantity) && quantity !== 0;
+              return <tr key={item.code} className={`border-t border-border/70 ${hasChange ? "bg-primary/[0.035]" : ""}`}>
+                <td className="whitespace-nowrap px-4 py-2.5"><p className="font-medium">{item.name}</p><p className="tabular text-xs text-muted-foreground">{item.code}</p></td>
+                <td className="whitespace-nowrap px-4 py-2.5"><Tag tone={item.category === "Float" ? "info" : "neutral"}>{item.category === "Float" ? "Final product" : "Raw material"}</Tag></td>
+                <td className="tabular whitespace-nowrap px-4 py-2.5 text-right font-semibold">{num(item.quantity)} <span className="text-xs font-normal text-muted-foreground">{item.unit}</span></td>
+                <td className="px-4 py-2.5"><input aria-label={`Quantity change for ${item.name}`} type="number" step="1" value={draft.quantity} onChange={(event) => updateChange(item.code, "quantity", event.target.value)} placeholder="0" className={`tabular h-9 w-full rounded-md border px-3 text-sm outline-none focus:border-primary ${quantity < 0 ? "border-destructive/40" : quantity > 0 ? "border-success/40" : "border-input"}`} /></td>
+                <td className="px-4 py-2.5"><input aria-label={`Reason for ${item.name}`} value={draft.reason} onChange={(event) => updateChange(item.code, "reason", event.target.value)} placeholder={hasChange ? "Why is stock changing?" : "Enter only when changing"} className="h-9 w-full rounded-md border border-input px-3 text-sm outline-none focus:border-primary" /></td>
+                <td className="whitespace-nowrap px-4 py-2.5 text-right">{hasChange ? <button type="button" onClick={() => clearChange(item.code)} className="text-xs font-medium text-primary hover:underline">Clear</button> : <span className="text-xs text-muted-foreground">No change</span>}</td>
+              </tr>;
+            })}</tbody>
+          </table>
+        </div>}
         {error ? <p role="alert" className="mt-4 rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
-        <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4">{message ? <span className="inline-flex items-center gap-1.5 text-sm text-success"><Check className="size-4" /> {message}</span> : null}<button type="button" disabled={saving} onClick={() => void save()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><ShieldAlert className="size-4" /> {saving ? "Saving…" : "Save quality adjustments"}</button></div>
+        <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4">{message ? <span className="inline-flex items-center gap-1.5 text-sm text-success"><Check className="size-4" /> {message}</span> : null}<button type="button" disabled={saving || loading} onClick={() => void save()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><ShieldAlert className="size-4" /> {saving ? "Saving…" : "Save quality adjustments"}</button></div>
       </div>
     </Panel>
     <Panel title="Quality management history" description="Every quality deduction recorded in this SubHub workspace.">
