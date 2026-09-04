@@ -461,59 +461,84 @@ export async function adjustSubhubInventory(input: {
   return { ok: true, data: await readSubhubInventory(user, workspaceDb) };
 }
 
-export async function recordQualityIssue(input: {
+export type RecordQualityIssueInput = {
   code: string;
   issue: QualityIssue;
   quantity: number;
   notes: string;
-}): Promise<{ ok: true; data: SubhubInventoryData } | { ok: false; message: string }> {
-  const user = await getCurrentUserRecord("subhub");
-  if (user?.panel !== "subhub" || user.role !== "subhub") return { ok: false, message: "Only SubHub Managers can record quality issues." };
-  if (!Number.isInteger(input.quantity) || input.quantity < 1) return { ok: false, message: "Quantity must be a whole number greater than zero." };
+};
 
-  const workspaceDb = await getMongoDb(user.databaseName);
+async function recordQualityIssueForWorkspace(user: UserDocument, workspaceDb: Db, input: RecordQualityIssueInput) {
   const existing = await workspaceDb.collection<InventoryItemDocument>("inventory_items").findOne({ _id: input.code });
   if (!existing || existing.quantity < input.quantity) {
-    return { ok: false, message: `Only ${existing?.quantity?.toLocaleString("en-IN") ?? "0"} units are available for quality review.` };
+    throw new Error(`Only ${existing?.quantity?.toLocaleString("en-IN") ?? "0"} units are available for quality review of ${input.code}.`);
   }
   const product = existing.name || masterPart(input.code)?.name || input.code;
   const beforeQuantity = existing.quantity;
   const afterQuantity = beforeQuantity - input.quantity;
   const now = new Date();
+  await applyInventoryDelta({
+    db: workspaceDb,
+    code: input.code,
+    product,
+    category: existing.category || masterPart(input.code)?.source || "Purchased",
+    price: existing.price ?? masterPart(input.code)?.rate ?? 0,
+    change: -input.quantity,
+    reason: `Quality management · ${input.issue}`,
+    notes: clean(input.notes),
+    updatedBy: user._id,
+    sourceType: "quality",
+    movementType: "Quality rejected",
+  });
+  await workspaceDb.collection<QualityLogDocument>("quality_logs").insertOne({
+    _id: randomUUID().replace(/-/g, ""),
+    subhubUserId: user._id,
+    subhubName: user.subhubName ?? user.name,
+    code: input.code,
+    product,
+    category: existing.category || masterPart(input.code)?.source || "Purchased",
+    issue: input.issue,
+    quantity: input.quantity,
+    beforeQuantity,
+    afterQuantity,
+    notes: clean(input.notes),
+    recordedBy: user._id,
+    recordedByName: user.name,
+    createdAt: now,
+  });
+}
+
+export async function recordQualityIssues(inputs: RecordQualityIssueInput[]): Promise<
+  { ok: true; data: SubhubInventoryData } | { ok: false; message: string }
+> {
+  const user = await getCurrentUserRecord("subhub");
+  if (user?.panel !== "subhub" || user.role !== "subhub") return { ok: false, message: "Only SubHub Managers can record quality issues." };
+  if (!inputs.length) return { ok: false, message: "Add at least one quality issue before saving." };
+  if (inputs.some((input) => !Number.isInteger(input.quantity) || input.quantity < 1)) return { ok: false, message: "Every quality quantity must be a whole number greater than zero." };
+
+  const workspaceDb = await getMongoDb(user.databaseName);
   try {
-    await applyInventoryDelta({
-      db: workspaceDb,
-      code: input.code,
-      product,
-      category: existing.category || masterPart(input.code)?.source || "Purchased",
-      price: existing.price ?? masterPart(input.code)?.rate ?? 0,
-      change: -input.quantity,
-      reason: `Quality management · ${input.issue}`,
-      notes: clean(input.notes),
-      updatedBy: user._id,
-      sourceType: "quality",
-      movementType: "Quality rejected",
-    });
-    await workspaceDb.collection<QualityLogDocument>("quality_logs").insertOne({
-      _id: randomUUID().replace(/-/g, ""),
-      subhubUserId: user._id,
-      subhubName: user.subhubName ?? user.name,
-      code: input.code,
-      product,
-      category: existing.category || masterPart(input.code)?.source || "Purchased",
-      issue: input.issue,
-      quantity: input.quantity,
-      beforeQuantity,
-      afterQuantity,
-      notes: clean(input.notes),
-      recordedBy: user._id,
-      recordedByName: user.name,
-      createdAt: now,
-    });
+    const requestedByCode = new Map<string, number>();
+    inputs.forEach((input) => requestedByCode.set(input.code, (requestedByCode.get(input.code) ?? 0) + input.quantity));
+    const existingItems = await workspaceDb.collection<InventoryItemDocument>("inventory_items").find({ _id: { $in: [...requestedByCode.keys()] } }).toArray();
+    const existingByCode = new Map(existingItems.map((item) => [item._id, item]));
+    for (const [code, quantity] of requestedByCode) {
+      const existing = existingByCode.get(code);
+      if (!existing || existing.quantity < quantity) {
+        return { ok: false, message: `Only ${existing?.quantity?.toLocaleString("en-IN") ?? "0"} units are available for quality review of ${code}.` };
+      }
+    }
+    for (const input of inputs) {
+      await recordQualityIssueForWorkspace(user, workspaceDb, input);
+    }
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : "Quality issue could not be recorded." };
   }
   return { ok: true, data: await readSubhubInventory(user, workspaceDb) };
+}
+
+export async function recordQualityIssue(input: RecordQualityIssueInput) {
+  return recordQualityIssues([input]);
 }
 
 export async function getMasterQualityManagement(): Promise<
