@@ -181,6 +181,7 @@ function sectionForPath(pathname: string): string | null {
   if (pathname.startsWith("/production")) return "production";
   if (pathname.startsWith("/hr")) return "hr";
   if (pathname.startsWith("/inventory")) return "inventory";
+  if (pathname.startsWith("/quality-management")) return "quality-management";
   if (pathname.startsWith("/subhub/bom")) return "bom";
   if (pathname.startsWith("/subhub/raw-materials")) return "raw-materials";
   if (pathname.startsWith("/subhub/parent")) return "bom";

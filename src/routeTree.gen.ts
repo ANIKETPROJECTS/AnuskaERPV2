@@ -19,6 +19,7 @@ import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as ProcurementRouteImport } from './routes/procurement'
 import { Route as ProductionRouteImport } from './routes/production'
 import { Route as ProductionTargetsRouteImport } from './routes/production-targets'
+import { Route as QualityManagementRouteImport } from './routes/quality-management'
 import { Route as RawMaterialsRouteImport } from './routes/raw-materials'
 import { Route as ShortagesRouteImport } from './routes/shortages'
 import { Route as SubhubRouteImport } from './routes/subhub'
@@ -27,6 +28,7 @@ import { Route as BomCodeRouteImport } from './routes/bom.$code'
 import { Route as HubCodeRouteImport } from './routes/hub.$code'
 import { Route as InventoryAdjustmentRouteImport } from './routes/inventory.adjustment'
 import { Route as InventoryHistoryRouteImport } from './routes/inventory.history'
+import { Route as InventoryQualityRouteImport } from './routes/inventory.quality'
 import { Route as PartCodeRouteImport } from './routes/part.$code'
 import { Route as PoIdRouteImport } from './routes/po.$id'
 import { Route as SkuCodeRouteImport } from './routes/sku.$code'
@@ -93,6 +95,11 @@ const ProductionTargetsRoute = ProductionTargetsRouteImport.update({
   path: '/production-targets',
   getParentRoute: () => rootRouteImport,
 } as any)
+const QualityManagementRoute = QualityManagementRouteImport.update({
+  id: '/quality-management',
+  path: '/quality-management',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RawMaterialsRoute = RawMaterialsRouteImport.update({
   id: '/raw-materials',
   path: '/raw-materials',
@@ -131,6 +138,11 @@ const InventoryAdjustmentRoute = InventoryAdjustmentRouteImport.update({
 const InventoryHistoryRoute = InventoryHistoryRouteImport.update({
   id: '/history',
   path: '/history',
+  getParentRoute: () => InventoryRoute,
+} as any)
+const InventoryQualityRoute = InventoryQualityRouteImport.update({
+  id: '/quality',
+  path: '/quality',
   getParentRoute: () => InventoryRoute,
 } as any)
 const PartCodeRoute = PartCodeRouteImport.update({
@@ -222,6 +234,7 @@ export interface FileRoutesByFullPath {
   '/procurement': typeof ProcurementRoute
   '/production': typeof ProductionRoute
   '/production-targets': typeof ProductionTargetsRoute
+  '/quality-management': typeof QualityManagementRoute
   '/raw-materials': typeof RawMaterialsRoute
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
@@ -230,6 +243,7 @@ export interface FileRoutesByFullPath {
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
   '/inventory/history': typeof InventoryHistoryRoute
+  '/inventory/quality': typeof InventoryQualityRoute
   '/part/$code': typeof PartCodeRoute
   '/po/$id': typeof PoIdRoute
   '/sku/$code': typeof SkuCodeRoute
@@ -257,6 +271,7 @@ export interface FileRoutesByTo {
   '/procurement': typeof ProcurementRoute
   '/production': typeof ProductionRoute
   '/production-targets': typeof ProductionTargetsRoute
+  '/quality-management': typeof QualityManagementRoute
   '/raw-materials': typeof RawMaterialsRoute
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
@@ -265,6 +280,7 @@ export interface FileRoutesByTo {
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
   '/inventory/history': typeof InventoryHistoryRoute
+  '/inventory/quality': typeof InventoryQualityRoute
   '/part/$code': typeof PartCodeRoute
   '/po/$id': typeof PoIdRoute
   '/sku/$code': typeof SkuCodeRoute
@@ -293,6 +309,7 @@ export interface FileRoutesById {
   '/procurement': typeof ProcurementRoute
   '/production': typeof ProductionRoute
   '/production-targets': typeof ProductionTargetsRoute
+  '/quality-management': typeof QualityManagementRoute
   '/raw-materials': typeof RawMaterialsRoute
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
@@ -301,6 +318,7 @@ export interface FileRoutesById {
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
   '/inventory/history': typeof InventoryHistoryRoute
+  '/inventory/quality': typeof InventoryQualityRoute
   '/part/$code': typeof PartCodeRoute
   '/po/$id': typeof PoIdRoute
   '/sku/$code': typeof SkuCodeRoute
@@ -330,6 +348,7 @@ export interface FileRouteTypes {
     | '/procurement'
     | '/production'
     | '/production-targets'
+    | '/quality-management'
     | '/raw-materials'
     | '/shortages'
     | '/subhub'
@@ -338,6 +357,7 @@ export interface FileRouteTypes {
     | '/hub/$code'
     | '/inventory/adjustment'
     | '/inventory/history'
+    | '/inventory/quality'
     | '/part/$code'
     | '/po/$id'
     | '/sku/$code'
@@ -365,6 +385,7 @@ export interface FileRouteTypes {
     | '/procurement'
     | '/production'
     | '/production-targets'
+    | '/quality-management'
     | '/raw-materials'
     | '/shortages'
     | '/subhub'
@@ -373,6 +394,7 @@ export interface FileRouteTypes {
     | '/hub/$code'
     | '/inventory/adjustment'
     | '/inventory/history'
+    | '/inventory/quality'
     | '/part/$code'
     | '/po/$id'
     | '/sku/$code'
@@ -400,6 +422,7 @@ export interface FileRouteTypes {
     | '/procurement'
     | '/production'
     | '/production-targets'
+    | '/quality-management'
     | '/raw-materials'
     | '/shortages'
     | '/subhub'
@@ -408,6 +431,7 @@ export interface FileRouteTypes {
     | '/hub/$code'
     | '/inventory/adjustment'
     | '/inventory/history'
+    | '/inventory/quality'
     | '/part/$code'
     | '/po/$id'
     | '/sku/$code'
@@ -436,6 +460,7 @@ export interface RootRouteChildren {
   ProcurementRoute: typeof ProcurementRoute
   ProductionRoute: typeof ProductionRoute
   ProductionTargetsRoute: typeof ProductionTargetsRoute
+  QualityManagementRoute: typeof QualityManagementRoute
   RawMaterialsRoute: typeof RawMaterialsRoute
   ShortagesRoute: typeof ShortagesRoute
   SubhubRoute: typeof SubhubRouteWithChildren
@@ -519,6 +544,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductionTargetsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/quality-management': {
+      id: '/quality-management'
+      path: '/quality-management'
+      fullPath: '/quality-management'
+      preLoaderRoute: typeof QualityManagementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/raw-materials': {
       id: '/raw-materials'
       path: '/raw-materials'
@@ -573,6 +605,13 @@ declare module '@tanstack/react-router' {
       path: '/history'
       fullPath: '/inventory/history'
       preLoaderRoute: typeof InventoryHistoryRouteImport
+      parentRoute: typeof InventoryRoute
+    }
+    '/inventory/quality': {
+      id: '/inventory/quality'
+      path: '/quality'
+      fullPath: '/inventory/quality'
+      preLoaderRoute: typeof InventoryQualityRouteImport
       parentRoute: typeof InventoryRoute
     }
     '/part/$code': {
@@ -706,11 +745,13 @@ const HrRouteWithChildren = HrRoute._addFileChildren(HrRouteChildren)
 interface InventoryRouteChildren {
   InventoryAdjustmentRoute: typeof InventoryAdjustmentRoute
   InventoryHistoryRoute: typeof InventoryHistoryRoute
+  InventoryQualityRoute: typeof InventoryQualityRoute
 }
 
 const InventoryRouteChildren: InventoryRouteChildren = {
   InventoryAdjustmentRoute: InventoryAdjustmentRoute,
   InventoryHistoryRoute: InventoryHistoryRoute,
+  InventoryQualityRoute: InventoryQualityRoute,
 }
 
 const InventoryRouteWithChildren = InventoryRoute._addFileChildren(
@@ -787,6 +828,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProcurementRoute: ProcurementRoute,
   ProductionRoute: ProductionRoute,
   ProductionTargetsRoute: ProductionTargetsRoute,
+  QualityManagementRoute: QualityManagementRoute,
   RawMaterialsRoute: RawMaterialsRoute,
   ShortagesRoute: ShortagesRoute,
   SubhubRoute: SubhubRouteWithChildren,

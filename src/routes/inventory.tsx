@@ -1,24 +1,24 @@
 import { createFileRoute, Link, useRouterState } from "@tanstack/react-router";
-import { ArrowDownCircle, ArrowUpCircle, Check, Package, RefreshCw, Search, SlidersHorizontal } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Check, Package, RefreshCw, Search, ShieldAlert, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
-import { adjustSubhubInventoryFn, getSubhubInventoryFn } from "@/inventory";
-import type { InventoryItem, InventoryMovement, SubhubInventoryData } from "@/inventory.server";
+import { adjustSubhubInventoryFn, getSubhubInventoryFn, recordQualityIssueFn } from "@/inventory";
+import type { InventoryItem, InventoryMovement, QualityIssue, SubhubInventoryData } from "@/inventory.server";
 import { num } from "@/lib/erp-data";
 
-export type View = "inventory" | "history" | "adjustment";
+export type View = "inventory" | "history" | "adjustment" | "quality";
 
 export const Route = createFileRoute("/inventory")({
   head: () => ({ meta: [{ title: "Inventory Management — Float ERP" }] }),
   component: () => <InventoryManagement initialView="inventory" />,
 });
 
-const emptyData: SubhubInventoryData = { items: [], movements: [] };
+const emptyData: SubhubInventoryData = { items: [], movements: [], qualityLogs: [], qualitySummary: { records: 0, rejectedUnits: 0 } };
 
 export function InventoryManagement({ initialView }: { initialView: View }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const view: View = pathname.endsWith("/history") ? "history" : pathname.endsWith("/adjustment") ? "adjustment" : initialView;
+  const view: View = pathname.endsWith("/history") ? "history" : pathname.endsWith("/adjustment") ? "adjustment" : pathname.endsWith("/quality") ? "quality" : initialView;
   const [data, setData] = useState(emptyData);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -47,7 +47,7 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
   const title = view === "inventory" ? "Inventory" : view === "history" ? "Inventory History" : "Stock Adjustment";
 
   return (
-    <SubHubShell actions={view === "inventory" ? <Link to="/inventory/adjustment" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><SlidersHorizontal className="size-4" /> Adjust stock</Link> : null}>
+    <SubHubShell actions={view === "inventory" ? <div className="flex flex-wrap gap-2"><Link to="/inventory/quality" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><ShieldAlert className="size-4" /> Quality management</Link><Link to="/inventory/adjustment" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><SlidersHorizontal className="size-4" /> Adjust stock</Link></div> : view === "quality" ? <Link to="/inventory" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">← Inventory</Link> : null}>
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-white px-6 py-4">
         <div><p className="mb-1 text-xs font-semibold text-muted-foreground">SubHub / Inventory Management</p><h1 className="text-xl font-semibold">{title}</h1><p className="text-sm text-muted-foreground">Workspace-scoped raw material inventory for this SubHub.</p></div>
         <button type="button" onClick={() => void load()} className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><RefreshCw className="size-4" /> Refresh</button>
@@ -56,11 +56,12 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
         {view === "inventory" ? (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Kpi label="Stock units" value={num(totalUnits)} hint="in this workspace" /><Kpi label="Inventory value" value={`₹${stockValue.toLocaleString("en-IN")}`} hint="based on raw-part rates" /><Kpi label="Raw parts tracked" value={String(data.items.length)} hint="Float master parts" /><Kpi label="No stock recorded" value={String(lowStock)} tone={lowStock ? "warn" : "good"} hint="requires an adjustment" /></div>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Kpi label="Stock units" value={num(totalUnits)} hint="received and molded in this workspace" /><Kpi label="Inventory value" value={`₹${stockValue.toLocaleString("en-IN")}`} hint="based on saved item rates" /><Kpi label="Items tracked" value={String(data.items.length)} hint="actual workspace records" /><Kpi label="Quality rejected" value={num(data.qualitySummary.rejectedUnits)} tone={data.qualitySummary.rejectedUnits ? "warn" : "good"} hint={`${data.qualitySummary.records} quality records`} /></div>
             <InventoryTable items={filteredItems} query={query} setQuery={setQuery} loading={loading} />
           </>
         ) : null}
         {view === "history" ? <HistoryTable movements={data.movements} loading={loading} /> : null}
+        {view === "quality" ? <QualityManagement data={data} loading={loading} onSaved={load} /> : null}
         {view === "adjustment" ? <Adjustment onSaved={load} items={data.items} /> : null}
       </section>
     </SubHubShell>
@@ -73,6 +74,65 @@ export function InventoryHistoryPage() {
 
 export function InventoryAdjustmentPage() {
   return <InventoryManagement initialView="adjustment" />;
+}
+
+export function InventoryQualityPage() {
+  return <InventoryManagement initialView="quality" />;
+}
+
+function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryData; loading: boolean; onSaved: () => Promise<void> }) {
+  const [code, setCode] = useState("");
+  const [issue, setIssue] = useState<QualityIssue>("Faulty");
+  const [quantity, setQuantity] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const availableItems = data.items.filter((item) => item.quantity > 0);
+  const selected = data.items.find((item) => item.code === code);
+
+  async function save() {
+    setError("");
+    setMessage("");
+    const parsedQuantity = Number(quantity);
+    if (!code || !Number.isInteger(parsedQuantity) || parsedQuantity < 1) {
+      setError("Select an item and enter a whole-number quantity.");
+      return;
+    }
+    if (!selected || parsedQuantity > selected.quantity) {
+      setError(`Only ${num(selected?.quantity ?? 0)} units are currently available for this item.`);
+      return;
+    }
+    setSaving(true);
+    const result = await recordQualityIssueFn({ data: { code, issue, quantity: parsedQuantity, notes } });
+    if (!result.ok) {
+      setError(result.message);
+    } else {
+      setMessage("Quality adjustment saved and inventory reduced.");
+      setQuantity("");
+      setNotes("");
+      await onSaved();
+    }
+    setSaving(false);
+  }
+
+  return <div className="space-y-6">
+    <Panel title="Record quality issue" description="Mark faulty, damaged, rejected, expired, or other non-conforming stock. The quantity is deducted immediately and logged for Master Admin review.">
+      <div className="p-5">
+        <div className="grid gap-4 md:grid-cols-3">
+          <label className="text-sm font-medium">Inventory item<select value={code} onChange={(event) => setCode(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="">Select an item</option>{availableItems.map((item) => <option key={item.code} value={item.code}>{item.name} · {item.code} · {num(item.quantity)} available</option>)}</select></label>
+          <label className="text-sm font-medium">Quality issue<select value={issue} onChange={(event) => setIssue(event.target.value as QualityIssue)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"><option value="Faulty">Faulty</option><option value="Damaged">Damaged</option><option value="Rejected">Rejected</option><option value="Expired">Expired</option><option value="Other">Other</option></select></label>
+          <label className="text-sm font-medium">Quantity<input type="number" min="1" step="1" value={quantity} onChange={(event) => setQuantity(event.target.value)} className="tabular mt-1.5 h-10 w-full rounded-md border border-input px-3 text-sm" />{selected ? <span className="mt-1 block text-xs text-muted-foreground">Available: {num(selected.quantity)} {selected.unit}</span> : null}</label>
+          <label className="text-sm font-medium md:col-span-2">Notes <span className="font-normal text-muted-foreground">(optional)</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} placeholder="Describe the defect, damage, inspection reference, or disposition…" className="mt-1.5 w-full resize-none rounded-md border border-input px-3 py-2 text-sm outline-none focus:border-primary" /></label>
+        </div>
+        {error ? <p role="alert" className="mt-4 rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+        <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4">{message ? <span className="inline-flex items-center gap-1.5 text-sm text-success"><Check className="size-4" /> {message}</span> : null}<button type="button" disabled={saving} onClick={() => void save()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><ShieldAlert className="size-4" /> {saving ? "Saving…" : "Save quality adjustment"}</button></div>
+      </div>
+    </Panel>
+    <Panel title="Quality management history" description="Every quality deduction recorded in this SubHub workspace.">
+      {loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading quality history…</p> : data.qualityLogs.length === 0 ? <div className="p-10 text-center"><ShieldAlert className="mx-auto size-8 text-muted-foreground" /><p className="mt-3 font-medium">No quality issues recorded</p><p className="mt-1 text-sm text-muted-foreground">Saved quality adjustments will appear here.</p></div> : <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">Item</th><th className="px-5 py-3 font-medium">Issue</th><th className="px-5 py-3 text-right font-medium">Rejected</th><th className="px-5 py-3 text-right font-medium">Balance</th><th className="px-5 py-3 font-medium">Notes</th></tr></thead><tbody>{data.qualityLogs.map((log) => <tr key={log.id} className="border-b border-border/70 last:border-0"><td className="tabular whitespace-nowrap px-5 py-3 text-xs text-muted-foreground">{log.date.slice(0, 16).replace("T", " ")}</td><td className="px-5 py-3"><p className="font-medium">{log.product}</p><p className="tabular text-xs text-muted-foreground">{log.code} · {log.category}</p></td><td className="px-5 py-3"><Tag tone="bad">{log.issue}</Tag></td><td className="tabular px-5 py-3 text-right font-semibold text-destructive">-{num(log.quantity)}</td><td className="tabular px-5 py-3 text-right">{num(log.afterQuantity)}</td><td className="max-w-xs truncate px-5 py-3 text-muted-foreground">{log.notes || "—"}</td></tr>)}</tbody></table></div>}
+    </Panel>
+  </div>;
 }
 
 function InventoryTable({ items, query, setQuery, loading }: { items: InventoryItem[]; query: string; setQuery: (value: string) => void; loading: boolean }) {

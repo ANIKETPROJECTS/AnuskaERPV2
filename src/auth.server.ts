@@ -22,6 +22,7 @@ export const ACCESS_SECTIONS = [
   "production",
   "user-management",
   "inventory",
+  "quality-management",
   "hub-manager",
   "hub-reports",
   "hr",

@@ -12,6 +12,7 @@ import {
   Database,
   UserCog,
   UserRoundCog,
+  ShieldAlert,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -31,6 +32,7 @@ const nav = [
   { to: "/production", label: "Production & Workforce", icon: Users, permission: "production" },
   { to: "/admin/users", label: "User Management", icon: UserCog, permission: "user-management" },
   { to: "/hr", label: "HR & Attendance", icon: UserRoundCog, permission: "hr" },
+  { to: "/quality-management", label: "Quality Management", icon: ShieldAlert, permission: "quality-management" },
 ] as const;
 
 export function Shell({
