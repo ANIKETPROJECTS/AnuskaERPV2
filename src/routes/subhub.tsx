@@ -40,7 +40,7 @@ function SubHubOverview() {
       to: "/inventory",
       icon: PackageOpen,
       label: "Inventory Management",
-      description: "Track current stock, batches, adjustments, and inventory value.",
+      description: "Manage raw materials and final product inventory separately.",
        detail: "Workspace-scoped stock records",
     },
     {
