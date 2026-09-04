@@ -1,25 +1,25 @@
-import { createFileRoute, Link, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate, useRouterState } from "@tanstack/react-router";
 import { ArrowDownAZ, ArrowDownCircle, ArrowUpAZ, ArrowUpCircle, Check, Package, Plus, RefreshCw, Search, ShieldAlert, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
-import { Kpi, Panel, Tag } from "@/components/erp/bits";
+import { Panel, Tag } from "@/components/erp/bits";
 import { TablePagination } from "@/components/erp/TablePagination";
 import { adjustSubhubInventoryFn, getSubhubInventoryFn, recordQualityIssuesFn } from "@/inventory";
 import type { InventoryItem, InventoryMovement, QualityIssue, SubhubInventoryData } from "@/inventory.server";
 import { num } from "@/lib/erp-data";
 
-export type View = "inventory" | "history" | "adjustment" | "quality";
+export type View = "inventory" | "raw-materials" | "final-products" | "history" | "adjustment" | "quality";
 
 export const Route = createFileRoute("/inventory")({
   head: () => ({ meta: [{ title: "Inventory Management — Float ERP" }] }),
-  component: () => <InventoryManagement initialView="inventory" />,
+  component: () => <Navigate to="/inventory/raw-materials" replace />,
 });
 
 const emptyData: SubhubInventoryData = { items: [], movements: [], qualityLogs: [], qualitySummary: { records: 0, rejectedUnits: 0 } };
 
 export function InventoryManagement({ initialView }: { initialView: View }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const view: View = pathname.endsWith("/history") ? "history" : pathname.endsWith("/adjustment") ? "adjustment" : pathname.endsWith("/quality") ? "quality" : initialView;
+  const view: View = pathname.endsWith("/raw-materials") ? "raw-materials" : pathname.endsWith("/final-products") ? "final-products" : pathname.endsWith("/history") ? "history" : pathname.endsWith("/adjustment") ? "adjustment" : pathname.endsWith("/quality") ? "quality" : initialView;
   const [data, setData] = useState(emptyData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -40,25 +40,19 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
     void load();
   }, []);
 
-  const totalUnits = data.items.reduce((sum, item) => sum + item.quantity, 0);
-  const floatItems = data.items.filter((item) => item.category === "Float").length;
-  const rawMaterialItems = data.items.filter((item) => item.category === "Raw Material").length;
-  const title = view === "inventory" ? "Inventory" : view === "history" ? "Inventory History" : view === "quality" ? "Quality Management" : "Stock Adjustment";
+  const title = view === "raw-materials" ? "Raw Materials Inventory" : view === "final-products" ? "Final Product Inventory" : view === "history" ? "Inventory History" : view === "quality" ? "Quality Management" : "Stock Adjustment";
+  const isInventoryPage = view === "raw-materials" || view === "final-products";
 
   return (
-    <SubHubShell actions={view === "inventory" ? <div className="flex flex-wrap gap-2"><Link to="/inventory/quality" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><ShieldAlert className="size-4" /> Quality management</Link><Link to="/inventory/adjustment" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><SlidersHorizontal className="size-4" /> Adjust stock</Link></div> : view === "quality" ? <Link to="/inventory" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">← Inventory</Link> : null}>
+    <SubHubShell actions={isInventoryPage ? <div className="flex flex-wrap gap-2"><Link to="/inventory/raw-materials" className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${view === "raw-materials" ? "border-primary bg-primary/5 text-primary" : "border-input bg-white"}`}>Raw materials</Link><Link to="/inventory/final-products" className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${view === "final-products" ? "border-primary bg-primary/5 text-primary" : "border-input bg-white"}`}>Final products</Link><Link to="/inventory/quality" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><ShieldAlert className="size-4" /> Quality management</Link><Link to="/inventory/adjustment" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><SlidersHorizontal className="size-4" /> Adjust stock</Link></div> : view === "quality" ? <Link to="/inventory/raw-materials" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">← Inventory</Link> : null}>
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-white px-6 py-4">
-        <div><p className="mb-1 text-xs font-semibold text-muted-foreground">SubHub / Inventory Management</p><h1 className="text-xl font-semibold">{title}</h1><p className="text-sm text-muted-foreground">Workspace-scoped raw material inventory for this SubHub.</p></div>
+        <div><p className="mb-1 text-xs font-semibold text-muted-foreground">SubHub / Inventory Management</p><h1 className="text-xl font-semibold">{title}</h1><p className="text-sm text-muted-foreground">Workspace-scoped inventory for this SubHub.</p></div>
         <button type="button" onClick={() => void load()} className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><RefreshCw className="size-4" /> Refresh</button>
       </header>
       <section className="space-y-6 p-6">
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
-        {view === "inventory" ? (
-          <>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Kpi label="Stock units" value={num(totalUnits)} hint="floats and raw materials" /><Kpi label="Float variants" value={String(floatItems)} hint="BOM variants in stock" /><Kpi label="Raw materials" value={String(rawMaterialItems)} hint="required BOM components" /><Kpi label="Quality rejected" value={num(data.qualitySummary.rejectedUnits)} tone={data.qualitySummary.rejectedUnits ? "warn" : "good"} hint={`${data.qualitySummary.records} quality records`} /></div>
-            <InventorySections items={data.items} loading={loading} />
-          </>
-        ) : null}
+        {view === "raw-materials" ? <InventoryTable inventoryType="Raw Material" items={data.items.filter((item) => item.category === "Raw Material")} loading={loading} /> : null}
+        {view === "final-products" ? <InventoryTable inventoryType="Float" items={data.items.filter((item) => item.category === "Float")} loading={loading} /> : null}
         {view === "history" ? <HistoryTable movements={data.movements} loading={loading} /> : null}
         {view === "quality" ? <QualityManagement data={data} loading={loading} onSaved={load} /> : null}
         {view === "adjustment" ? <Adjustment onSaved={load} items={data.items} /> : null}
@@ -69,6 +63,14 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
 
 export function InventoryHistoryPage() {
   return <InventoryManagement initialView="history" />;
+}
+
+export function InventoryRawMaterialsPage() {
+  return <InventoryManagement initialView="raw-materials" />;
+}
+
+export function InventoryFinalProductsPage() {
+  return <InventoryManagement initialView="final-products" />;
 }
 
 export function InventoryAdjustmentPage() {
@@ -139,13 +141,6 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
     <Panel title="Quality management history" description="Every quality deduction recorded in this SubHub workspace.">
       {loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading quality history…</p> : data.qualityLogs.length === 0 ? <div className="p-10 text-center"><ShieldAlert className="mx-auto size-8 text-muted-foreground" /><p className="mt-3 font-medium">No quality issues recorded</p><p className="mt-1 text-sm text-muted-foreground">Saved quality adjustments will appear here.</p></div> : <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">Item</th><th className="px-5 py-3 font-medium">Issue</th><th className="px-5 py-3 text-right font-medium">Rejected</th><th className="px-5 py-3 text-right font-medium">Balance</th><th className="px-5 py-3 font-medium">Notes</th></tr></thead><tbody>{data.qualityLogs.map((log) => <tr key={log.id} className="border-b border-border/70 last:border-0"><td className="tabular whitespace-nowrap px-5 py-3 text-xs text-muted-foreground">{log.date.slice(0, 16).replace("T", " ")}</td><td className="px-5 py-3"><p className="font-medium">{log.product}</p><p className="tabular text-xs text-muted-foreground">{log.code} · {log.category}</p></td><td className="px-5 py-3"><Tag tone="bad">{log.issue}</Tag></td><td className="tabular px-5 py-3 text-right font-semibold text-destructive">-{num(log.quantity)}</td><td className="tabular px-5 py-3 text-right">{num(log.afterQuantity)}</td><td className="max-w-xs truncate px-5 py-3 text-muted-foreground">{log.notes || "—"}</td></tr>)}</tbody></table></div>}
     </Panel>
-  </div>;
-}
-
-function InventorySections({ items, loading }: { items: InventoryItem[]; loading: boolean }) {
-  return <div className="space-y-6">
-    <InventoryTable inventoryType="Raw Material" items={items.filter((item) => item.category === "Raw Material")} loading={loading} />
-    <InventoryTable inventoryType="Float" items={items.filter((item) => item.category === "Float")} loading={loading} />
   </div>;
 }
 

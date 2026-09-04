@@ -27,8 +27,10 @@ import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as BomCodeRouteImport } from './routes/bom.$code'
 import { Route as HubCodeRouteImport } from './routes/hub.$code'
 import { Route as InventoryAdjustmentRouteImport } from './routes/inventory.adjustment'
+import { Route as InventoryFinalProductsRouteImport } from './routes/inventory.final-products'
 import { Route as InventoryHistoryRouteImport } from './routes/inventory.history'
 import { Route as InventoryQualityRouteImport } from './routes/inventory.quality'
+import { Route as InventoryRawMaterialsRouteImport } from './routes/inventory.raw-materials'
 import { Route as PartCodeRouteImport } from './routes/part.$code'
 import { Route as PoIdRouteImport } from './routes/po.$id'
 import { Route as SkuCodeRouteImport } from './routes/sku.$code'
@@ -135,6 +137,11 @@ const InventoryAdjustmentRoute = InventoryAdjustmentRouteImport.update({
   path: '/adjustment',
   getParentRoute: () => InventoryRoute,
 } as any)
+const InventoryFinalProductsRoute = InventoryFinalProductsRouteImport.update({
+  id: '/final-products',
+  path: '/final-products',
+  getParentRoute: () => InventoryRoute,
+} as any)
 const InventoryHistoryRoute = InventoryHistoryRouteImport.update({
   id: '/history',
   path: '/history',
@@ -143,6 +150,11 @@ const InventoryHistoryRoute = InventoryHistoryRouteImport.update({
 const InventoryQualityRoute = InventoryQualityRouteImport.update({
   id: '/quality',
   path: '/quality',
+  getParentRoute: () => InventoryRoute,
+} as any)
+const InventoryRawMaterialsRoute = InventoryRawMaterialsRouteImport.update({
+  id: '/raw-materials',
+  path: '/raw-materials',
   getParentRoute: () => InventoryRoute,
 } as any)
 const PartCodeRoute = PartCodeRouteImport.update({
@@ -242,8 +254,10 @@ export interface FileRoutesByFullPath {
   '/bom/$code': typeof BomCodeRoute
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
+  '/inventory/final-products': typeof InventoryFinalProductsRoute
   '/inventory/history': typeof InventoryHistoryRoute
   '/inventory/quality': typeof InventoryQualityRoute
+  '/inventory/raw-materials': typeof InventoryRawMaterialsRoute
   '/part/$code': typeof PartCodeRoute
   '/po/$id': typeof PoIdRoute
   '/sku/$code': typeof SkuCodeRoute
@@ -279,8 +293,10 @@ export interface FileRoutesByTo {
   '/bom/$code': typeof BomCodeRoute
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
+  '/inventory/final-products': typeof InventoryFinalProductsRoute
   '/inventory/history': typeof InventoryHistoryRoute
   '/inventory/quality': typeof InventoryQualityRoute
+  '/inventory/raw-materials': typeof InventoryRawMaterialsRoute
   '/part/$code': typeof PartCodeRoute
   '/po/$id': typeof PoIdRoute
   '/sku/$code': typeof SkuCodeRoute
@@ -317,8 +333,10 @@ export interface FileRoutesById {
   '/bom/$code': typeof BomCodeRoute
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
+  '/inventory/final-products': typeof InventoryFinalProductsRoute
   '/inventory/history': typeof InventoryHistoryRoute
   '/inventory/quality': typeof InventoryQualityRoute
+  '/inventory/raw-materials': typeof InventoryRawMaterialsRoute
   '/part/$code': typeof PartCodeRoute
   '/po/$id': typeof PoIdRoute
   '/sku/$code': typeof SkuCodeRoute
@@ -356,8 +374,10 @@ export interface FileRouteTypes {
     | '/bom/$code'
     | '/hub/$code'
     | '/inventory/adjustment'
+    | '/inventory/final-products'
     | '/inventory/history'
     | '/inventory/quality'
+    | '/inventory/raw-materials'
     | '/part/$code'
     | '/po/$id'
     | '/sku/$code'
@@ -393,8 +413,10 @@ export interface FileRouteTypes {
     | '/bom/$code'
     | '/hub/$code'
     | '/inventory/adjustment'
+    | '/inventory/final-products'
     | '/inventory/history'
     | '/inventory/quality'
+    | '/inventory/raw-materials'
     | '/part/$code'
     | '/po/$id'
     | '/sku/$code'
@@ -430,8 +452,10 @@ export interface FileRouteTypes {
     | '/bom/$code'
     | '/hub/$code'
     | '/inventory/adjustment'
+    | '/inventory/final-products'
     | '/inventory/history'
     | '/inventory/quality'
+    | '/inventory/raw-materials'
     | '/part/$code'
     | '/po/$id'
     | '/sku/$code'
@@ -600,6 +624,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InventoryAdjustmentRouteImport
       parentRoute: typeof InventoryRoute
     }
+    '/inventory/final-products': {
+      id: '/inventory/final-products'
+      path: '/final-products'
+      fullPath: '/inventory/final-products'
+      preLoaderRoute: typeof InventoryFinalProductsRouteImport
+      parentRoute: typeof InventoryRoute
+    }
     '/inventory/history': {
       id: '/inventory/history'
       path: '/history'
@@ -612,6 +643,13 @@ declare module '@tanstack/react-router' {
       path: '/quality'
       fullPath: '/inventory/quality'
       preLoaderRoute: typeof InventoryQualityRouteImport
+      parentRoute: typeof InventoryRoute
+    }
+    '/inventory/raw-materials': {
+      id: '/inventory/raw-materials'
+      path: '/raw-materials'
+      fullPath: '/inventory/raw-materials'
+      preLoaderRoute: typeof InventoryRawMaterialsRouteImport
       parentRoute: typeof InventoryRoute
     }
     '/part/$code': {
@@ -744,14 +782,18 @@ const HrRouteWithChildren = HrRoute._addFileChildren(HrRouteChildren)
 
 interface InventoryRouteChildren {
   InventoryAdjustmentRoute: typeof InventoryAdjustmentRoute
+  InventoryFinalProductsRoute: typeof InventoryFinalProductsRoute
   InventoryHistoryRoute: typeof InventoryHistoryRoute
   InventoryQualityRoute: typeof InventoryQualityRoute
+  InventoryRawMaterialsRoute: typeof InventoryRawMaterialsRoute
 }
 
 const InventoryRouteChildren: InventoryRouteChildren = {
   InventoryAdjustmentRoute: InventoryAdjustmentRoute,
+  InventoryFinalProductsRoute: InventoryFinalProductsRoute,
   InventoryHistoryRoute: InventoryHistoryRoute,
   InventoryQualityRoute: InventoryQualityRoute,
+  InventoryRawMaterialsRoute: InventoryRawMaterialsRoute,
 }
 
 const InventoryRouteWithChildren = InventoryRoute._addFileChildren(
