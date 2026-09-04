@@ -272,6 +272,14 @@ async function reserveBatchSequence(db: Db, itemCode: string, createdAt: Date, s
   if (!result) throw new Error(`Could not reserve a batch number for ${itemCode}.`);
   return result.nextSequence;
 }
+async function ensureBatchSequenceAtLeast(db: Db, itemCode: string, createdAt: Date, sequence: number, session?: ClientSession) {
+  const date = batchDate(createdAt);
+  await db.collection<BatchSequenceDocument>("inventory_batch_sequences").updateOne(
+    { _id: `${itemCode}:${date}` },
+    { $max: { nextSequence: sequence }, $setOnInsert: { itemCode, batchDate: date } },
+    { upsert: true, ...sessionOptions(session) },
+  );
+}
 function serializeBatch(batch: InventoryBatchDocument): InventoryBatch {
   return {
     id: batch._id, batchCode: batch.batchCode, itemCode: batch.itemCode, itemName: batch.itemName, category: batch.category,
@@ -416,6 +424,7 @@ async function migrateBatchCodes(db: Db) {
         let sequence = current.batchSequence;
         if (!sequence && match?.[1] === expectedInitials && match[2] === expectedDate) sequence = Number(match[3]);
         if (sequence && match?.[1] === expectedInitials && match[2] === expectedDate && match[3] === String(sequence)) {
+          await ensureBatchSequenceAtLeast(db, current.itemCode, current.createdAt, sequence, session);
           if (!current.batchSequence) {
             await db.collection<InventoryBatchDocument>("inventory_batches").updateOne(
               { _id: current._id },
