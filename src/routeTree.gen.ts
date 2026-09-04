@@ -44,6 +44,7 @@ import { Route as SubhubReportsRouteImport } from './routes/subhub.reports'
 import { Route as WorkerIdRouteImport } from './routes/worker.$id'
 import { Route as AdminUsersUserIdRouteImport } from './routes/admin.users.$userId'
 import { Route as InventoryBatchesBatchIdRouteImport } from './routes/inventory.batches.$batchId'
+import { Route as InventoryItemsItemCodeRouteImport } from './routes/inventory.items.$itemCode'
 import { Route as SubhubBomCodeRouteImport } from './routes/subhub.bom.$code'
 import { Route as SubhubParentCodeRouteImport } from './routes/subhub.parent.$code'
 import { Route as HrEmployeeSubhubIdEmployeeIdRouteImport } from './routes/hr.employee.$subhubId.$employeeId'
@@ -224,6 +225,11 @@ const InventoryBatchesBatchIdRoute = InventoryBatchesBatchIdRouteImport.update({
   path: '/$batchId',
   getParentRoute: () => InventoryBatchesRoute,
 } as any)
+const InventoryItemsItemCodeRoute = InventoryItemsItemCodeRouteImport.update({
+  id: '/items/$itemCode',
+  path: '/items/$itemCode',
+  getParentRoute: () => InventoryRoute,
+} as any)
 const SubhubBomCodeRoute = SubhubBomCodeRouteImport.update({
   id: '/$code',
   path: '/$code',
@@ -283,6 +289,7 @@ export interface FileRoutesByFullPath {
   '/worker/$id': typeof WorkerIdRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
+  '/inventory/items/$itemCode': typeof InventoryItemsItemCodeRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
@@ -324,6 +331,7 @@ export interface FileRoutesByTo {
   '/worker/$id': typeof WorkerIdRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
+  '/inventory/items/$itemCode': typeof InventoryItemsItemCodeRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
@@ -366,6 +374,7 @@ export interface FileRoutesById {
   '/worker/$id': typeof WorkerIdRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
+  '/inventory/items/$itemCode': typeof InventoryItemsItemCodeRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
@@ -409,6 +418,7 @@ export interface FileRouteTypes {
     | '/worker/$id'
     | '/admin/users/$userId'
     | '/inventory/batches/$batchId'
+    | '/inventory/items/$itemCode'
     | '/subhub/bom/$code'
     | '/subhub/parent/$code'
     | '/hr/employee/$subhubId/$employeeId'
@@ -450,6 +460,7 @@ export interface FileRouteTypes {
     | '/worker/$id'
     | '/admin/users/$userId'
     | '/inventory/batches/$batchId'
+    | '/inventory/items/$itemCode'
     | '/subhub/bom/$code'
     | '/subhub/parent/$code'
     | '/hr/employee/$subhubId/$employeeId'
@@ -491,6 +502,7 @@ export interface FileRouteTypes {
     | '/worker/$id'
     | '/admin/users/$userId'
     | '/inventory/batches/$batchId'
+    | '/inventory/items/$itemCode'
     | '/subhub/bom/$code'
     | '/subhub/parent/$code'
     | '/hr/employee/$subhubId/$employeeId'
@@ -767,6 +779,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InventoryBatchesBatchIdRouteImport
       parentRoute: typeof InventoryBatchesRoute
     }
+    '/inventory/items/$itemCode': {
+      id: '/inventory/items/$itemCode'
+      path: '/items/$itemCode'
+      fullPath: '/inventory/items/$itemCode'
+      preLoaderRoute: typeof InventoryItemsItemCodeRouteImport
+      parentRoute: typeof InventoryRoute
+    }
     '/subhub/bom/$code': {
       id: '/subhub/bom/$code'
       path: '/$code'
@@ -836,6 +855,7 @@ interface InventoryRouteChildren {
   InventoryHistoryRoute: typeof InventoryHistoryRoute
   InventoryQualityRoute: typeof InventoryQualityRoute
   InventoryRawMaterialsRoute: typeof InventoryRawMaterialsRoute
+  InventoryItemsItemCodeRoute: typeof InventoryItemsItemCodeRoute
 }
 
 const InventoryRouteChildren: InventoryRouteChildren = {
@@ -845,6 +865,7 @@ const InventoryRouteChildren: InventoryRouteChildren = {
   InventoryHistoryRoute: InventoryHistoryRoute,
   InventoryQualityRoute: InventoryQualityRoute,
   InventoryRawMaterialsRoute: InventoryRawMaterialsRoute,
+  InventoryItemsItemCodeRoute: InventoryItemsItemCodeRoute,
 }
 
 const InventoryRouteWithChildren = InventoryRoute._addFileChildren(
