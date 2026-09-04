@@ -21,13 +21,6 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const view: View = pathname.endsWith("/history") ? "history" : pathname.endsWith("/adjustment") ? "adjustment" : pathname.endsWith("/quality") ? "quality" : initialView;
   const [data, setData] = useState(emptyData);
-  const [query, setQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<"all" | InventoryItem["category"]>("all");
-  const [stockFilter, setStockFilter] = useState<"all" | "available" | "empty">("all");
-  const [sortKey, setSortKey] = useState<"name" | "code" | "category" | "quantity" | "loggedAt">("name");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -47,28 +40,10 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
     void load();
   }, []);
 
-  const filteredItems = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return data.items
-      .filter((item) => !normalizedQuery || `${item.name} ${item.code} ${item.category}`.toLowerCase().includes(normalizedQuery))
-      .filter((item) => categoryFilter === "all" || item.category === categoryFilter)
-      .filter((item) => stockFilter === "all" || (stockFilter === "available" ? item.quantity > 0 : item.quantity <= 0))
-      .sort((a, b) => {
-        const left = sortKey === "name" ? `${a.name} ${a.code}` : a[sortKey] ?? "";
-        const right = sortKey === "name" ? `${b.name} ${b.code}` : b[sortKey] ?? "";
-        const comparison = typeof left === "string" ? left.localeCompare(right as string) : Number(left) - Number(right);
-        return sortDirection === "asc" ? comparison : -comparison;
-      });
-  }, [data.items, query, categoryFilter, stockFilter, sortKey, sortDirection]);
-  const paginatedItems = useMemo(() => filteredItems.slice((page - 1) * pageSize, page * pageSize), [filteredItems, page, pageSize]);
   const totalUnits = data.items.reduce((sum, item) => sum + item.quantity, 0);
   const floatItems = data.items.filter((item) => item.category === "Float").length;
   const rawMaterialItems = data.items.filter((item) => item.category === "Raw Material").length;
   const title = view === "inventory" ? "Inventory" : view === "history" ? "Inventory History" : view === "quality" ? "Quality Management" : "Stock Adjustment";
-
-  useEffect(() => {
-    setPage(1);
-  }, [query, categoryFilter, stockFilter, sortKey, sortDirection]);
 
   return (
     <SubHubShell actions={view === "inventory" ? <div className="flex flex-wrap gap-2"><Link to="/inventory/quality" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><ShieldAlert className="size-4" /> Quality management</Link><Link to="/inventory/adjustment" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><SlidersHorizontal className="size-4" /> Adjust stock</Link></div> : view === "quality" ? <Link to="/inventory" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">← Inventory</Link> : null}>
@@ -81,7 +56,7 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
         {view === "inventory" ? (
           <>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Kpi label="Stock units" value={num(totalUnits)} hint="floats and raw materials" /><Kpi label="Float variants" value={String(floatItems)} hint="BOM variants in stock" /><Kpi label="Raw materials" value={String(rawMaterialItems)} hint="required BOM components" /><Kpi label="Quality rejected" value={num(data.qualitySummary.rejectedUnits)} tone={data.qualitySummary.rejectedUnits ? "warn" : "good"} hint={`${data.qualitySummary.records} quality records`} /></div>
-            <InventoryTable items={paginatedItems} totalItems={filteredItems.length} query={query} setQuery={setQuery} categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter} stockFilter={stockFilter} setStockFilter={setStockFilter} sortKey={sortKey} setSortKey={setSortKey} sortDirection={sortDirection} setSortDirection={setSortDirection} page={page} pageSize={pageSize} setPage={setPage} setPageSize={setPageSize} loading={loading} />
+            <InventorySections items={data.items} loading={loading} />
           </>
         ) : null}
         {view === "history" ? <HistoryTable movements={data.movements} loading={loading} /> : null}
