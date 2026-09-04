@@ -174,8 +174,9 @@ type InventoryBatchDocument = {
   _id: string; batchCode: string; itemCode: string; itemName: string; category: InventoryCategory;
   sourceType: "procurement" | "production" | "float-production" | "manual" | "legacy";
   sourceId: string; sourceMetadata: Record<string, string>; receivedQuantity: number; producedQuantity: number;
-  consumedQuantity: number; defectiveQuantity: number; availableQuantity: number; createdAt: Date; updatedAt: Date;
+  consumedQuantity: number; defectiveQuantity: number; availableQuantity: number; batchSequence?: number; createdAt: Date; updatedAt: Date;
 };
+type BatchSequenceDocument = { _id: string; itemCode: string; batchDate: string; nextSequence: number };
 type BatchMovementDocument = {
   _id: string; sourceEventId: string; batchId: string; batchCode: string; itemCode: string;
   type: BatchMovementType; quantityDelta: number; balance: number; actor: string; reason: string; reference: string; createdAt: Date;
@@ -247,16 +248,29 @@ function sessionOptions(session: ClientSession | undefined) {
   return session ? { session } : {};
 }
 
-function batchCode(sourceType: InventoryBatchDocument["sourceType"], itemCode: string, sourceId: string, itemName?: string, createdAt?: Date) {
+function batchDate(createdAt: Date) {
+  return createdAt.toISOString().slice(0, 10).replace(/-/g, "");
+}
+function itemInitials(itemName: string, itemCode: string) {
   const words = (itemName || itemCode).normalize("NFKD").replace(/[^A-Za-z0-9]+/g, " ").trim().split(/\s+/).filter(Boolean);
   const initials = (words.length ? words.map((word) => word[0]).join("") : itemCode.replace(/[^A-Za-z0-9]/g, ""))
     .slice(0, 8)
     .toUpperCase()
     .padEnd(1, "X");
-  const date = (createdAt ?? new Date()).toISOString().slice(0, 10).replace(/-/g, "");
-  // Source IDs often share a report/component suffix; hash the complete identity to avoid collisions.
-  const suffix = createHash("sha256").update(`${sourceType}:${itemCode}:${sourceId}`).digest("hex").slice(0, 10).toUpperCase();
-  return `${initials}-${date}-${suffix}`;
+  return initials;
+}
+function batchCode(itemName: string, itemCode: string, createdAt: Date, sequence: number) {
+  return `${itemInitials(itemName, itemCode)}-${batchDate(createdAt)}-${sequence}`;
+}
+async function reserveBatchSequence(db: Db, itemCode: string, createdAt: Date, session?: ClientSession) {
+  const date = batchDate(createdAt);
+  const result = await db.collection<BatchSequenceDocument>("inventory_batch_sequences").findOneAndUpdate(
+    { _id: `${itemCode}:${date}` },
+    { $inc: { nextSequence: 1 }, $setOnInsert: { itemCode, batchDate: date } },
+    { upsert: true, returnDocument: "after", ...sessionOptions(session) },
+  );
+  if (!result) throw new Error(`Could not reserve a batch number for ${itemCode}.`);
+  return result.nextSequence;
 }
 function serializeBatch(batch: InventoryBatchDocument): InventoryBatch {
   return {
@@ -316,7 +330,8 @@ export async function applySourcedBatch(input: {
   const produced = input.sourceType === "production" || input.sourceType === "float-production" ? input.desiredQuantity : 0;
   if (!existing) {
     const createdAt = new Date();
-    const batch: InventoryBatchDocument = { _id: input.sourceId, batchCode: batchCode(input.sourceType, input.code, input.sourceId, input.product, createdAt), itemCode: input.code, itemName: input.product, category: input.category, sourceType: input.sourceType, sourceId: input.sourceId, sourceMetadata: input.metadata ?? {}, receivedQuantity: input.sourceType === "procurement" || input.sourceType === "manual" || input.sourceType === "legacy" ? input.desiredQuantity : 0, producedQuantity: produced, consumedQuantity: 0, defectiveQuantity: 0, availableQuantity: input.desiredQuantity, createdAt, updatedAt: createdAt };
+    const sequence = await reserveBatchSequence(input.db, input.code, createdAt, input.session);
+    const batch: InventoryBatchDocument = { _id: input.sourceId, batchCode: batchCode(input.product, input.code, createdAt, sequence), batchSequence: sequence, itemCode: input.code, itemName: input.product, category: input.category, sourceType: input.sourceType, sourceId: input.sourceId, sourceMetadata: input.metadata ?? {}, receivedQuantity: input.sourceType === "procurement" || input.sourceType === "manual" || input.sourceType === "legacy" ? input.desiredQuantity : 0, producedQuantity: produced, consumedQuantity: 0, defectiveQuantity: 0, availableQuantity: input.desiredQuantity, createdAt, updatedAt: createdAt };
     await batches.insertOne(batch, sessionOptions(input.session));
     const event = { sourceEventId: input.eventKey ?? `${input.sourceId}:initial:${input.desiredQuantity}`, batchId: batch._id, batchCode: batch.batchCode, itemCode: batch.itemCode, type: input.eventType ?? (input.sourceType === "production" || input.sourceType === "float-production" ? "PRODUCTION" as const : "IN" as const), quantityDelta: input.desiredQuantity, balance: input.desiredQuantity, actor: input.actor, reason: input.reason, reference: input.sourceId };
     if (input.session) await writeTransactionalBatchMovement(input.db, event, input.session);
@@ -386,41 +401,58 @@ export async function ensureLegacyBatches(db: Db, actor: string) {
 
 async function migrateBatchCodes(db: Db) {
   await ensureBatchIndexes(db);
-  const batches = await db.collection<InventoryBatchDocument>("inventory_batches").find().toArray();
+  const batches = await db.collection<InventoryBatchDocument>("inventory_batches").find().sort({ createdAt: 1, _id: 1 }).toArray();
+  const numericCode = /^([A-Z0-9]+)-(\d{8})-(\d+)$/;
   for (const batch of batches) {
-    const desiredCode = batchCode(batch.sourceType, batch.itemCode, batch.sourceId, batch.itemName, batch.createdAt);
-    if (batch.batchCode === desiredCode) continue;
-    const collision = await db.collection<InventoryBatchDocument>("inventory_batches").findOne({
-      _id: { $ne: batch._id },
-      batchCode: desiredCode,
-    });
-    if (collision) continue;
     const client = await getMongoClient();
     const session = client.startSession();
     try {
       await session.withTransaction(async () => {
+        const current = await db.collection<InventoryBatchDocument>("inventory_batches").findOne({ _id: batch._id }, { session });
+        if (!current) return;
+        const match = current.batchCode.match(numericCode);
+        const expectedInitials = itemInitials(current.itemName, current.itemCode);
+        const expectedDate = batchDate(current.createdAt);
+        let sequence = current.batchSequence;
+        if (!sequence && match?.[1] === expectedInitials && match[2] === expectedDate) sequence = Number(match[3]);
+        if (sequence && match?.[1] === expectedInitials && match[2] === expectedDate && match[3] === String(sequence)) {
+          if (!current.batchSequence) {
+            await db.collection<InventoryBatchDocument>("inventory_batches").updateOne(
+              { _id: current._id },
+              { $set: { batchSequence: sequence } },
+              { session },
+            );
+          }
+          return;
+        }
+        sequence = await reserveBatchSequence(db, current.itemCode, current.createdAt, session);
+        let desiredCode = batchCode(current.itemName, current.itemCode, current.createdAt, sequence);
+        while (await db.collection<InventoryBatchDocument>("inventory_batches").findOne({ _id: { $ne: current._id }, batchCode: desiredCode }, { session })) {
+          sequence = await reserveBatchSequence(db, current.itemCode, current.createdAt, session);
+          desiredCode = batchCode(current.itemName, current.itemCode, current.createdAt, sequence);
+        }
         const changed = await db.collection<InventoryBatchDocument>("inventory_batches").updateOne(
-          { _id: batch._id, batchCode: batch.batchCode },
-          { $set: { batchCode: desiredCode, updatedAt: new Date() } },
+          { _id: current._id, batchCode: current.batchCode },
+          { $set: { batchCode: desiredCode, batchSequence: sequence, updatedAt: new Date() } },
           { session },
         );
         if (!changed.modifiedCount) return;
         await db.collection<BatchMovementDocument>("inventory_batch_movements").updateMany(
-          { batchId: batch._id },
+          { batchId: current._id },
           { $set: { batchCode: desiredCode } },
           { session },
         );
         const qualityLogs = await db.collection<QualityLogDocument>("quality_logs").find({
-          $or: [{ batchId: batch._id }, { "allocations.batchId": batch._id }],
+          $or: [{ batchId: current._id }, { "allocations.batchId": current._id }],
         }, { session }).toArray();
         for (const log of qualityLogs) {
-          const allocations = log.allocations?.map((allocation) => allocation.batchId === batch._id ? { ...allocation, batchCode: desiredCode } : allocation);
+          const allocations = log.allocations?.map((allocation) => allocation.batchId === current._id ? { ...allocation, batchCode: desiredCode } : allocation);
           const batchCodes = allocations?.map((allocation) => allocation.batchCode).join(", ");
           await db.collection<QualityLogDocument>("quality_logs").updateOne(
             { _id: log._id },
             {
               $set: {
-                ...(log.batchId === batch._id ? { batchCode: desiredCode } : {}),
+                ...(log.batchId === current._id ? { batchCode: desiredCode } : {}),
                 ...(allocations ? { allocations, ...(batchCodes ? { batchCode: batchCodes } : {}) } : {}),
               },
             },
@@ -428,9 +460,9 @@ async function migrateBatchCodes(db: Db) {
           );
         }
         await db.collection("inventory_production_allocations").updateMany(
-          { "allocations.batchId": batch._id },
+          { "allocations.batchId": current._id },
           { $set: { "allocations.$[allocation].batchCode": desiredCode } },
-          { arrayFilters: [{ "allocation.batchId": batch._id }], session },
+          { arrayFilters: [{ "allocation.batchId": current._id }], session },
         );
       });
     } finally {
