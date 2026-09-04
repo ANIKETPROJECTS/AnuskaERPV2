@@ -1,7 +1,17 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import type { ClientSession } from "mongodb";
 import { getControlPlaneDatabase, getCurrentUserRecord, type Panel, type UserDocument } from "./auth.server";
 import { bomCatalog } from "./lib/bom-catalog";
-import { getMongoDb } from "./mongodb.server";
+import { getMongoClient, getMongoDb } from "./mongodb.server";
+import {
+  getProductionBatchAllocationPreview,
+  getProductionBatchAllocationState,
+  ensureLegacyBatches,
+  syncWorkspaceInventoryForUser,
+  reconcileProductionBatchAllocation,
+  type ProductionManualAllocation,
+  type ProductionAllocationPreview,
+} from "./inventory.server";
 import { procurement, subparts } from "./lib/erp-data";
 
 export type AssignableSubhub = {
@@ -36,6 +46,11 @@ export type ProductionReport = {
   quantity: number;
   notes: string;
   updatedAt: string;
+  batchAllocation?: {
+    allocationMode: "fifo" | "hybrid";
+    manualAllocations: ProductionManualAllocation[];
+    allocations: Array<{ itemCode: string; batchId: string; batchCode: string; quantity: number }>;
+  };
 };
 
 export type ManagerProductionData = {
@@ -269,7 +284,7 @@ function summarizeOrder(order: ProductionOrderDocument, reports: ProductionRepor
   };
 }
 
-function serializeReport(report: ProductionReportDocument): ProductionReport {
+function serializeReport(report: ProductionReportDocument, batchAllocation?: ProductionReport["batchAllocation"]): ProductionReport {
   return {
     id: report._id,
     orderId: report.orderId,
@@ -277,6 +292,7 @@ function serializeReport(report: ProductionReportDocument): ProductionReport {
     quantity: report.quantity,
     notes: report.notes,
     updatedAt: report.updatedAt.toISOString(),
+    ...(batchAllocation ? { batchAllocation } : {}),
   };
 }
 
@@ -381,10 +397,12 @@ async function recordOrderActivity(
     actorRole: string;
     summary: string;
     details: string;
+    id?: string;
   },
+  session?: ClientSession,
 ) {
-  await db.collection<OrderActivityDocument>("production_order_activity").insertOne({
-    _id: randomUUID().replace(/-/g, ""),
+  const document: OrderActivityDocument = {
+    _id: input.id ?? randomUUID().replace(/-/g, ""),
     orderId: input.orderId,
     action: input.action,
     actorId: input.actorId,
@@ -393,7 +411,16 @@ async function recordOrderActivity(
     summary: input.summary,
     details: input.details,
     createdAt: new Date(),
-  });
+  };
+  if (input.id) {
+    await db.collection<OrderActivityDocument>("production_order_activity").updateOne(
+      { _id: input.id },
+      { $setOnInsert: document },
+      { upsert: true, ...(session ? { session } : {}) },
+    );
+  } else {
+    await db.collection<OrderActivityDocument>("production_order_activity").insertOne(document, session ? { session } : {});
+  }
 }
 
 async function rebalanceProductionOrders(actorId: string): Promise<ProductionReassignment[]> {
@@ -449,7 +476,9 @@ async function rebalanceProductionOrders(actorId: string): Promise<ProductionRea
 
       if (!destination) continue;
 
-      await moveOrderReports(order._id, source.databaseName, destination.databaseName);
+      // A report owns allocations and output batches in its original workspace.
+      // Only untouched work can safely be moved between isolated workspaces.
+      if ((reportsByUser.get(source._id) ?? []).some((report) => report.orderId === order._id)) continue;
       await db.collection<ProductionOrderDocument>("production_orders").updateOne(
         { _id: order._id },
         {
@@ -483,7 +512,7 @@ async function rebalanceProductionOrders(actorId: string): Promise<ProductionRea
         actorName,
         actorRole,
         summary: `Order reassigned from ${fromHub} to ${destination.subhubName!}`,
-        details: `${fromHub} exceeded its active target capacity. The order’s production history was moved with it.`,
+        details: `${fromHub} exceeded its active target capacity. Only an order with no saved production reports can be reassigned.`,
       });
     }
   }
@@ -759,8 +788,16 @@ export async function updateProductionOrder(input: {
   const source = order.subhubUserId === destination._id
     ? destination
     : await db.collection<UserDocument>("users").findOne({ _id: order.subhubUserId, panel: "subhub", role: "subhub" });
-  if (source && source._id !== destination._id) {
-    await moveOrderReports(order._id, source.databaseName, destination.databaseName);
+  const sourceReports = source
+    ? await (await getMongoDb(source.databaseName)).collection<ProductionReportDocument>("production_reports").find({ orderId: order._id }).limit(1).toArray()
+    : [];
+  if (sourceReports.length) {
+    if (order.subhubUserId !== destination._id) {
+      return { ok: false, message: "This order has saved production reports and cannot be moved to another SubHub. Keep it in its current workspace." };
+    }
+    if (order.productCode !== product.code || order.variantCode !== variant.code) {
+      return { ok: false, message: "This order has saved production reports, so its product and variant cannot be changed. You may still edit target, due date, or notes." };
+    }
   }
 
   await db.collection<ProductionOrderDocument>("production_orders").updateOne(
@@ -831,14 +868,60 @@ export async function deleteProductionOrder(input: {
     panel: "subhub",
     role: "subhub",
   });
-  await Promise.all([
-    source
-      ? getMongoDb(source.databaseName).then((workspaceDb) => workspaceDb.collection<ProductionReportDocument>("production_reports").deleteMany({ orderId: order._id }))
-      : Promise.resolve(),
-    db.collection<ProductionOrderDocument>("production_orders").deleteOne({ _id: order._id }),
-    db.collection<OrderActivityDocument>("production_order_activity").deleteMany({ orderId: order._id }),
-    db.collection<ReassignmentDocument>("production_reassignments").deleteMany({ orderId: order._id }),
-  ]);
+  if (!source) return { ok: false, message: "The assigned SubHub workspace could not be found; nothing was deleted." };
+  const workspaceDb = await getMongoDb(source.databaseName);
+  await ensureLegacyBatches(workspaceDb, current._id);
+  const product = bomCatalog.find((candidate) => candidate.code === order.productCode);
+  const variant = product?.variants.find((candidate) => candidate.code === order.variantCode);
+  if (!product || !variant) return { ok: false, message: "The order BOM is unavailable, so its inventory cannot be safely reversed." };
+  const client = await getMongoClient();
+  const session = client.startSession();
+  try {
+    await session.withTransaction(async () => {
+      const reports = await workspaceDb.collection<ProductionReportDocument>("production_reports")
+        .find({ orderId: order._id }, { session }).toArray();
+      const derivedFilters = reports.flatMap((report) => [
+        { _id: `float-production:${report._id}` },
+        { sourceId: `float-production:${report._id}` },
+        { _id: { $regex: `^production:${report._id}:` } },
+        { sourceId: { $regex: `^production:${report._id}:` } },
+      ]);
+      const consumedOutput = reports.length
+        ? await workspaceDb.collection<{ _id: string; sourceId: string; batchCode: string; itemCode: string; consumedQuantity: number; defectiveQuantity: number }>("inventory_batches")
+          .find({
+            $and: [
+              { $or: derivedFilters },
+              { $or: [{ consumedQuantity: { $gt: 0 } }, { defectiveQuantity: { $gt: 0 } }] },
+            ],
+          }, { session })
+          .toArray()
+        : [];
+      const lockedBatch = consumedOutput[0];
+      if (lockedBatch) {
+        throw new Error(`This order cannot be deleted because batch ${lockedBatch.batchCode} (${lockedBatch.itemCode}) has already been consumed or quality-rejected.`);
+      }
+      for (const report of reports) {
+        await reconcileProductionBatchAllocation({
+          db: workspaceDb, reportId: report._id, reportDate: report.date,
+          outputCode: `${product.code}-${variant.code}`, outputName: `${product.name} · ${variant.name}`,
+          quantity: 0, requirements: {}, actor: current._id, notes: "Production order deleted", session,
+        });
+      }
+      await workspaceDb.collection<{ _id: string }>("inventory_production_allocations")
+        .deleteMany({ _id: { $in: reports.map((report) => report._id) } }, { session });
+      await workspaceDb.collection<ProductionReportDocument>("production_reports").deleteMany({ orderId: order._id }, { session });
+      const removed = await db.collection<ProductionOrderDocument>("production_orders").deleteOne({ _id: order._id }, { session });
+      if (!removed.deletedCount) throw new Error("Production order changed before deletion.");
+      await db.collection<OrderActivityDocument>("production_order_activity").deleteMany({ orderId: order._id }, { session });
+      await db.collection<ReassignmentDocument>("production_reassignments").deleteMany({ orderId: order._id }, { session });
+    });
+  } catch (error) {
+    return { ok: false, message: error instanceof Error
+      ? `Production order was not deleted: ${error.message}`
+      : "Production order was not deleted because the transaction could not be committed." };
+  } finally {
+    await session.endSession();
+  }
 
   return { ok: true, orderNumber: order.orderNumber };
 }
@@ -866,7 +949,16 @@ export async function reassignProductionOrder(input: {
   if (order.subhubUserId === destination._id) return { ok: false, message: "Choose a different SubHub for reassignment." };
 
   const source = await db.collection<UserDocument>("users").findOne({ _id: order.subhubUserId, panel: "subhub", role: "subhub" });
-  if (source) await moveOrderReports(order._id, source.databaseName, destination.databaseName);
+  if (source) {
+    const hasReports = await (await getMongoDb(source.databaseName))
+      .collection<ProductionReportDocument>("production_reports")
+      .find({ orderId: order._id })
+      .limit(1)
+      .hasNext();
+    if (hasReports) {
+      return { ok: false, message: "This order has saved production reports and cannot be reassigned. Its traceability remains in the current SubHub workspace." };
+    }
+  }
   await db.collection<ProductionOrderDocument>("production_orders").updateOne(
     { _id: order._id },
     {
@@ -934,9 +1026,10 @@ export async function getManagerProductionData(): Promise<
     message: "Only SubHub Managers can enter production.",
   };
   const db = await getControlPlaneDatabase();
+  const workspaceDb = await getMongoDb(current.databaseName);
   const [orders, reports] = await Promise.all([
     db.collection<ProductionOrderDocument>("production_orders").find({ subhubUserId: current._id }).sort({ dueDate: 1, createdAt: -1 }).toArray(),
-    reportsForDatabase(current.databaseName),
+    workspaceDb.collection<ProductionReportDocument>("production_reports").find().sort({ date: -1 }).toArray(),
   ]);
   const capacity = await db.collection<HubCapacityDocument>("hub_capacities").findOne({ _id: current._id });
   const serializedOrders = orders.map((order) => summarizeOrder(order, reports));
@@ -947,7 +1040,7 @@ export async function getManagerProductionData(): Promise<
     data: {
       subhubName: current.subhubName ?? "SubHub",
       orders: serializedOrders,
-      reports: reports.map(serializeReport),
+      reports: await Promise.all(reports.map(async (report) => serializeReport(report, await getProductionBatchAllocationState(workspaceDb, report._id)))),
       capacityUnits,
       openUnits,
       availableUnits: capacityUnits === null ? null : capacityUnits - openUnits,
@@ -961,6 +1054,7 @@ export async function saveDailyProduction(input: {
   date: string;
   quantity: number;
   notes: string;
+  manualAllocations?: ProductionManualAllocation[] | undefined;
 }): Promise<{ ok: true; report: ProductionReport } | { ok: false; message: string }> {
   const current = await getCurrentUserRecord("subhub");
   if (!isSubhub(current)) return { ok: false, message: "Only SubHub Managers can enter production." };
@@ -969,51 +1063,95 @@ export async function saveDailyProduction(input: {
   if (!date) return { ok: false, message: "Enter a valid production date." };
 
   const controlDb = await getControlPlaneDatabase();
-  const order = await controlDb.collection<ProductionOrderDocument>("production_orders").findOne({
-    _id: input.orderId,
-    subhubUserId: current._id,
-  });
-  if (!order) return { ok: false, message: "That production order is not assigned to this SubHub." };
-
-  const now = new Date();
-  const reportId = `${order._id}_${date}`;
+  const reportId = `${input.orderId}_${date}`;
   const workspaceDb = await getMongoDb(current.databaseName);
-  const existingReport = await workspaceDb.collection<ProductionReportDocument>("production_reports").findOne({ _id: reportId });
-  await workspaceDb.collection<ProductionReportDocument>("production_reports").updateOne(
-    { _id: reportId },
-    {
-      $set: {
-        orderId: order._id,
-        date,
-        quantity: input.quantity,
-        notes: input.notes.trim(),
-        reportedBy: current._id,
-        updatedAt: now,
-      },
-      $setOnInsert: { _id: reportId, createdAt: now },
-    },
-    { upsert: true },
-  );
-  const saved: ProductionReportDocument = {
-    _id: reportId,
-    orderId: order._id,
-    date,
-    quantity: input.quantity,
-    notes: input.notes.trim(),
-    reportedBy: current._id,
-    createdAt: now,
-    updatedAt: now,
-  };
-  await recordOrderActivity(controlDb, {
-    orderId: order._id,
-    action: "production_updated",
-    actorId: current._id,
-    actorName: current.name,
-    actorRole: "Hub Manager",
-    summary: existingReport ? `Production report updated for ${date}` : `Production report added for ${date}`,
-    details: `${input.quantity.toLocaleString()} units reported for ${order.variantName}${input.notes.trim() ? ` · ${input.notes.trim()}` : ""}`,
-  });
-  return { ok: true, report: serializeReport(saved) };
+  // Synchronize persisted authoritative sources before allocating this report.
+  // Excluding the report being edited prevents its old output from being
+  // independently reconciled immediately before allocation reconciliation.
+  try {
+    await syncWorkspaceInventoryForUser(current, workspaceDb, reportId);
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Authoritative inventory sources could not be synchronized." };
+  }
+  const client = await getMongoClient();
+  const session = client.startSession();
+  let saved: ProductionReportDocument | undefined;
+  try {
+    await session.withTransaction(async () => {
+      const order = await controlDb.collection<ProductionOrderDocument>("production_orders").findOne({
+        _id: input.orderId,
+        subhubUserId: current._id,
+      }, { session });
+      if (!order) throw new Error("That production order is not assigned to this SubHub.");
+      const product = bomCatalog.find((candidate) => candidate.code === order.productCode);
+      const variant = product?.variants.find((candidate) => candidate.code === order.variantCode);
+      if (!product || !variant) throw new Error("The assigned order no longer has a valid BOM variant.");
+      const existingReport = await workspaceDb.collection<ProductionReportDocument>("production_reports")
+        .findOne({ _id: reportId }, { session });
+      const changed = await reconcileProductionBatchAllocation({
+        db: workspaceDb, reportId, reportDate: date, outputCode: `${product.code}-${variant.code}`,
+        outputName: `${product.name} · ${variant.name}`, quantity: input.quantity, requirements: variant.parts,
+        actor: current._id, notes: input.notes.trim(), manualAllocations: input.manualAllocations, session,
+      });
+      const now = new Date();
+      if (changed || !existingReport || existingReport.notes !== input.notes.trim()) {
+        await workspaceDb.collection<ProductionReportDocument>("production_reports").updateOne(
+          { _id: reportId },
+          {
+            $set: { orderId: order._id, date, quantity: input.quantity, notes: input.notes.trim(), reportedBy: current._id, updatedAt: now },
+            $setOnInsert: { _id: reportId, createdAt: now },
+          },
+          { upsert: true, session },
+        );
+        const activitySignature = createHash("sha256").update(JSON.stringify({
+          reportId, quantity: input.quantity, notes: input.notes.trim(),
+          manualAllocations: input.manualAllocations ?? [],
+        })).digest("hex");
+        await recordOrderActivity(controlDb, {
+          id: `production_${activitySignature}`,
+          orderId: order._id, action: "production_updated", actorId: current._id,
+          actorName: current.name, actorRole: "Hub Manager",
+          summary: existingReport ? `Production report updated for ${date}` : `Production report added for ${date}`,
+          details: `${input.quantity.toLocaleString()} units reported for ${order.variantName}${input.notes.trim() ? ` · ${input.notes.trim()}` : ""}`,
+        }, session);
+      }
+      saved = !changed && existingReport && existingReport.notes === input.notes.trim()
+        ? existingReport
+        : {
+          _id: reportId, orderId: order._id, date, quantity: input.quantity, notes: input.notes.trim(),
+          reportedBy: current._id, createdAt: existingReport?.createdAt ?? now, updatedAt: now,
+        };
+    });
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Production batch allocation could not be reconciled." };
+  } finally {
+    await session.endSession();
+  }
+  if (!saved) return { ok: false, message: "Production transaction completed without a report state." };
+  return { ok: true, report: serializeReport(saved, await getProductionBatchAllocationState(workspaceDb, reportId)) };
+}
+
+export async function previewProductionBatchAllocation(input: {
+  orderId: string; date: string; quantity: number;
+}): Promise<{ ok: true; preview: ProductionAllocationPreview } | { ok: false; message: string }> {
+  const current = await getCurrentUserRecord("subhub");
+  if (!isSubhub(current)) return { ok: false, message: "Only SubHub Managers can preview production allocations." };
+  if (!Number.isInteger(input.quantity) || input.quantity < 0) return { ok: false, message: "Production must be a whole number of zero or more." };
+  const date = normalizeDate(input.date);
+  if (!date) return { ok: false, message: "Enter a valid production date." };
+  const controlDb = await getControlPlaneDatabase();
+  const order = await controlDb.collection<ProductionOrderDocument>("production_orders").findOne({ _id: input.orderId, subhubUserId: current._id });
+  if (!order) return { ok: false, message: "That production order is not assigned to this SubHub." };
+  const product = bomCatalog.find((candidate) => candidate.code === order.productCode);
+  const variant = product?.variants.find((candidate) => candidate.code === order.variantCode);
+  if (!variant) return { ok: false, message: "The assigned order no longer has a valid BOM variant." };
+  const workspaceDb = await getMongoDb(current.databaseName);
+  try {
+    await syncWorkspaceInventoryForUser(current, workspaceDb, `${order._id}_${date}`);
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Authoritative inventory sources could not be synchronized." };
+  }
+  return { ok: true, preview: await getProductionBatchAllocationPreview({ db: workspaceDb, reportId: `${order._id}_${date}`, requirements: variant.parts, quantity: input.quantity, actor: current._id }) };
 }
 
 export async function getProductionOrderActivity(orderId: string, panel: Panel): Promise<

@@ -27,6 +27,7 @@ import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as BomCodeRouteImport } from './routes/bom.$code'
 import { Route as HubCodeRouteImport } from './routes/hub.$code'
 import { Route as InventoryAdjustmentRouteImport } from './routes/inventory.adjustment'
+import { Route as InventoryBatchesRouteImport } from './routes/inventory.batches'
 import { Route as InventoryFinalProductsRouteImport } from './routes/inventory.final-products'
 import { Route as InventoryHistoryRouteImport } from './routes/inventory.history'
 import { Route as InventoryQualityRouteImport } from './routes/inventory.quality'
@@ -42,6 +43,7 @@ import { Route as SubhubRawMaterialsRouteImport } from './routes/subhub.raw-mate
 import { Route as SubhubReportsRouteImport } from './routes/subhub.reports'
 import { Route as WorkerIdRouteImport } from './routes/worker.$id'
 import { Route as AdminUsersUserIdRouteImport } from './routes/admin.users.$userId'
+import { Route as InventoryBatchesBatchIdRouteImport } from './routes/inventory.batches.$batchId'
 import { Route as SubhubBomCodeRouteImport } from './routes/subhub.bom.$code'
 import { Route as SubhubParentCodeRouteImport } from './routes/subhub.parent.$code'
 import { Route as HrEmployeeSubhubIdEmployeeIdRouteImport } from './routes/hr.employee.$subhubId.$employeeId'
@@ -137,6 +139,11 @@ const InventoryAdjustmentRoute = InventoryAdjustmentRouteImport.update({
   path: '/adjustment',
   getParentRoute: () => InventoryRoute,
 } as any)
+const InventoryBatchesRoute = InventoryBatchesRouteImport.update({
+  id: '/batches',
+  path: '/batches',
+  getParentRoute: () => InventoryRoute,
+} as any)
 const InventoryFinalProductsRoute = InventoryFinalProductsRouteImport.update({
   id: '/final-products',
   path: '/final-products',
@@ -212,6 +219,11 @@ const AdminUsersUserIdRoute = AdminUsersUserIdRouteImport.update({
   path: '/$userId',
   getParentRoute: () => AdminUsersRoute,
 } as any)
+const InventoryBatchesBatchIdRoute = InventoryBatchesBatchIdRouteImport.update({
+  id: '/$batchId',
+  path: '/$batchId',
+  getParentRoute: () => InventoryBatchesRoute,
+} as any)
 const SubhubBomCodeRoute = SubhubBomCodeRouteImport.update({
   id: '/$code',
   path: '/$code',
@@ -254,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/bom/$code': typeof BomCodeRoute
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
+  '/inventory/batches': typeof InventoryBatchesRouteWithChildren
   '/inventory/final-products': typeof InventoryFinalProductsRoute
   '/inventory/history': typeof InventoryHistoryRoute
   '/inventory/quality': typeof InventoryQualityRoute
@@ -269,6 +282,7 @@ export interface FileRoutesByFullPath {
   '/subhub/reports': typeof SubhubReportsRoute
   '/worker/$id': typeof WorkerIdRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
+  '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
@@ -293,6 +307,7 @@ export interface FileRoutesByTo {
   '/bom/$code': typeof BomCodeRoute
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
+  '/inventory/batches': typeof InventoryBatchesRouteWithChildren
   '/inventory/final-products': typeof InventoryFinalProductsRoute
   '/inventory/history': typeof InventoryHistoryRoute
   '/inventory/quality': typeof InventoryQualityRoute
@@ -308,6 +323,7 @@ export interface FileRoutesByTo {
   '/subhub/reports': typeof SubhubReportsRoute
   '/worker/$id': typeof WorkerIdRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
+  '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
@@ -333,6 +349,7 @@ export interface FileRoutesById {
   '/bom/$code': typeof BomCodeRoute
   '/hub/$code': typeof HubCodeRoute
   '/inventory/adjustment': typeof InventoryAdjustmentRoute
+  '/inventory/batches': typeof InventoryBatchesRouteWithChildren
   '/inventory/final-products': typeof InventoryFinalProductsRoute
   '/inventory/history': typeof InventoryHistoryRoute
   '/inventory/quality': typeof InventoryQualityRoute
@@ -348,6 +365,7 @@ export interface FileRoutesById {
   '/subhub/reports': typeof SubhubReportsRoute
   '/worker/$id': typeof WorkerIdRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
+  '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
@@ -374,6 +392,7 @@ export interface FileRouteTypes {
     | '/bom/$code'
     | '/hub/$code'
     | '/inventory/adjustment'
+    | '/inventory/batches'
     | '/inventory/final-products'
     | '/inventory/history'
     | '/inventory/quality'
@@ -389,6 +408,7 @@ export interface FileRouteTypes {
     | '/subhub/reports'
     | '/worker/$id'
     | '/admin/users/$userId'
+    | '/inventory/batches/$batchId'
     | '/subhub/bom/$code'
     | '/subhub/parent/$code'
     | '/hr/employee/$subhubId/$employeeId'
@@ -413,6 +433,7 @@ export interface FileRouteTypes {
     | '/bom/$code'
     | '/hub/$code'
     | '/inventory/adjustment'
+    | '/inventory/batches'
     | '/inventory/final-products'
     | '/inventory/history'
     | '/inventory/quality'
@@ -428,6 +449,7 @@ export interface FileRouteTypes {
     | '/subhub/reports'
     | '/worker/$id'
     | '/admin/users/$userId'
+    | '/inventory/batches/$batchId'
     | '/subhub/bom/$code'
     | '/subhub/parent/$code'
     | '/hr/employee/$subhubId/$employeeId'
@@ -452,6 +474,7 @@ export interface FileRouteTypes {
     | '/bom/$code'
     | '/hub/$code'
     | '/inventory/adjustment'
+    | '/inventory/batches'
     | '/inventory/final-products'
     | '/inventory/history'
     | '/inventory/quality'
@@ -467,6 +490,7 @@ export interface FileRouteTypes {
     | '/subhub/reports'
     | '/worker/$id'
     | '/admin/users/$userId'
+    | '/inventory/batches/$batchId'
     | '/subhub/bom/$code'
     | '/subhub/parent/$code'
     | '/hr/employee/$subhubId/$employeeId'
@@ -624,6 +648,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InventoryAdjustmentRouteImport
       parentRoute: typeof InventoryRoute
     }
+    '/inventory/batches': {
+      id: '/inventory/batches'
+      path: '/batches'
+      fullPath: '/inventory/batches'
+      preLoaderRoute: typeof InventoryBatchesRouteImport
+      parentRoute: typeof InventoryRoute
+    }
     '/inventory/final-products': {
       id: '/inventory/final-products'
       path: '/final-products'
@@ -729,6 +760,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUsersUserIdRouteImport
       parentRoute: typeof AdminUsersRoute
     }
+    '/inventory/batches/$batchId': {
+      id: '/inventory/batches/$batchId'
+      path: '/$batchId'
+      fullPath: '/inventory/batches/$batchId'
+      preLoaderRoute: typeof InventoryBatchesBatchIdRouteImport
+      parentRoute: typeof InventoryBatchesRoute
+    }
     '/subhub/bom/$code': {
       id: '/subhub/bom/$code'
       path: '/$code'
@@ -780,8 +818,20 @@ const HrRouteChildren: HrRouteChildren = {
 
 const HrRouteWithChildren = HrRoute._addFileChildren(HrRouteChildren)
 
+interface InventoryBatchesRouteChildren {
+  InventoryBatchesBatchIdRoute: typeof InventoryBatchesBatchIdRoute
+}
+
+const InventoryBatchesRouteChildren: InventoryBatchesRouteChildren = {
+  InventoryBatchesBatchIdRoute: InventoryBatchesBatchIdRoute,
+}
+
+const InventoryBatchesRouteWithChildren =
+  InventoryBatchesRoute._addFileChildren(InventoryBatchesRouteChildren)
+
 interface InventoryRouteChildren {
   InventoryAdjustmentRoute: typeof InventoryAdjustmentRoute
+  InventoryBatchesRoute: typeof InventoryBatchesRouteWithChildren
   InventoryFinalProductsRoute: typeof InventoryFinalProductsRoute
   InventoryHistoryRoute: typeof InventoryHistoryRoute
   InventoryQualityRoute: typeof InventoryQualityRoute
@@ -790,6 +840,7 @@ interface InventoryRouteChildren {
 
 const InventoryRouteChildren: InventoryRouteChildren = {
   InventoryAdjustmentRoute: InventoryAdjustmentRoute,
+  InventoryBatchesRoute: InventoryBatchesRouteWithChildren,
   InventoryFinalProductsRoute: InventoryFinalProductsRoute,
   InventoryHistoryRoute: InventoryHistoryRoute,
   InventoryQualityRoute: InventoryQualityRoute,
