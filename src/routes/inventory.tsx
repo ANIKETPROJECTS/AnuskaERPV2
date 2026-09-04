@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Navigate, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
 import { ArrowDownAZ, ArrowDownCircle, ArrowUpAZ, ArrowUpCircle, Check, Package, Plus, RefreshCw, Search, ShieldAlert, SlidersHorizontal, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
@@ -12,10 +12,15 @@ export type View = "inventory" | "raw-materials" | "final-products" | "history" 
 
 export const Route = createFileRoute("/inventory")({
   head: () => ({ meta: [{ title: "Inventory Management — Float ERP" }] }),
-  component: () => <Navigate to="/inventory/raw-materials" replace />,
+  component: InventoryRouteLayout,
 });
 
 const emptyData: SubhubInventoryData = { items: [], movements: [], qualityLogs: [], qualitySummary: { records: 0, rejectedUnits: 0 } };
+
+function InventoryRouteLayout() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  return pathname === "/inventory" ? <Navigate to="/inventory/raw-materials" replace /> : <Outlet />;
+}
 
 export function InventoryManagement({ initialView }: { initialView: View }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
