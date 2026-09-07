@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { MapPin, RefreshCw } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ArrowRight, MapPin, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
@@ -120,6 +120,9 @@ function Hubs() {
                     <span className="mx-1">·</span>
                     Stock value: <span className="font-medium text-foreground">₹{hub.stockValue.toLocaleString("en-IN")}</span>
                   </p>
+                  <Link to="/hubs/$hubId" params={{ hubId: hub.userId }} className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+                    View details <ArrowRight className="size-4" />
+                  </Link>
                 </article>
               ))}
             </div>

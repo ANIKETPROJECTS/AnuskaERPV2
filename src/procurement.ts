@@ -44,7 +44,7 @@ const orderSchema = z.object({
   materialCode: z.string().min(1),
   materialName: z.string().max(160).optional(),
   quantity: z.number().int().positive(),
-  unitPrice: z.number().finite().nonnegative(),
+  unitPrice: z.number().finite().nonnegative().optional(),
   orderDate: z.string().min(10),
   expectedDelivery: z.string().min(10),
   notes: z.string().max(500),

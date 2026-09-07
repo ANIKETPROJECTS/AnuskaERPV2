@@ -1159,6 +1159,11 @@ async function readSubhubInventory(user: UserDocument, workspaceDb: Db, consiste
   };
 }
 
+export async function getWorkspaceInventorySnapshot(user: UserDocument, workspaceDb: Db): Promise<SubhubInventoryData> {
+  const consistencyWarnings = await syncWorkspaceInventoryForUser(user, workspaceDb);
+  return readSubhubInventory(user, workspaceDb, consistencyWarnings);
+}
+
 export async function getSubhubInventory(): Promise<
   { ok: true; data: SubhubInventoryData } | { ok: false; data: SubhubInventoryData; message: string }
 > {

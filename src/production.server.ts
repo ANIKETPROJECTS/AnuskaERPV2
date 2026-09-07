@@ -9,8 +9,10 @@ import {
   ensureLegacyBatches,
   syncWorkspaceInventoryForUser,
   reconcileProductionBatchAllocation,
+  getWorkspaceInventorySnapshot,
   type ProductionManualAllocation,
   type ProductionAllocationPreview,
+  type SubhubInventoryData,
 } from "./inventory.server";
 import { procurement, subparts } from "./lib/erp-data";
 
@@ -163,6 +165,27 @@ export type AdminProductionDashboard = {
   completion: number;
   reportsToday: number;
   latestReportDate: string | null;
+};
+
+export type AdminHubDetailReport = ProductionReport & {
+  orderNumber: string;
+  productName: string;
+  variantName: string;
+  variantCode: string;
+};
+
+export type AdminHubDetail = {
+  hub: HubSummary;
+  manager: {
+    email: string;
+    active: boolean;
+    createdAt: string;
+  };
+  orders: ProductionOrder[];
+  reports: AdminHubDetailReport[];
+  inventory: SubhubInventoryData;
+  activities: ProductionOrderActivity[];
+  dailyProduction: Array<{ date: string; quantity: number }>;
 };
 
 type ProductionOrderDocument = {
@@ -1490,6 +1513,101 @@ export async function getAdminProductionDashboard(): Promise<
       completion: totalTarget ? Math.round((totalProduced / totalTarget) * 100) : 0,
       reportsToday: allReports.filter(({ report }) => report.date === today).length,
       latestReportDate,
+    },
+  };
+}
+
+export async function getAdminHubDetail(hubId: string): Promise<
+  { ok: true; data: AdminHubDetail } | { ok: false; data: null; message: string }
+> {
+  const current = await getCurrentUserRecord("admin");
+  if (!isAdmin(current)) return { ok: false, data: null, message: "Only Admin users can view hub details." };
+  await rebalanceProductionOrders(current._id);
+
+  const controlDb = await getControlPlaneDatabase();
+  const user = await controlDb.collection<UserDocument>("users").findOne({
+    _id: hubId,
+    panel: "subhub",
+    role: "subhub",
+  });
+  if (!user || !user.subhubName) return { ok: false, data: null, message: "The requested hub could not be found." };
+
+  const [orders, reports, capacity, workspaceDb] = await Promise.all([
+    controlDb.collection<ProductionOrderDocument>("production_orders")
+      .find({ subhubUserId: user._id })
+      .sort({ dueDate: 1, createdAt: -1 })
+      .toArray(),
+    getMongoDb(user.databaseName).then((db) => db.collection<ProductionReportDocument>("production_reports").find().sort({ date: -1, updatedAt: -1 }).toArray()),
+    controlDb.collection<HubCapacityDocument>("hub_capacities").findOne({ _id: user._id }),
+    getMongoDb(user.databaseName),
+  ]);
+  const inventory = await getWorkspaceInventorySnapshot(user, workspaceDb);
+  const orderReports = new Map<string, ProductionReportDocument[]>();
+  reports.forEach((report) => {
+    const currentReports = orderReports.get(report.orderId) ?? [];
+    orderReports.set(report.orderId, [...currentReports, report]);
+  });
+  const serializedOrders = orders.map((order) => summarizeOrder(order, orderReports.get(order._id) ?? []));
+  const orderById = new Map(orders.map((order) => [order._id, order]));
+  const serializedReports = await Promise.all(reports.map(async (report) => {
+    const order = orderById.get(report.orderId);
+    return {
+      ...serializeReport(report, await getProductionBatchAllocationState(workspaceDb, report._id)),
+      orderNumber: order?.orderNumber ?? "Unassigned order",
+      productName: order?.productName ?? "Unknown product",
+      variantName: order?.variantName ?? "Unknown variant",
+      variantCode: order?.variantCode ?? "—",
+    };
+  }));
+  const target = serializedOrders.reduce((sum, order) => sum + order.target, 0);
+  const produced = serializedOrders.reduce((sum, order) => sum + order.produced, 0);
+  const today = new Date().toISOString().slice(0, 10);
+  const lastProductionDate = reports[0]?.date ?? null;
+  const completion = target ? Math.round((produced / target) * 100) : 0;
+  const openUnits = serializedOrders.reduce((sum, order) => sum + order.remaining, 0);
+  const capacityUnits = capacity?.capacityUnits ?? null;
+  let status: HubSummary["status"] = "No assignments";
+  if (target && completion > 100) status = "Over target";
+  else if (target && completion >= 100) status = "Complete";
+  else if (target && lastProductionDate && lastProductionDate < today) status = "Awaiting update";
+  else if (target) status = "In progress";
+  const hub: HubSummary = {
+    userId: user._id,
+    name: user.name,
+    subhubName: user.subhubName,
+    orderCount: serializedOrders.length,
+    capacityUnits,
+    openUnits,
+    availableUnits: capacityUnits === null ? null : capacityUnits - openUnits,
+    overloaded: capacityUnits !== null && openUnits > capacityUnits,
+    target,
+    produced,
+    remaining: Math.max(0, target - produced),
+    completion,
+    reportCount: reports.length,
+    stockUnits: inventory.items.reduce((sum, item) => sum + item.quantity, 0),
+    stockValue: inventory.items.reduce((sum, item) => sum + item.quantity * item.price, 0),
+    lastProductionDate,
+    status,
+  };
+  const activityDocuments = await controlDb.collection<OrderActivityDocument>("production_order_activity")
+    .find({ orderId: { $in: orders.map((order) => order._id) } })
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .toArray();
+  const daily = new Map<string, number>();
+  reports.forEach((report) => daily.set(report.date, (daily.get(report.date) ?? 0) + report.quantity));
+
+  return {
+    ok: true,
+    data: {
+      hub,
+      manager: { email: user.email, active: user.active, createdAt: user.createdAt.toISOString() },
+      orders: serializedOrders,
+      reports: serializedReports,
+      inventory,
+      activities: activityDocuments.map(serializeOrderActivity),
+      dailyProduction: [...daily.entries()].sort(([left], [right]) => right.localeCompare(left)).map(([date, quantity]) => ({ date, quantity })),
     },
   };
 }

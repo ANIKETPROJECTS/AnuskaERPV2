@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Archive,
-  ArrowRight,
   Check,
   ChevronDown,
   ClipboardList,
@@ -97,11 +96,6 @@ function statusTone(status: ProcurementStatus): "good" | "warn" | "info" | "neut
   if (status === "Dispatch done") return "info";
   if (status === "Payment done") return "warn";
   return "neutral";
-}
-
-function nextStatus(status: ProcurementStatus): ProcurementStatus | null {
-  const index = PROCUREMENT_STATUSES.indexOf(status);
-  return PROCUREMENT_STATUSES[index + 1] ?? null;
 }
 
 function Procurement() {
@@ -204,14 +198,13 @@ function Procurement() {
     setToDate("");
   }
 
-  async function advanceOrder(order: ProcurementOrder) {
-    const status = nextStatus(order.status);
-    if (!status) return;
+  async function updateOrderStatus(order: ProcurementOrder, status: ProcurementStatus) {
+    if (status === order.status) return;
     setNotice("");
     const response = await updateProcurementOrderStatusFn({ data: { id: order.id, status } });
     if (!response.ok) setError(response.message);
     else {
-      setNotice(`${order.orderNumber} moved to ${status}.`);
+      setNotice(`${order.orderNumber} changed from ${order.status} to ${status}.`);
       await reload();
     }
   }
@@ -298,7 +291,7 @@ function Procurement() {
             clearFilters={clearFilters}
           />
           <Panel title="Procurement orders" description={`${filteredOrders.length} of ${data.orders.length} orders · every row is stored in MongoDB`}>
-            {loading ? <Loading /> : <OrderTable orders={paginatedOrders} total={filteredOrders.length} page={orderPage} pageSize={orderPageSize} onPageChange={setOrderPage} onPageSizeChange={setOrderPageSize} isAdmin={isAdmin} onAdvance={(order) => void advanceOrder(order)} />}
+            {loading ? <Loading /> : <OrderTable orders={paginatedOrders} total={filteredOrders.length} page={orderPage} pageSize={orderPageSize} onPageChange={setOrderPage} onPageSizeChange={setOrderPageSize} isAdmin={isAdmin} onStatusChange={(order, status) => void updateOrderStatus(order, status)} />}
           </Panel>
           {isAdmin ? <AdminReports data={data} /> : null}
         </>

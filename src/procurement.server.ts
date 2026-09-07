@@ -484,7 +484,7 @@ export async function createProcurementOrder(input: {
   materialCode: string;
   materialName?: string | undefined;
   quantity: number;
-  unitPrice: number;
+  unitPrice?: number | undefined;
   orderDate: string;
   expectedDelivery: string;
   notes: string;
@@ -510,7 +510,9 @@ export async function createProcurementOrder(input: {
       : null);
     if (!material) return { ok: false, message: "Select a raw material or enter a one-off material name." };
     if (!Number.isInteger(input.quantity) || input.quantity < 1) return { ok: false, message: "Quantity must be a whole number greater than zero." };
-    if (!Number.isFinite(input.unitPrice) || input.unitPrice < 0) return { ok: false, message: "Unit price cannot be negative." };
+    if (subparts.some((part) => part.code === input.materialCode) && input.unitPrice === undefined) return { ok: false, message: "Enter a unit price for catalog materials." };
+    const unitPrice = input.unitPrice ?? 0;
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) return { ok: false, message: "Unit price cannot be negative." };
     const db = await getProcurementDb();
     let destinationUserId = user._id;
     let destinationName = user.panel === "subhub" ? user.subhubName ?? user.name : "Admin procurement";
@@ -529,19 +531,38 @@ export async function createProcurementOrder(input: {
     let vendor: ProcurementVendor | undefined;
     if (input.vendorId === MISCELLANEOUS_VENDOR_ID) {
       const miscellaneousVendorName = clean(input.newVendor?.name);
-      if (!miscellaneousVendorName) return { ok: false, message: "Enter the miscellaneous supplier name." };
-      const escapedName = miscellaneousVendorName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const existingVendor = await db.collection<VendorDocument>("procurement_vendors").findOne({
-        name: { $regex: `^${escapedName}$`, $options: "i" },
-        status: "active",
-      });
-      vendor = existingVendor
-        ? toVendor(existingVendor)
-        : await createVendorRecord(db, user._id, {
-            ...input.newVendor,
-            name: miscellaneousVendorName,
-            categories: [...(input.newVendor?.categories ?? []), "Miscellaneous"],
-          });
+      if (!miscellaneousVendorName) {
+        vendor = {
+          id: MISCELLANEOUS_VENDOR_ID,
+          name: "Miscellaneous",
+          contactName: "",
+          phone: "",
+          email: "",
+          address: "",
+          city: "",
+          state: "",
+          pincode: "",
+          paymentTerms: "",
+          categories: ["Miscellaneous"],
+          status: "active",
+          notes: "",
+          createdAt: "",
+          updatedAt: "",
+        };
+      } else {
+        const escapedName = miscellaneousVendorName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const existingVendor = await db.collection<VendorDocument>("procurement_vendors").findOne({
+          name: { $regex: `^${escapedName}$`, $options: "i" },
+          status: "active",
+        });
+        vendor = existingVendor
+          ? toVendor(existingVendor)
+          : await createVendorRecord(db, user._id, {
+              ...input.newVendor,
+              name: miscellaneousVendorName,
+              categories: [...(input.newVendor?.categories ?? []), "Miscellaneous"],
+            });
+      }
     } else if (input.vendorId) {
       const vendorDocument = await db.collection<VendorDocument>("procurement_vendors").findOne({ _id: input.vendorId, status: "active" });
       if (!vendorDocument) return { ok: false, message: "Select an active vendor." };
@@ -563,8 +584,8 @@ export async function createProcurementOrder(input: {
       materialCode: material.code,
       materialName: material.name,
       quantity: input.quantity,
-      unitPrice: Math.round(input.unitPrice * 100) / 100,
-      totalAmount: Math.round(input.quantity * input.unitPrice * 100) / 100,
+       unitPrice: Math.round(unitPrice * 100) / 100,
+       totalAmount: Math.round(input.quantity * unitPrice * 100) / 100,
       orderDate,
       expectedDelivery,
       notes: clean(input.notes),
@@ -596,11 +617,8 @@ export async function updateProcurementOrderStatus(input: {
       admin ? { _id: input.id } : { _id: input.id, subhubUserId: user._id },
     );
     if (!order) return { ok: false, message: "Order not found in your procurement workspace." };
-    const currentIndex = PROCUREMENT_STATUSES.indexOf(order.status);
-    const nextIndex = PROCUREMENT_STATUSES.indexOf(input.status);
-    if (nextIndex < 0 || nextIndex !== currentIndex + 1) {
-      return { ok: false, message: "Statuses must move forward one step at a time." };
-    }
+    if (!PROCUREMENT_STATUSES.includes(input.status)) return { ok: false, message: "Select a valid procurement status." };
+    if (order.status === input.status) return { ok: true, order: toOrder(order) };
     const now = new Date();
     const updated: ProcurementOrderDocument = {
       ...order,
