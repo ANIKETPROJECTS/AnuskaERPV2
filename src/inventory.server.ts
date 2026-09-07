@@ -98,6 +98,7 @@ export type SubhubInventoryData = {
   batchMovements: BatchMovement[];
   consistencyWarnings: string[];
 };
+export type InventoryDataView = "inventory" | "history" | "quality" | "adjustment" | "batches" | "all";
 
 export type MasterQualityData = {
   logs: QualityLog[];
@@ -477,6 +478,31 @@ async function migrateBatchCodes(db: Db) {
     } finally {
       await session.endSession();
     }
+  }
+}
+
+const batchCodeMigrationPromises = new Map<string, Promise<void>>();
+async function migrateBatchCodesOnce(db: Db) {
+  const markerCollection = db.collection<{ _id: string; completedAt: Date }>("inventory_maintenance");
+  if (await markerCollection.findOne({ _id: "batch-codes-v1" })) return;
+  let promise = batchCodeMigrationPromises.get(db.databaseName);
+  if (!promise) {
+    promise = (async () => {
+      if (await markerCollection.findOne({ _id: "batch-codes-v1" })) return;
+      await migrateBatchCodes(db);
+      await markerCollection.updateOne(
+        { _id: "batch-codes-v1" },
+        { $set: { completedAt: new Date() } },
+        { upsert: true },
+      );
+    })();
+    batchCodeMigrationPromises.set(db.databaseName, promise);
+  }
+  try {
+    await promise;
+  } catch (error) {
+    batchCodeMigrationPromises.delete(db.databaseName);
+    throw error;
   }
 }
 
@@ -1097,19 +1123,40 @@ async function syncFloatProduction(user: UserDocument, workspaceDb: Db, excluded
   return warnings;
 }
 
-export async function syncWorkspaceInventoryForUser(user: UserDocument, workspaceDb: Db, excludedReportId?: string) {
-  const warnings = [
-    ...await syncDeliveredProcurementOrders(user, workspaceDb),
-    ...await syncMoldedProduction(user, workspaceDb, excludedReportId),
-    ...await syncFloatProduction(user, workspaceDb, excludedReportId),
-    ...await ensureLegacyBatches(workspaceDb, user._id),
-  ];
-  await migrateBatchCodes(workspaceDb);
-  return [...new Set(warnings)];
+const inventorySyncStates = new Map<string, { completedAt: number; warnings: string[]; inFlight?: Promise<string[]> }>();
+const INVENTORY_SYNC_CACHE_MS = 15_000;
+export async function syncWorkspaceInventoryForUser(user: UserDocument, workspaceDb: Db, excludedReportId?: string, options: { force?: boolean } = {}) {
+  const key = workspaceDb.databaseName;
+  const state = inventorySyncStates.get(key);
+  if (state?.inFlight) {
+    const warnings = await state.inFlight;
+    if (!options.force) return warnings;
+  }
+  const latestState = inventorySyncStates.get(key);
+  if (!options.force && latestState && Date.now() - latestState.completedAt < INVENTORY_SYNC_CACHE_MS) return latestState.warnings;
+  const promise = (async () => {
+    const warnings = [
+      ...await syncDeliveredProcurementOrders(user, workspaceDb),
+      ...await syncMoldedProduction(user, workspaceDb, excludedReportId),
+      ...await syncFloatProduction(user, workspaceDb, excludedReportId),
+      ...await ensureLegacyBatches(workspaceDb, user._id),
+    ];
+    await migrateBatchCodesOnce(workspaceDb);
+    return [...new Set(warnings)];
+  })();
+  inventorySyncStates.set(key, { completedAt: 0, warnings: [], inFlight: promise });
+  try {
+    const warnings = await promise;
+    inventorySyncStates.set(key, { completedAt: Date.now(), warnings });
+    return warnings;
+  } catch (error) {
+    inventorySyncStates.delete(key);
+    throw error;
+  }
 }
 
 async function syncWorkspaceInventory(user: UserDocument, workspaceDb: Db) {
-  return syncWorkspaceInventoryForUser(user, workspaceDb);
+  return syncWorkspaceInventoryForUser(user, workspaceDb, undefined, { force: true });
 }
 
 function serializeInventoryItem(record: InventoryItemDocument): InventoryItem {
@@ -1125,13 +1172,18 @@ function serializeInventoryItem(record: InventoryItemDocument): InventoryItem {
   };
 }
 
-async function readSubhubInventory(user: UserDocument, workspaceDb: Db, consistencyWarnings: string[] = []): Promise<SubhubInventoryData> {
+async function readSubhubInventory(user: UserDocument, workspaceDb: Db, consistencyWarnings: string[] = [], view: InventoryDataView = "all"): Promise<SubhubInventoryData> {
+  const includeItems = view === "inventory" || view === "quality" || view === "adjustment" || view === "all";
+  const includeMovements = view === "all";
+  const includeQuality = view === "quality" || view === "all";
+  const includeBatches = view === "adjustment" || view === "batches" || view === "all";
+  const includeBatchMovements = view === "history" || view === "all";
   const [records, movements, qualityLogs, batches, batchMovements] = await Promise.all([
-    workspaceDb.collection<InventoryItemDocument>("inventory_items").find().sort({ name: 1, _id: 1 }).toArray(),
-    workspaceDb.collection<InventoryMovementDocument>("inventory_movements").find().sort({ createdAt: -1 }).limit(200).toArray(),
-    workspaceDb.collection<QualityLogDocument>("quality_logs").find().sort({ createdAt: -1 }).toArray(),
-    workspaceDb.collection<InventoryBatchDocument>("inventory_batches").find().sort({ createdAt: -1 }).toArray(),
-    workspaceDb.collection<BatchMovementDocument>("inventory_batch_movements").find().sort({ createdAt: -1 }).limit(500).toArray(),
+    includeItems ? workspaceDb.collection<InventoryItemDocument>("inventory_items").find({}, { projection: { _id: 1, name: 1, category: 1, unit: 1, quantity: 1, price: 1, createdAt: 1, updatedAt: 1 } }).sort({ name: 1, _id: 1 }).toArray() : Promise.resolve([]),
+    includeMovements ? workspaceDb.collection<InventoryMovementDocument>("inventory_movements").find({}, { projection: { _id: 1, createdAt: 1, type: 1, product: 1, code: 1, sourceId: 1, change: 1, balance: 1, reason: 1, notes: 1 } }).sort({ createdAt: -1 }).limit(200).toArray() : Promise.resolve([]),
+    includeQuality ? workspaceDb.collection<QualityLogDocument>("quality_logs").find().sort({ createdAt: -1 }).toArray() : Promise.resolve([]),
+    includeBatches ? workspaceDb.collection<InventoryBatchDocument>("inventory_batches").find().sort({ createdAt: -1 }).toArray() : Promise.resolve([]),
+    includeBatchMovements ? workspaceDb.collection<BatchMovementDocument>("inventory_batch_movements").find().sort({ createdAt: -1 }).limit(500).toArray() : Promise.resolve([]),
   ]);
   const serializedQualityLogs = qualityLogs.map(serializeQualityLog);
   return {
@@ -1161,17 +1213,17 @@ async function readSubhubInventory(user: UserDocument, workspaceDb: Db, consiste
 
 export async function getWorkspaceInventorySnapshot(user: UserDocument, workspaceDb: Db): Promise<SubhubInventoryData> {
   const consistencyWarnings = await syncWorkspaceInventoryForUser(user, workspaceDb);
-  return readSubhubInventory(user, workspaceDb, consistencyWarnings);
+  return readSubhubInventory(user, workspaceDb, consistencyWarnings, "all");
 }
 
-export async function getSubhubInventory(): Promise<
+export async function getSubhubInventory(view: InventoryDataView = "all"): Promise<
   { ok: true; data: SubhubInventoryData } | { ok: false; data: SubhubInventoryData; message: string }
 > {
   const user = await getCurrentUserRecord("subhub");
   if (user?.panel !== "subhub" || user.role !== "subhub") return { ok: false, data: emptyData(), message: "Only SubHub Managers can view workspace inventory." };
   const workspaceDb = await getMongoDb(user.databaseName);
-  const consistencyWarnings = await syncWorkspaceInventory(user, workspaceDb);
-  return { ok: true, data: await readSubhubInventory(user, workspaceDb, consistencyWarnings) };
+  const consistencyWarnings = await syncWorkspaceInventoryForUser(user, workspaceDb);
+  return { ok: true, data: await readSubhubInventory(user, workspaceDb, consistencyWarnings, view) };
 }
 
 export type AdjustInventoryInput = {

@@ -88,7 +88,7 @@ function PurchaseDetail() {
           {order.notes ? <p className="whitespace-pre-wrap p-5 text-sm leading-6 text-muted-foreground">{order.notes}</p> : <div className="p-10 text-center"><Package className="mx-auto size-7 text-muted-foreground" /><p className="mt-3 text-sm text-muted-foreground">No notes were added to this order.</p></div>}
         </Panel>
       </div>
-      <div className="flex items-center gap-2 rounded-md border border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground"><Clock3 className="size-4" /> Status changes are forward-only to keep the procurement audit trail reliable.<Truck className="ml-auto size-4" /></div>
+      <div className="flex items-center gap-2 rounded-md border border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground"><Clock3 className="size-4" /> Status can be changed to any stage; every change remains in the procurement audit trail.<Truck className="ml-auto size-4" /></div>
     </>
   );
   const title = `Purchase ${order.orderNumber}`;

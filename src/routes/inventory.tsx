@@ -31,7 +31,8 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
 
   async function load() {
     setLoading(true);
-    const result = await getSubhubInventoryFn();
+    const requestView = view === "raw-materials" || view === "final-products" ? "inventory" : view;
+    const result = await getSubhubInventoryFn({ data: { view: requestView } });
     if (result.ok) {
       setData(result.data);
       setError("");
@@ -43,7 +44,7 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [view]);
 
   const title = view === "raw-materials" ? "Raw Materials Inventory" : view === "final-products" ? "Final Product Inventory" : view === "history" ? "Inventory History" : view === "quality" ? "Quality Management" : view === "batches" ? "Batch Register" : "Stock Adjustment";
   const isInventoryPage = view === "raw-materials" || view === "final-products";
