@@ -1,14 +1,14 @@
 import { createFileRoute, Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
-import { ArrowDownAZ, ArrowDownCircle, ArrowUpAZ, ArrowUpCircle, Check, Package, RefreshCw, Search, ShieldAlert, SlidersHorizontal } from "lucide-react";
+import { ArrowDownAZ, ArrowDownCircle, ArrowUpAZ, ArrowUpCircle, Check, Package, RefreshCw, Search, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { Panel, Tag } from "@/components/erp/bits";
 import { TablePagination } from "@/components/erp/TablePagination";
-import { adjustSubhubInventoryBatchFn, adjustSubhubInventoryFn, getSubhubInventoryFn } from "@/inventory";
+import { adjustSubhubInventoryBatchFn, getSubhubInventoryFn } from "@/inventory";
 import type { BatchMovement, InventoryBatch, InventoryItem, SubhubInventoryData } from "@/inventory.server";
 import { num } from "@/lib/erp-data";
 
-export type View = "inventory" | "raw-materials" | "final-products" | "history" | "adjustment" | "quality" | "batches";
+export type View = "inventory" | "raw-materials" | "final-products" | "history" | "quality" | "batches";
 
 export const Route = createFileRoute("/inventory")({
   head: () => ({ meta: [{ title: "Inventory Management — Float ERP" }] }),
@@ -25,6 +25,12 @@ const qualityReasonOptions = [
   { value: "count-correction", label: "Stock count correction" },
   { value: "supplier-discrepancy", label: "Supplier quantity discrepancy" },
   { value: "rework", label: "Sent for rework" },
+  { value: "stock-received", label: "Stock received" },
+  { value: "returned-stock", label: "Returned stock" },
+  { value: "recovered-stock", label: "Recovered after reinspection" },
+  { value: "production-overage", label: "Production overage" },
+  { value: "supplier-replacement", label: "Supplier replacement" },
+  { value: "found-during-count", label: "Found during stock count" },
 ] as const;
 
 function InventoryRouteLayout() {
@@ -34,7 +40,7 @@ function InventoryRouteLayout() {
 
 export function InventoryManagement({ initialView }: { initialView: View }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const view: View = pathname.endsWith("/raw-materials") ? "raw-materials" : pathname.endsWith("/final-products") ? "final-products" : pathname.endsWith("/history") ? "history" : pathname.endsWith("/adjustment") ? "adjustment" : pathname.endsWith("/quality") ? "quality" : pathname.endsWith("/batches") ? "batches" : initialView;
+  const view: View = pathname.endsWith("/raw-materials") ? "raw-materials" : pathname.endsWith("/final-products") ? "final-products" : pathname.endsWith("/history") ? "history" : pathname.endsWith("/quality") ? "quality" : pathname.endsWith("/batches") ? "batches" : initialView;
   const [data, setData] = useState(emptyData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -56,11 +62,11 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
     void load();
   }, [view]);
 
-  const title = view === "raw-materials" ? "Raw Materials Inventory" : view === "final-products" ? "Final Product Inventory" : view === "history" ? "Inventory History" : view === "quality" ? "Quality Management" : view === "batches" ? "Batch Register" : "Stock Adjustment";
+  const title = view === "raw-materials" ? "Raw Materials Inventory" : view === "final-products" ? "Final Product Inventory" : view === "history" ? "Inventory History" : view === "quality" ? "Quality Management" : "Batch Register";
   const isInventoryPage = view === "raw-materials" || view === "final-products";
 
   return (
-    <SubHubShell actions={<div className="flex flex-wrap gap-2"><Link to="/inventory/raw-materials" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Raw materials</Link><Link to="/inventory/final-products" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Final products</Link><Link to="/inventory/batches" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Batch register</Link><Link to="/inventory/history" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Movement history</Link><Link to="/inventory/quality" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><ShieldAlert className="size-4" /> Quality</Link><Link to="/inventory/adjustment" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><SlidersHorizontal className="size-4" /> Adjust</Link></div>}>
+    <SubHubShell actions={<div className="flex flex-wrap gap-2"><Link to="/inventory/raw-materials" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Raw materials</Link><Link to="/inventory/final-products" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Final products</Link><Link to="/inventory/batches" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Batch register</Link><Link to="/inventory/history" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Movement history</Link><Link to="/inventory/quality" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><ShieldAlert className="size-4" /> Quality</Link></div>}>
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-white px-6 py-4">
         <div><p className="mb-1 text-xs font-semibold text-muted-foreground">SubHub / Inventory Management</p><h1 className="text-xl font-semibold">{title}</h1><p className="text-sm text-muted-foreground">Workspace-scoped inventory for this SubHub.</p></div>
         <button type="button" onClick={() => void load()} className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><RefreshCw className="size-4" /> Refresh</button>
@@ -71,7 +77,6 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
         {view === "final-products" ? <InventoryTable inventoryType="Float" items={data.items.filter((item) => item.category === "Float")} loading={loading} /> : null}
          {view === "history" ? <HistoryTable movements={data.batchMovements} loading={loading} /> : null}
         {view === "quality" ? <QualityManagement data={data} loading={loading} onSaved={load} /> : null}
-        {view === "adjustment" ? <Adjustment onSaved={load} items={data.items} batches={data.batches} /> : null}
         {view === "batches" ? <BatchRegister batches={data.batches} loading={loading} /> : null}
       </section>
     </SubHubShell>
@@ -88,10 +93,6 @@ export function InventoryRawMaterialsPage() {
 
 export function InventoryFinalProductsPage() {
   return <InventoryManagement initialView="final-products" />;
-}
-
-export function InventoryAdjustmentPage() {
-  return <InventoryManagement initialView="adjustment" />;
 }
 
 export function InventoryQualityPage() {
