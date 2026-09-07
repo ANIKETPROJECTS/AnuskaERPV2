@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { ArrowRight, MapPin, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
@@ -41,6 +41,7 @@ function toneFor(status: HubSummary["status"]): "good" | "warn" | "bad" | "neutr
 }
 
 function Hubs() {
+  const { pathname } = useLocation();
   const [dashboard, setDashboard] = useState(emptyDashboard);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -58,8 +59,13 @@ function Hubs() {
   }
 
   useEffect(() => {
+    if (pathname !== "/hubs" && pathname !== "/hubs/") return;
     void load();
-  }, []);
+  }, [pathname]);
+
+  if (pathname !== "/hubs" && pathname !== "/hubs/") {
+    return <Outlet />;
+  }
 
   return (
     <Shell

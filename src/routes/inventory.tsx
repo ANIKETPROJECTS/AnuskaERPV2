@@ -16,6 +16,16 @@ export const Route = createFileRoute("/inventory")({
 });
 
 const emptyData: SubhubInventoryData = { items: [], movements: [], qualityLogs: [], qualitySummary: { records: 0, rejectedUnits: 0 }, batches: [], batchMovements: [], consistencyWarnings: [] };
+const qualityReasonOptions = [
+  { value: "custom", label: "Custom reason" },
+  { value: "faulty", label: "Faulty / failed inspection" },
+  { value: "damaged", label: "Damaged in handling" },
+  { value: "rejected", label: "Rejected during quality check" },
+  { value: "expired", label: "Expired or past shelf life" },
+  { value: "count-correction", label: "Stock count correction" },
+  { value: "supplier-discrepancy", label: "Supplier quantity discrepancy" },
+  { value: "rework", label: "Sent for rework" },
+] as const;
 
 function InventoryRouteLayout() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -107,12 +117,25 @@ function BatchRegister({ batches, loading }: { batches: InventoryBatch[]; loadin
 }
 
 function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryData; loading: boolean; onSaved: () => Promise<void> }) {
-  const [changes, setChanges] = useState<Record<string, { quantity: string; reason: string }>>({});
+  const [changes, setChanges] = useState<Record<string, { quantity: string; reason: string; reasonOption: string }>>({});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const updateChange = (code: string, field: "quantity" | "reason", value: string) => {
-    setChanges((current) => ({ ...current, [code]: { quantity: current[code]?.quantity ?? "", reason: current[code]?.reason ?? "", [field]: value } }));
+    setChanges((current) => ({ ...current, [code]: { quantity: current[code]?.quantity ?? "", reason: current[code]?.reason ?? "", reasonOption: current[code]?.reasonOption ?? "custom", [field]: value } }));
+    setMessage("");
+    setError("");
+  };
+  const updateReasonOption = (code: string, reasonOption: string) => {
+    const selected = qualityReasonOptions.find((option) => option.value === reasonOption);
+    setChanges((current) => ({
+      ...current,
+      [code]: {
+        quantity: current[code]?.quantity ?? "",
+        reason: reasonOption === "custom" ? "" : selected?.label ?? "",
+        reasonOption,
+      },
+    }));
     setMessage("");
     setError("");
   };
@@ -184,7 +207,7 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
               <tr><th className="px-4 py-3 font-medium">Item</th><th className="px-4 py-3 font-medium">Type</th><th className="px-4 py-3 text-right font-medium">Current stock</th><th className="w-44 px-4 py-3 font-medium">Change <span className="font-normal normal-case tracking-normal">(＋ add / − reduce)</span></th><th className="min-w-[280px] px-4 py-3 font-medium">Reason</th><th className="w-24 px-4 py-3 text-right font-medium">Status</th></tr>
             </thead>
             <tbody>{data.items.map((item) => {
-              const draft = changes[item.code] ?? { quantity: "", reason: "" };
+              const draft = changes[item.code] ?? { quantity: "", reason: "", reasonOption: "custom" };
               const quantity = Number(draft.quantity);
               const hasChange = draft.quantity.trim() !== "" && Number.isInteger(quantity) && quantity !== 0;
               return <tr key={item.code} className={`border-t border-border/70 ${hasChange ? "bg-primary/[0.035]" : ""}`}>
@@ -192,7 +215,12 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
                 <td className="whitespace-nowrap px-4 py-2.5"><Tag tone={item.category === "Float" ? "info" : "neutral"}>{item.category === "Float" ? "Final product" : "Raw material"}</Tag></td>
                 <td className="tabular whitespace-nowrap px-4 py-2.5 text-right font-semibold">{num(item.quantity)} <span className="text-xs font-normal text-muted-foreground">{item.unit}</span></td>
                 <td className="px-4 py-2.5"><input aria-label={`Quantity change for ${item.name}`} type="number" step="1" value={draft.quantity} onChange={(event) => updateChange(item.code, "quantity", event.target.value)} placeholder="0" className={`tabular h-9 w-full rounded-md border px-3 text-sm outline-none focus:border-primary ${quantity < 0 ? "border-destructive/40" : quantity > 0 ? "border-success/40" : "border-input"}`} /></td>
-                <td className="px-4 py-2.5"><input aria-label={`Reason for ${item.name}`} value={draft.reason} onChange={(event) => updateChange(item.code, "reason", event.target.value)} placeholder={hasChange ? "Why is stock changing?" : "Enter only when changing"} className="h-9 w-full rounded-md border border-input px-3 text-sm outline-none focus:border-primary" /></td>
+                 <td className="px-4 py-2.5">
+                   <select aria-label={`Reason type for ${item.name}`} value={draft.reasonOption} onChange={(event) => updateReasonOption(item.code, event.target.value)} className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus:border-primary">
+                     {qualityReasonOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                   </select>
+                   {draft.reasonOption === "custom" ? <input aria-label={`Custom reason for ${item.name}`} value={draft.reason} onChange={(event) => updateChange(item.code, "reason", event.target.value)} placeholder={hasChange ? "Type the reason…" : "Enter only when changing"} className="mt-1.5 h-9 w-full rounded-md border border-input px-3 text-sm outline-none focus:border-primary" /> : null}
+                 </td>
                 <td className="whitespace-nowrap px-4 py-2.5 text-right">{hasChange ? <button type="button" onClick={() => clearChange(item.code)} className="text-xs font-medium text-primary hover:underline">Clear</button> : <span className="text-xs text-muted-foreground">No change</span>}</td>
               </tr>;
             })}</tbody>
