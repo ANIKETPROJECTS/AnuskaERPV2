@@ -122,6 +122,24 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "Raw Material" | "Float">("all");
+  const [sortKey, setSortKey] = useState<"name" | "code" | "quantity">("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const filteredItems = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return [...data.items]
+      .filter((item) => categoryFilter === "all" || item.category === categoryFilter)
+      .filter((item) => !normalizedQuery || `${item.name} ${item.code}`.toLowerCase().includes(normalizedQuery))
+      .sort((left, right) => {
+        const leftValue = sortKey === "name" ? `${left.name} ${left.code}` : left[sortKey];
+        const rightValue = sortKey === "name" ? `${right.name} ${right.code}` : right[sortKey];
+        const comparison = typeof leftValue === "string"
+          ? leftValue.localeCompare(rightValue as string)
+          : leftValue - (rightValue as number);
+        return sortDirection === "asc" ? comparison : -comparison;
+      });
+  }, [data.items, query, categoryFilter, sortKey, sortDirection]);
   const updateChange = (code: string, field: "quantity" | "reason", value: string) => {
     setChanges((current) => ({ ...current, [code]: { quantity: current[code]?.quantity ?? "", reason: current[code]?.reason ?? "", reasonOption: current[code]?.reasonOption ?? "custom", [field]: value } }));
     setMessage("");
@@ -196,18 +214,47 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
   }
 
   return <div className="space-y-6">
-    <Panel title="Quick quality adjustments" description="Review every raw material and final product in one list. Enter a positive number to add stock or a negative number to reduce it, then explain the change.">
+    <Panel title="Quick quality adjustments" description="Filter raw materials or final products, search by name or code, then enter a positive number to add stock or a negative number to reduce it.">
       <div className="p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/15 bg-primary/5 px-4 py-3 text-sm">
           <p><span className="font-medium">Fast entry:</span> use <span className="tabular font-semibold text-success">+</span> to add and <span className="tabular font-semibold text-destructive">−</span> to reduce.</p>
-          <p className="text-xs text-muted-foreground">{data.items.length} inventory item{data.items.length === 1 ? "" : "s"} listed</p>
+          <p className="text-xs text-muted-foreground">{filteredItems.length} of {data.items.length} inventory item{data.items.length === 1 ? "" : "s"} shown</p>
         </div>
-        {loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading inventory items…</p> : data.items.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">No raw materials or final products are available.</p> : <div className="overflow-x-auto rounded-md border border-border">
+        <div className="mb-4 flex flex-wrap items-end gap-3">
+          <label className="min-w-[240px] flex-1 text-xs font-medium text-muted-foreground">
+            Search inventory
+            <div className="relative mt-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name or unique code" className="h-9 w-full rounded-md border border-input pl-9 pr-3 text-sm font-normal text-foreground outline-none focus:border-primary" />
+            </div>
+          </label>
+          <label className="text-xs font-medium text-muted-foreground">
+            Show
+            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as typeof categoryFilter)} className="mt-1 h-9 rounded-md border border-input bg-white px-3 text-sm font-normal text-foreground outline-none focus:border-primary">
+              <option value="all">Raw materials & final products</option>
+              <option value="Raw Material">Raw materials only</option>
+              <option value="Float">Final products only</option>
+            </select>
+          </label>
+          <label className="text-xs font-medium text-muted-foreground">
+            Sort by
+            <select value={sortKey} onChange={(event) => setSortKey(event.target.value as typeof sortKey)} className="mt-1 h-9 rounded-md border border-input bg-white px-3 text-sm font-normal text-foreground outline-none focus:border-primary">
+              <option value="name">Item name</option>
+              <option value="code">Unique code</option>
+              <option value="quantity">Current stock</option>
+            </select>
+          </label>
+          <button type="button" onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-white px-3 text-sm" aria-label={`Sort ${sortDirection === "asc" ? "descending" : "ascending"}`}>
+            {sortDirection === "asc" ? <ArrowUpAZ className="size-4" /> : <ArrowDownAZ className="size-4" />}
+            {sortDirection === "asc" ? "Ascending" : "Descending"}
+          </button>
+        </div>
+        {loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading inventory items…</p> : data.items.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">No raw materials or final products are available.</p> : filteredItems.length === 0 ? <p className="rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No inventory items match the current filter or search.</p> : <div className="overflow-x-auto rounded-md border border-border">
           <table className="w-full min-w-[860px] text-sm">
             <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr><th className="px-4 py-3 font-medium">Item</th><th className="px-4 py-3 font-medium">Type</th><th className="px-4 py-3 text-right font-medium">Current stock</th><th className="w-44 px-4 py-3 font-medium">Change <span className="font-normal normal-case tracking-normal">(＋ add / − reduce)</span></th><th className="min-w-[280px] px-4 py-3 font-medium">Reason</th><th className="w-24 px-4 py-3 text-right font-medium">Status</th></tr>
             </thead>
-            <tbody>{data.items.map((item) => {
+            <tbody>{filteredItems.map((item) => {
               const draft = changes[item.code] ?? { quantity: "", reason: "", reasonOption: "custom" };
               const quantity = Number(draft.quantity);
               const hasChange = draft.quantity.trim() !== "" && Number.isInteger(quantity) && quantity !== 0;
