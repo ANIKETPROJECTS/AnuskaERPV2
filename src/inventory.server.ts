@@ -1172,12 +1172,70 @@ function serializeInventoryItem(record: InventoryItemDocument): InventoryItem {
   };
 }
 
+function masterInventoryItems(): Array<{
+  _id: string;
+  name: string;
+  category: InventoryCategory;
+  unit: "pcs";
+  quantity: number;
+  price: number;
+}> {
+  const rawMaterials = subparts.map((part) => ({
+    _id: part.code,
+    name: part.name,
+    category: "Raw Material" as const,
+    unit: "pcs" as const,
+    quantity: 0,
+    price: part.rate,
+  }));
+  const finalProducts = bomCatalog.flatMap((product) =>
+    product.variants.map((variant) => ({
+      _id: `${product.code}-${variant.code}`,
+      name: `${product.name} · ${variant.name}`,
+      category: "Float" as const,
+      unit: "pcs" as const,
+      quantity: 0,
+      price: 0,
+    })),
+  );
+  return [...rawMaterials, ...finalProducts];
+}
+
+async function ensureMasterInventoryItems(user: UserDocument, workspaceDb: Db): Promise<void> {
+  const catalog = masterInventoryItems();
+  const existing = await workspaceDb.collection<InventoryItemDocument>("inventory_items")
+    .find({ _id: { $in: catalog.map((item) => item._id) } }, { projection: { _id: 1 } })
+    .toArray();
+  const existingCodes = new Set(existing.map((item) => item._id));
+  const missing = catalog.filter((item) => !existingCodes.has(item._id));
+  if (!missing.length) return;
+
+  const timestamp = new Date();
+  await workspaceDb.collection<InventoryItemDocument>("inventory_items").bulkWrite(
+    missing.map((item) => ({
+      updateOne: {
+        filter: { _id: item._id },
+        update: {
+          $setOnInsert: {
+            ...item,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            updatedBy: user._id,
+          },
+        },
+        upsert: true,
+      },
+    })),
+  );
+}
+
 async function readSubhubInventory(user: UserDocument, workspaceDb: Db, consistencyWarnings: string[] = [], view: InventoryDataView = "all"): Promise<SubhubInventoryData> {
   const includeItems = view === "inventory" || view === "quality" || view === "adjustment" || view === "all";
   const includeMovements = view === "all";
   const includeQuality = view === "quality" || view === "all";
   const includeBatches = view === "adjustment" || view === "batches" || view === "all";
   const includeBatchMovements = view === "history" || view === "all";
+  if (includeItems) await ensureMasterInventoryItems(user, workspaceDb);
   const [records, movements, qualityLogs, batches, batchMovements] = await Promise.all([
     includeItems ? workspaceDb.collection<InventoryItemDocument>("inventory_items").find({}, { projection: { _id: 1, name: 1, category: 1, unit: 1, quantity: 1, price: 1, createdAt: 1, updatedAt: 1 } }).sort({ name: 1, _id: 1 }).toArray() : Promise.resolve([]),
     includeMovements ? workspaceDb.collection<InventoryMovementDocument>("inventory_movements").find({}, { projection: { _id: 1, createdAt: 1, type: 1, product: 1, code: 1, sourceId: 1, change: 1, balance: 1, reason: 1, notes: 1 } }).sort({ createdAt: -1 }).limit(200).toArray() : Promise.resolve([]),
