@@ -315,7 +315,7 @@ function ProductionRow({
         <p className="mt-1 text-xs text-muted-foreground">Due {order.dueDate}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <Link to="/subhub/production/orders/$orderId" params={{ orderId: order.id }} className="inline-flex items-center rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted">Order details</Link>
-          <Link to="/subhub/production/orders/$orderId/allocation" params={{ orderId: order.id }} search={{ date: selectedDate, quantity: String(quantity) }} className="inline-flex items-center rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted">Material allocation</Link>
+          <Link to="/subhub/production/allocation/$orderId" params={{ orderId: order.id }} search={{ date: selectedDate, quantity: String(quantity) }} className="inline-flex items-center rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted">Material allocation</Link>
         </div>
       </td>
       <td className="tabular px-5 py-4 text-right font-semibold">{num(order.target)}</td>

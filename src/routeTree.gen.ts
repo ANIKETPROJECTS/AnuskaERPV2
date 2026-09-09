@@ -49,8 +49,8 @@ import { Route as SubhubBomCodeRouteImport } from './routes/subhub.bom.$code'
 import { Route as SubhubParentCodeRouteImport } from './routes/subhub.parent.$code'
 import { Route as HrEmployeeSubhubIdEmployeeIdRouteImport } from './routes/hr.employee.$subhubId.$employeeId'
 import { Route as SubhubHrEmployeeEmployeeIdRouteImport } from './routes/subhub.hr.employee.$employeeId'
+import { Route as SubhubProductionAllocationOrderIdRouteImport } from './routes/subhub.production.allocation.$orderId'
 import { Route as SubhubProductionOrdersOrderIdRouteImport } from './routes/subhub.production.orders.$orderId'
-import { Route as SubhubProductionOrdersOrderIdAllocationRouteImport } from './routes/subhub.production.orders.$orderId.allocation'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -254,17 +254,17 @@ const SubhubHrEmployeeEmployeeIdRoute =
     path: '/employee/$employeeId',
     getParentRoute: () => SubhubHrRoute,
   } as any)
+const SubhubProductionAllocationOrderIdRoute =
+  SubhubProductionAllocationOrderIdRouteImport.update({
+    id: '/allocation/$orderId',
+    path: '/allocation/$orderId',
+    getParentRoute: () => SubhubProductionRoute,
+  } as any)
 const SubhubProductionOrdersOrderIdRoute =
   SubhubProductionOrdersOrderIdRouteImport.update({
     id: '/orders/$orderId',
     path: '/orders/$orderId',
     getParentRoute: () => SubhubProductionRoute,
-  } as any)
-const SubhubProductionOrdersOrderIdAllocationRoute =
-  SubhubProductionOrdersOrderIdAllocationRouteImport.update({
-    id: '/allocation',
-    path: '/allocation',
-    getParentRoute: () => SubhubProductionOrdersOrderIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -308,8 +308,8 @@ export interface FileRoutesByFullPath {
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
   '/subhub/hr/employee/$employeeId': typeof SubhubHrEmployeeEmployeeIdRoute
-  '/subhub/production/orders/$orderId': typeof SubhubProductionOrdersOrderIdRouteWithChildren
-  '/subhub/production/orders/$orderId/allocation': typeof SubhubProductionOrdersOrderIdAllocationRoute
+  '/subhub/production/allocation/$orderId': typeof SubhubProductionAllocationOrderIdRoute
+  '/subhub/production/orders/$orderId': typeof SubhubProductionOrdersOrderIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -352,8 +352,8 @@ export interface FileRoutesByTo {
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
   '/subhub/hr/employee/$employeeId': typeof SubhubHrEmployeeEmployeeIdRoute
-  '/subhub/production/orders/$orderId': typeof SubhubProductionOrdersOrderIdRouteWithChildren
-  '/subhub/production/orders/$orderId/allocation': typeof SubhubProductionOrdersOrderIdAllocationRoute
+  '/subhub/production/allocation/$orderId': typeof SubhubProductionAllocationOrderIdRoute
+  '/subhub/production/orders/$orderId': typeof SubhubProductionOrdersOrderIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -397,8 +397,8 @@ export interface FileRoutesById {
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
   '/subhub/hr/employee/$employeeId': typeof SubhubHrEmployeeEmployeeIdRoute
-  '/subhub/production/orders/$orderId': typeof SubhubProductionOrdersOrderIdRouteWithChildren
-  '/subhub/production/orders/$orderId/allocation': typeof SubhubProductionOrdersOrderIdAllocationRoute
+  '/subhub/production/allocation/$orderId': typeof SubhubProductionAllocationOrderIdRoute
+  '/subhub/production/orders/$orderId': typeof SubhubProductionOrdersOrderIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -443,8 +443,8 @@ export interface FileRouteTypes {
     | '/subhub/parent/$code'
     | '/hr/employee/$subhubId/$employeeId'
     | '/subhub/hr/employee/$employeeId'
+    | '/subhub/production/allocation/$orderId'
     | '/subhub/production/orders/$orderId'
-    | '/subhub/production/orders/$orderId/allocation'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -487,8 +487,8 @@ export interface FileRouteTypes {
     | '/subhub/parent/$code'
     | '/hr/employee/$subhubId/$employeeId'
     | '/subhub/hr/employee/$employeeId'
+    | '/subhub/production/allocation/$orderId'
     | '/subhub/production/orders/$orderId'
-    | '/subhub/production/orders/$orderId/allocation'
   id:
     | '__root__'
     | '/'
@@ -531,8 +531,8 @@ export interface FileRouteTypes {
     | '/subhub/parent/$code'
     | '/hr/employee/$subhubId/$employeeId'
     | '/subhub/hr/employee/$employeeId'
+    | '/subhub/production/allocation/$orderId'
     | '/subhub/production/orders/$orderId'
-    | '/subhub/production/orders/$orderId/allocation'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -840,19 +840,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SubhubHrEmployeeEmployeeIdRouteImport
       parentRoute: typeof SubhubHrRoute
     }
+    '/subhub/production/allocation/$orderId': {
+      id: '/subhub/production/allocation/$orderId'
+      path: '/allocation/$orderId'
+      fullPath: '/subhub/production/allocation/$orderId'
+      preLoaderRoute: typeof SubhubProductionAllocationOrderIdRouteImport
+      parentRoute: typeof SubhubProductionRoute
+    }
     '/subhub/production/orders/$orderId': {
       id: '/subhub/production/orders/$orderId'
       path: '/orders/$orderId'
       fullPath: '/subhub/production/orders/$orderId'
       preLoaderRoute: typeof SubhubProductionOrdersOrderIdRouteImport
       parentRoute: typeof SubhubProductionRoute
-    }
-    '/subhub/production/orders/$orderId/allocation': {
-      id: '/subhub/production/orders/$orderId/allocation'
-      path: '/allocation'
-      fullPath: '/subhub/production/orders/$orderId/allocation'
-      preLoaderRoute: typeof SubhubProductionOrdersOrderIdAllocationRouteImport
-      parentRoute: typeof SubhubProductionOrdersOrderIdRoute
     }
   }
 }
@@ -944,28 +944,15 @@ const SubhubHrRouteWithChildren = SubhubHrRoute._addFileChildren(
   SubhubHrRouteChildren,
 )
 
-interface SubhubProductionOrdersOrderIdRouteChildren {
-  SubhubProductionOrdersOrderIdAllocationRoute: typeof SubhubProductionOrdersOrderIdAllocationRoute
-}
-
-const SubhubProductionOrdersOrderIdRouteChildren: SubhubProductionOrdersOrderIdRouteChildren =
-  {
-    SubhubProductionOrdersOrderIdAllocationRoute:
-      SubhubProductionOrdersOrderIdAllocationRoute,
-  }
-
-const SubhubProductionOrdersOrderIdRouteWithChildren =
-  SubhubProductionOrdersOrderIdRoute._addFileChildren(
-    SubhubProductionOrdersOrderIdRouteChildren,
-  )
-
 interface SubhubProductionRouteChildren {
-  SubhubProductionOrdersOrderIdRoute: typeof SubhubProductionOrdersOrderIdRouteWithChildren
+  SubhubProductionAllocationOrderIdRoute: typeof SubhubProductionAllocationOrderIdRoute
+  SubhubProductionOrdersOrderIdRoute: typeof SubhubProductionOrdersOrderIdRoute
 }
 
 const SubhubProductionRouteChildren: SubhubProductionRouteChildren = {
-  SubhubProductionOrdersOrderIdRoute:
-    SubhubProductionOrdersOrderIdRouteWithChildren,
+  SubhubProductionAllocationOrderIdRoute:
+    SubhubProductionAllocationOrderIdRoute,
+  SubhubProductionOrdersOrderIdRoute: SubhubProductionOrdersOrderIdRoute,
 }
 
 const SubhubProductionRouteWithChildren =

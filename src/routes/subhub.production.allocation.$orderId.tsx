@@ -13,7 +13,7 @@ const allocationSearch = z.object({
   quantity: z.string().optional(),
 });
 
-export const Route = createFileRoute("/subhub/production/orders/$orderId/allocation")({
+export const Route = createFileRoute("/subhub/production/allocation/$orderId")({
   validateSearch: allocationSearch,
   head: () => ({ meta: [{ title: "Material allocation — Hub Manager · SubHub" }] }),
   component: ProductionAllocationPage,
