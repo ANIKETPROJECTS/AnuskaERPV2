@@ -1,9 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle, Check, ClipboardCheck, ChevronDown, ChevronRight, History, Minus, Plus, RefreshCw, Save, Settings2, Split } from "lucide-react";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { AlertTriangle, Check, ClipboardCheck, Minus, Plus, RefreshCw, Save, Settings2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
-import { getManagerProductionDataFn, getProductionOrderActivityFn, previewProductionBatchAllocationFn, saveDailyProductionFn, setHubCapacityFn } from "@/production";
-import type { ManagerProductionData, ProductionOrder, ProductionOrderActivity } from "@/production.server";
+import { getManagerProductionDataFn, previewProductionBatchAllocationFn, saveDailyProductionFn, setHubCapacityFn } from "@/production";
+import type { ManagerProductionData, ProductionOrder } from "@/production.server";
 import type { ProductionAllocationPreview, ProductionManualAllocation } from "@/inventory.server";
 import { num } from "@/lib/erp-data";
 import { useAuth } from "@/components/auth/AuthContext";
@@ -40,13 +40,9 @@ function HubManagerProduction() {
   const [saved, setSaved] = useState(false);
   const [capacitySaved, setCapacitySaved] = useState(false);
   const [error, setError] = useState("");
-  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
-  const [activities, setActivities] = useState<Record<string, ProductionOrderActivity[]>>({});
-  const [activityLoading, setActivityLoading] = useState("");
   const [allocationPreviews, setAllocationPreviews] = useState<Record<string, ProductionAllocationPreview>>({});
   const [allocationQuantities, setAllocationQuantities] = useState<Record<string, number>>({});
   const [allocationLoading, setAllocationLoading] = useState<Record<string, boolean>>({});
-  const [hiddenAllocations, setHiddenAllocations] = useState<Record<string, boolean>>({});
   const [manualModes, setManualModes] = useState<Record<string, boolean>>({});
   const [manualRows, setManualRows] = useState<Record<string, ProductionManualAllocation[]>>({});
 
@@ -103,20 +99,6 @@ function HubManagerProduction() {
     setSavingCapacity(false);
   }
 
-  async function toggleActivity(orderId: string) {
-    if (expandedOrderId === orderId) {
-      setExpandedOrderId(null);
-      return;
-    }
-    setExpandedOrderId(orderId);
-    if (activities[orderId]) return;
-    setActivityLoading(orderId);
-    const result = await getProductionOrderActivityFn({ data: { orderId, panel: "subhub" } });
-    if (result.ok) setActivities((current) => ({ ...current, [orderId]: result.activities }));
-    else setError(result.message);
-    setActivityLoading("");
-  }
-
   async function loadAllocation(order: ProductionOrder, quantityOverride?: number, applyEditableState = true) {
     const quantity = quantityOverride ?? quantities[order.id] ?? 0;
     setAllocationLoading((current) => ({ ...current, [order.id]: true }));
@@ -137,10 +119,6 @@ function HubManagerProduction() {
     if (!data.orders.length) return;
     void Promise.all(data.orders.map((order) => loadAllocation(order, Math.max(0, order.remaining), false)));
   }, [data.orders, selectedDate]);
-
-  function toggleAllocation(orderId: string) {
-    setHiddenAllocations((current) => ({ ...current, [orderId]: !current[orderId] }));
-  }
 
   const totalTarget = data.orders.reduce((sum, order) => sum + order.target, 0);
   const totalProduced = data.orders.reduce((sum, order) => sum + order.produced, 0);
@@ -270,25 +248,13 @@ function HubManagerProduction() {
                 </thead>
                   <tbody>
                     {data.orders.map((order) => (
-                      <Fragment key={order.id}>
-                        <ProductionRow
-                          order={order}
-                          quantity={quantities[order.id] ?? 0}
-                          activityOpen={expandedOrderId === order.id}
-                          activityLoading={activityLoading === order.id}
-                          onChange={(value) => updateQuantity(order.id, value)}
-                           onToggleActivity={() => void toggleActivity(order.id)}
-                            allocationOpen={!hiddenAllocations[order.id]}
-                            onToggleAllocation={() => toggleAllocation(order.id)}
-                        />
-                        {!hiddenAllocations[order.id] ? (
-                          <tr className="border-b border-border/70">
-                            <td colSpan={6} className="bg-muted/10 px-5 py-4">
-                              <AllocationPanel order={order} quantity={allocationQuantities[order.id] ?? Math.max(0, order.remaining)} preview={allocationPreviews[order.id]} loading={allocationLoading[order.id] ?? false} manual={manualModes[order.id] ?? false} rows={manualRows[order.id] ?? []} onModeChange={(manual) => setManualModes((current) => ({ ...current, [order.id]: manual }))} onRowsChange={(rows) => setManualRows((current) => ({ ...current, [order.id]: rows }))} />
-                            </td>
-                          </tr>
-                        ) : null}
-                      </Fragment>
+                      <ProductionRow
+                        key={order.id}
+                        order={order}
+                        quantity={quantities[order.id] ?? 0}
+                        selectedDate={selectedDate}
+                        onChange={(value) => updateQuantity(order.id, value)}
+                      />
                     ))}
                 </tbody>
               </table>
@@ -317,21 +283,13 @@ function HubManagerProduction() {
 function ProductionRow({
   order,
   quantity,
-  activityOpen,
-  activityLoading,
+  selectedDate,
   onChange,
-  onToggleActivity,
-  allocationOpen,
-  onToggleAllocation,
 }: {
   order: ProductionOrder;
   quantity: number;
-  activityOpen: boolean;
-  activityLoading: boolean;
+  selectedDate: string;
   onChange: (value: number) => void;
-  onToggleActivity: () => void;
-  allocationOpen: boolean;
-  onToggleAllocation: () => void;
 }) {
   return (
     <tr className="border-b border-border/70 last:border-0">
@@ -340,97 +298,16 @@ function ProductionRow({
         <p className="mt-1 font-medium">{order.variantName}</p>
         <p className="tabular text-xs text-muted-foreground">{order.orderNumber} · {order.variantCode}</p>
         <p className="mt-1 text-xs text-muted-foreground">Due {order.dueDate}</p>
-        <button type="button" onClick={onToggleActivity} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-          <History className="size-3.5" /> {activityLoading ? "Loading…" : activityOpen ? "Hide activity" : "View activity"}
-        </button>
-        <button type="button" onClick={onToggleAllocation} className="mt-2 ml-3 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-          {allocationOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />} <Split className="size-3.5" /> {allocationOpen ? "Hide material allocation" : "Material allocation"}
-        </button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Link to="/subhub/production/orders/$orderId" params={{ orderId: order.id }} className="inline-flex items-center rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted">Order details</Link>
+          <Link to="/subhub/production/orders/$orderId/allocation" params={{ orderId: order.id }} search={{ date: selectedDate, quantity: String(quantity) }} className="inline-flex items-center rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted">Material allocation</Link>
+        </div>
       </td>
       <td className="tabular px-5 py-4 text-right font-semibold">{num(order.target)}</td>
       <td className="px-5 py-4"><div className="mx-auto flex w-36 items-center justify-center gap-1"><button type="button" aria-label={`Decrease ${order.variantName}`} onClick={() => onChange(quantity - 1)} className="flex size-8 items-center justify-center rounded-md border border-input text-muted-foreground hover:bg-muted"><Minus className="size-3.5" /></button><input type="number" min="0" step="1" value={quantity} onChange={(event) => onChange(Number(event.target.value))} className="h-8 w-20 rounded-md border border-input text-center text-sm font-semibold" /><button type="button" aria-label={`Increase ${order.variantName}`} onClick={() => onChange(quantity + 1)} className="flex size-8 items-center justify-center rounded-md border border-input text-muted-foreground hover:bg-muted"><Plus className="size-3.5" /></button></div></td>
       <td className="tabular px-5 py-4 text-right">{num(order.produced)}</td>
       <td className="px-5 py-4 text-right"><span className={`rounded-full px-2 py-1 text-[11px] font-medium ${order.status === "Complete" || order.status === "Over target" ? "bg-success/10 text-success" : order.status === "In progress" ? "bg-warning/10 text-warning" : "bg-muted text-muted-foreground"}`}>{order.status}</span></td>
     </tr>
-  );
-}
-
-function isManualValid(preview: ProductionAllocationPreview | undefined, rows: ProductionManualAllocation[]) {
-  if (!preview) return false;
-  return preview.requirements.every((requirement) =>
-    rows.filter((row) => row.itemCode === requirement.itemCode).reduce((sum, row) => sum + row.quantity, 0) === requirement.requiredQuantity,
-  );
-}
-
-function AllocationPanel({
-  order, quantity, preview, loading, manual, rows, onModeChange, onRowsChange,
-}: {
-  order: ProductionOrder;
-  quantity: number;
-  preview: ProductionAllocationPreview | undefined;
-  loading: boolean;
-  manual: boolean;
-  rows: ProductionManualAllocation[];
-  onModeChange: (value: boolean) => void;
-  onRowsChange: (rows: ProductionManualAllocation[]) => void;
-}) {
-  if (loading) return <div className="rounded-md border border-border bg-white p-4 text-sm text-muted-foreground">Building FIFO allocation preview…</div>;
-  if (!preview) return <div className="rounded-md border border-border bg-white p-4 text-sm text-muted-foreground">Allocation preview unavailable. Try opening the control again.</div>;
-  const batchesFor = (itemCode: string) => preview.batches.filter((batch) => batch.itemCode === itemCode);
-  const updateRow = (itemCode: string, batchId: string, quantity: number) => {
-    const next = rows.filter((row) => !(row.itemCode === itemCode && row.batchId === batchId));
-    if (quantity > 0) next.push({ itemCode, batchId, quantity });
-    onRowsChange(next);
-  };
-  const totalRequired = preview.requirements.reduce((sum, requirement) => sum + requirement.requiredQuantity, 0);
-  return <div className="rounded-md border border-border bg-white p-4">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Material allocation · {order.orderNumber}</p><p className="mt-1 text-sm text-muted-foreground">Recipe requirement for {num(quantity)} output unit{quantity === 1 ? "" : "s"} · {num(totalRequired)} total material unit{totalRequired === 1 ? "" : "s"}</p></div>
-      <div className={`rounded-full px-2.5 py-1 text-xs font-semibold ${preview.sufficient ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
-        {preview.sufficient ? `Enough material for ${num(quantity)} units` : `Not enough material for ${num(quantity)} units`}
-      </div>
-      <label className="inline-flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={manual} onChange={(event) => onModeChange(event.target.checked)} /> Manual override</label>
-    </div>
-    <div className="mt-4 space-y-3">
-      {preview.requirements.map((requirement) => {
-        const itemRows = rows.filter((row) => row.itemCode === requirement.itemCode);
-        const allocated = itemRows.reduce((sum, row) => sum + row.quantity, 0);
-        const remaining = requirement.requiredQuantity - allocated;
-        const available = batchesFor(requirement.itemCode).reduce((sum, batch) => sum + batch.availableQuantity, 0);
-        const enough = available >= requirement.requiredQuantity;
-        return <div key={requirement.itemCode} className="rounded-md border border-border/70 bg-muted/10 p-3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2"><p className="font-medium">{requirement.itemName} <span className="tabular text-xs text-muted-foreground">{requirement.itemCode}</span></p><p className={`tabular text-xs font-medium ${enough ? "text-success" : "text-destructive"}`}>{num(available)} available · {num(requirement.requiredQuantity)} required</p></div>
-          {!manual ? <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">{batchesFor(requirement.itemCode).slice(0, 4).map((batch) => <span key={batch.id} className="rounded border border-border bg-white px-2 py-1"><span className="font-medium text-foreground">{batch.batchCode}</span> · {batch.availableQuantity} units</span>)}{!preview.sufficient ? <span className="font-medium text-destructive">Insufficient stock</span> : null}</div> :
-            <div className="mt-3 space-y-2">{batchesFor(requirement.itemCode).map((batch) => <label key={batch.id} className="flex flex-wrap items-center justify-between gap-2 text-sm"><span><span className="font-medium">{batch.batchCode}</span> <span className="text-xs text-muted-foreground">available {batch.availableQuantity}</span></span><input aria-label={`Allocate ${requirement.itemName} from ${batch.batchCode}`} type="number" min="0" max={batch.availableQuantity} step="1" value={itemRows.find((row) => row.batchId === batch.id)?.quantity ?? ""} onChange={(event) => updateRow(requirement.itemCode, batch.id, Math.max(0, Number(event.target.value) || 0))} className="tabular h-8 w-28 rounded border border-input px-2 text-right" /></label>)}</div>}
-        </div>;
-      })}
-    </div>
-    {!preview.sufficient ? <p className="mt-3 text-sm font-medium text-destructive">This order cannot be saved until enough tracked stock is available.</p> : null}
-  </div>;
-}
-
-function ManagerActivityTimeline({ activities, loading }: { activities: ProductionOrderActivity[]; loading: boolean }) {
-  if (loading) return <p className="text-sm text-muted-foreground">Loading order activity…</p>;
-  if (!activities.length) return <p className="text-sm text-muted-foreground">No activity has been recorded for this order yet.</p>;
-  return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Order activity</p>
-      <div className="mt-3 space-y-3">
-        {activities.map((activity) => (
-          <div key={activity.id} className="flex gap-3 text-sm">
-            <div className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <p className="font-medium">{activity.summary}</p>
-                <time className="text-xs text-muted-foreground">{activity.createdAt.replace("T", " ").slice(0, 16)}</time>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">{activity.details}</p>
-              <p className="mt-1 text-xs text-muted-foreground">By {activity.actorName} · {activity.actorRole}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 
