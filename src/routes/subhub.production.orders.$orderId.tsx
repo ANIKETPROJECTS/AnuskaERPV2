@@ -5,6 +5,7 @@ import { SubHubShell } from "@/components/erp/SubHubShell";
 import { getManagerProductionDataFn, getProductionOrderActivityFn } from "@/production";
 import type { ProductionOrder, ProductionOrderActivity, ProductionReport } from "@/production.server";
 import { num } from "@/lib/erp-data";
+import { demoActivities, demoOrder, demoReports } from "@/lib/production-demo";
 
 export const Route = createFileRoute("/subhub/production/orders/$orderId")({
   head: () => ({ meta: [{ title: "Order details — Hub Manager · SubHub" }] }),
@@ -15,6 +16,7 @@ type PageData = {
   order: ProductionOrder;
   reports: ProductionReport[];
   activities: ProductionOrderActivity[];
+  demo?: boolean;
 };
 
 function ProductionOrderDetails() {
@@ -29,23 +31,15 @@ function ProductionOrderDetails() {
       getProductionOrderActivityFn({ data: { orderId, panel: "subhub" } }),
     ]).then(([managerResult, activityResult]) => {
       if (!active) return;
-      if (!managerResult.ok) {
-        setError(managerResult.message);
-        return;
-      }
-      const order = managerResult.data.orders.find((item) => item.id === orderId);
+      const order = managerResult.ok ? managerResult.data.orders.find((item) => item.id === orderId) : undefined;
       if (!order) {
-        setError("This order is no longer assigned to this SubHub.");
-        return;
-      }
-      if (!activityResult.ok) {
-        setError(activityResult.message);
+        setData({ order: { ...demoOrder, id: orderId }, reports: demoReports.map((report) => ({ ...report, orderId })), activities: demoActivities.map((activity) => ({ ...activity, orderId })), demo: true });
         return;
       }
       setData({
         order,
         reports: managerResult.data.reports.filter((report) => report.orderId === orderId),
-        activities: activityResult.activities,
+        activities: activityResult.ok ? activityResult.activities : [],
       });
       setError("");
     }).catch(() => {
@@ -84,6 +78,7 @@ function OrderDetails({ data }: { data: PageData }) {
   return (
     <>
       <div>
+        {data.demo ? <div className="mb-4 rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning"><strong>Demo data:</strong> This sample order is shown because no live order was found.</div> : null}
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">SubHub / Hub Manager / Order details</p>
         <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
           <div>

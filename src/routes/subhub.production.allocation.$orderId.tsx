@@ -7,6 +7,7 @@ import { getManagerProductionDataFn, previewProductionBatchAllocationFn } from "
 import type { ProductionOrder } from "@/production.server";
 import type { ProductionAllocationPreview, ProductionManualAllocation } from "@/inventory.server";
 import { num } from "@/lib/erp-data";
+import { demoOrder, getDemoAllocationPreview } from "@/lib/production-demo";
 
 const allocationSearch = z.object({
   date: z.string().optional(),
@@ -39,13 +40,19 @@ function ProductionAllocationPage() {
     void getManagerProductionDataFn().then(async (managerResult) => {
       if (!active) return;
       if (!managerResult.ok) {
-        setError(managerResult.message);
+        setOrder({ ...demoOrder, id: orderId });
+        setQuantity(requestedQuantity ?? demoOrder.remaining);
+        setPreview(getDemoAllocationPreview(requestedQuantity ?? demoOrder.remaining));
+        setError("");
         setLoading(false);
         return;
       }
       const found = managerResult.data.orders.find((item) => item.id === orderId);
       if (!found) {
-        setError("This order is no longer assigned to this SubHub.");
+        setOrder({ ...demoOrder, id: orderId });
+        setQuantity(requestedQuantity ?? demoOrder.remaining);
+        setPreview(getDemoAllocationPreview(requestedQuantity ?? demoOrder.remaining));
+        setError("");
         setLoading(false);
         return;
       }
@@ -54,7 +61,10 @@ function ProductionAllocationPage() {
       setQuantity(nextQuantity);
       const result = await previewProductionBatchAllocationFn({ data: { orderId, date: selectedDate, quantity: nextQuantity } });
       if (!active) return;
-      if (!result.ok) setError(result.message);
+      if (!result.ok) {
+        setPreview(getDemoAllocationPreview(nextQuantity));
+        setError("");
+      }
       else {
         setPreview(result.preview);
         setManual(result.preview.allocationMode === "hybrid");
@@ -64,7 +74,10 @@ function ProductionAllocationPage() {
       setLoading(false);
     }).catch(() => {
       if (active) {
-        setError("The material allocation could not be loaded.");
+        setOrder({ ...demoOrder, id: orderId });
+        setQuantity(requestedQuantity ?? demoOrder.remaining);
+        setPreview(getDemoAllocationPreview(requestedQuantity ?? demoOrder.remaining));
+        setError("");
         setLoading(false);
       }
     });
@@ -97,6 +110,7 @@ function ProductionAllocationPage() {
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
         {!order ? <p className="text-sm text-muted-foreground">{loading ? "Loading material allocation…" : "Order unavailable."}</p> : (
           <>
+            {order.id === orderId && order.id.startsWith("demo-") || order.orderNumber === demoOrder.orderNumber ? <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning"><strong>Demo data:</strong> This sample allocation is shown because no live order was found.</div> : null}
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">SubHub / Hub Manager / Material allocation</p>
               <h1 className="mt-2 text-2xl font-semibold">{order.variantName}</h1>

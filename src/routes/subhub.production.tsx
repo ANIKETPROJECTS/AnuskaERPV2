@@ -7,6 +7,7 @@ import type { ManagerProductionData, ProductionOrder } from "@/production.server
 import type { ProductionAllocationPreview, ProductionManualAllocation } from "@/inventory.server";
 import { num } from "@/lib/erp-data";
 import { useAuth } from "@/components/auth/AuthContext";
+import { demoProductionData } from "@/lib/production-demo";
 
 export const Route = createFileRoute("/subhub/production")({
   head: () => ({ meta: [{ title: "Production — Hub Manager · SubHub" }] }),
@@ -40,6 +41,7 @@ function HubManagerProduction() {
   const [saved, setSaved] = useState(false);
   const [capacitySaved, setCapacitySaved] = useState(false);
   const [error, setError] = useState("");
+  const [demoMode, setDemoMode] = useState(false);
   const [allocationPreviews, setAllocationPreviews] = useState<Record<string, ProductionAllocationPreview>>({});
   const [allocationQuantities, setAllocationQuantities] = useState<Record<string, number>>({});
   const [allocationLoading, setAllocationLoading] = useState<Record<string, boolean>>({});
@@ -50,11 +52,14 @@ function HubManagerProduction() {
     setLoading(true);
     const result = await getManagerProductionDataFn();
     if (result.ok) {
-      setData(result.data);
+      setDemoMode(result.data.orders.length === 0);
+      setData(result.data.orders.length ? result.data : demoProductionData);
       setCapacityInput(result.data.capacityUnits?.toString() ?? "");
       setError("");
     } else {
-      setError(result.message);
+      setDemoMode(true);
+      setData(demoProductionData);
+      setError("");
     }
     setLoading(false);
   }
@@ -116,9 +121,9 @@ function HubManagerProduction() {
   }
 
   useEffect(() => {
-    if (!data.orders.length) return;
+    if (demoMode || !data.orders.length) return;
     void Promise.all(data.orders.map((order) => loadAllocation(order, Math.max(0, order.remaining), false)));
-  }, [data.orders, selectedDate]);
+  }, [data.orders, selectedDate, demoMode]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -148,7 +153,7 @@ function HubManagerProduction() {
   }
 
   async function saveProduction() {
-    if (!data.orders.length) return;
+    if (demoMode || !data.orders.length) return;
     const invalid = data.orders.find((order) => manualModes[order.id] && !isManualValid(allocationPreviews[order.id], manualRows[order.id] ?? []));
     if (invalid) {
       setError(`Manual material allocation for ${invalid.variantName} must exactly match every BOM requirement.`);
@@ -237,6 +242,7 @@ function HubManagerProduction() {
           <Stat label={`Entered ${selectedDate}`} value={num(todayProduced)} helper="output for this date" tone="text-success" />
           <Stat label="Completion" value={`${completion}%`} helper="against assigned target" tone={completion >= 100 ? "text-success" : "text-warning"} />
         </div>
+        {demoMode ? <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning"><strong>Demo data:</strong> No live orders are available yet. This sample order is only for testing the screens.</div> : null}
 
         <div className="flex justify-end">
           <button type="button" onClick={() => void load()} className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><RefreshCw className="size-4" /> Refresh assignments</button>
@@ -284,7 +290,7 @@ function HubManagerProduction() {
             </label>
             <div className="mt-4 flex items-center justify-end gap-3 border-t border-border pt-4">
               {saved ? <span className="inline-flex items-center gap-1.5 text-sm text-success"><Check className="size-4" /> Production saved to {data.subhubName}</span> : null}
-              <button type="button" disabled={saving} onClick={() => void saveProduction()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"><Save className="size-4" /> {saving ? "Saving…" : "Save day report"}</button>
+              <button type="button" disabled={saving || demoMode} onClick={() => void saveProduction()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"><Save className="size-4" /> {demoMode ? "Demo mode" : saving ? "Saving…" : "Save day report"}</button>
             </div>
           </div>
         ) : null}
@@ -310,12 +316,12 @@ function ProductionRow({
     <tr className="border-b border-border/70 last:border-0">
       <td className="px-5 py-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{order.productName}</p>
-        <Link to="/subhub/production/orders/$orderId" params={{ orderId: order.id }} className="mt-1 block font-medium text-primary hover:underline">{order.variantName}</Link>
+        <a href={`/subhub/production/orders/${encodeURIComponent(order.id)}`} className="mt-1 block font-medium text-primary hover:underline">{order.variantName}</a>
         <p className="tabular text-xs text-muted-foreground">{order.orderNumber} · {order.variantCode}</p>
         <p className="mt-1 text-xs text-muted-foreground">Due {order.dueDate}</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Link to="/subhub/production/orders/$orderId" params={{ orderId: order.id }} className="inline-flex items-center rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted">Order details</Link>
-          <Link to="/subhub/production/allocation/$orderId" params={{ orderId: order.id }} search={{ date: selectedDate, quantity: String(quantity) }} className="inline-flex items-center rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted">Material allocation</Link>
+          <a href={`/subhub/production/orders/${encodeURIComponent(order.id)}`} className="inline-flex items-center rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted">Order details</a>
+          <a href={`/subhub/production/allocation/${encodeURIComponent(order.id)}?date=${encodeURIComponent(selectedDate)}&quantity=${quantity}`} className="inline-flex items-center rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted">Material allocation</a>
         </div>
       </td>
       <td className="tabular px-5 py-4 text-right font-semibold">{num(order.target)}</td>
