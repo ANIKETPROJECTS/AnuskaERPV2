@@ -10,7 +10,7 @@ import { num } from "@/lib/erp-data";
 
 const allocationSearch = z.object({
   date: z.string().optional(),
-  quantity: z.string().optional(),
+  quantity: z.union([z.string(), z.number()]).optional(),
 });
 
 export const Route = createFileRoute("/subhub/production/allocation/$orderId")({
