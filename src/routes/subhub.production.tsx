@@ -120,6 +120,21 @@ function HubManagerProduction() {
     void Promise.all(data.orders.map((order) => loadAllocation(order, Math.max(0, order.remaining), false)));
   }, [data.orders, selectedDate]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    data.orders.forEach((order) => {
+      const stored = window.sessionStorage.getItem(allocationStorageKey(order.id, selectedDate));
+      if (!stored) return;
+      try {
+        const value = JSON.parse(stored) as { manual?: boolean; rows?: ProductionManualAllocation[] };
+        if (typeof value.manual === "boolean") setManualModes((current) => ({ ...current, [order.id]: value.manual ?? false }));
+        if (Array.isArray(value.rows)) setManualRows((current) => ({ ...current, [order.id]: value.rows ?? [] }));
+      } catch {
+        window.sessionStorage.removeItem(allocationStorageKey(order.id, selectedDate));
+      }
+    });
+  }, [data.orders, selectedDate]);
+
   const totalTarget = data.orders.reduce((sum, order) => sum + order.target, 0);
   const totalProduced = data.orders.reduce((sum, order) => sum + order.produced, 0);
   const todayProduced = data.orders.reduce((sum, order) => sum + (quantities[order.id] ?? 0), 0);
@@ -295,7 +310,7 @@ function ProductionRow({
     <tr className="border-b border-border/70 last:border-0">
       <td className="px-5 py-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{order.productName}</p>
-        <p className="mt-1 font-medium">{order.variantName}</p>
+        <Link to="/subhub/production/orders/$orderId" params={{ orderId: order.id }} className="mt-1 block font-medium text-primary hover:underline">{order.variantName}</Link>
         <p className="tabular text-xs text-muted-foreground">{order.orderNumber} · {order.variantCode}</p>
         <p className="mt-1 text-xs text-muted-foreground">Due {order.dueDate}</p>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -309,6 +324,17 @@ function ProductionRow({
       <td className="px-5 py-4 text-right"><span className={`rounded-full px-2 py-1 text-[11px] font-medium ${order.status === "Complete" || order.status === "Over target" ? "bg-success/10 text-success" : order.status === "In progress" ? "bg-warning/10 text-warning" : "bg-muted text-muted-foreground"}`}>{order.status}</span></td>
     </tr>
   );
+}
+
+function isManualValid(preview: ProductionAllocationPreview | undefined, rows: ProductionManualAllocation[]) {
+  if (!preview) return false;
+  return preview.requirements.every((requirement) =>
+    rows.filter((row) => row.itemCode === requirement.itemCode).reduce((sum, row) => sum + row.quantity, 0) === requirement.requiredQuantity,
+  );
+}
+
+function allocationStorageKey(orderId: string, date: string) {
+  return `subhub:production-allocation:${orderId}:${date}`;
 }
 
 function ReportsHistory({ reports, orders }: { reports: ManagerProductionData["reports"]; orders: ProductionOrder[] }) {

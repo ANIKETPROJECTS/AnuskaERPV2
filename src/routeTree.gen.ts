@@ -49,6 +49,8 @@ import { Route as SubhubBomCodeRouteImport } from './routes/subhub.bom.$code'
 import { Route as SubhubParentCodeRouteImport } from './routes/subhub.parent.$code'
 import { Route as HrEmployeeSubhubIdEmployeeIdRouteImport } from './routes/hr.employee.$subhubId.$employeeId'
 import { Route as SubhubHrEmployeeEmployeeIdRouteImport } from './routes/subhub.hr.employee.$employeeId'
+import { Route as SubhubProductionOrdersOrderIdRouteImport } from './routes/subhub.production.orders.$orderId'
+import { Route as SubhubProductionOrdersOrderIdAllocationRouteImport } from './routes/subhub.production.orders.$orderId.allocation'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -252,6 +254,18 @@ const SubhubHrEmployeeEmployeeIdRoute =
     path: '/employee/$employeeId',
     getParentRoute: () => SubhubHrRoute,
   } as any)
+const SubhubProductionOrdersOrderIdRoute =
+  SubhubProductionOrdersOrderIdRouteImport.update({
+    id: '/orders/$orderId',
+    path: '/orders/$orderId',
+    getParentRoute: () => SubhubProductionRoute,
+  } as any)
+const SubhubProductionOrdersOrderIdAllocationRoute =
+  SubhubProductionOrdersOrderIdAllocationRouteImport.update({
+    id: '/allocation',
+    path: '/allocation',
+    getParentRoute: () => SubhubProductionOrdersOrderIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -283,7 +297,7 @@ export interface FileRoutesByFullPath {
   '/subhub/bom': typeof SubhubBomRouteWithChildren
   '/subhub/float-parent': typeof SubhubFloatParentRoute
   '/subhub/hr': typeof SubhubHrRouteWithChildren
-  '/subhub/production': typeof SubhubProductionRoute
+  '/subhub/production': typeof SubhubProductionRouteWithChildren
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
   '/subhub/reports': typeof SubhubReportsRoute
   '/worker/$id': typeof WorkerIdRoute
@@ -294,6 +308,8 @@ export interface FileRoutesByFullPath {
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
   '/subhub/hr/employee/$employeeId': typeof SubhubHrEmployeeEmployeeIdRoute
+  '/subhub/production/orders/$orderId': typeof SubhubProductionOrdersOrderIdRouteWithChildren
+  '/subhub/production/orders/$orderId/allocation': typeof SubhubProductionOrdersOrderIdAllocationRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -325,7 +341,7 @@ export interface FileRoutesByTo {
   '/subhub/bom': typeof SubhubBomRouteWithChildren
   '/subhub/float-parent': typeof SubhubFloatParentRoute
   '/subhub/hr': typeof SubhubHrRouteWithChildren
-  '/subhub/production': typeof SubhubProductionRoute
+  '/subhub/production': typeof SubhubProductionRouteWithChildren
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
   '/subhub/reports': typeof SubhubReportsRoute
   '/worker/$id': typeof WorkerIdRoute
@@ -336,6 +352,8 @@ export interface FileRoutesByTo {
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
   '/subhub/hr/employee/$employeeId': typeof SubhubHrEmployeeEmployeeIdRoute
+  '/subhub/production/orders/$orderId': typeof SubhubProductionOrdersOrderIdRouteWithChildren
+  '/subhub/production/orders/$orderId/allocation': typeof SubhubProductionOrdersOrderIdAllocationRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -368,7 +386,7 @@ export interface FileRoutesById {
   '/subhub/bom': typeof SubhubBomRouteWithChildren
   '/subhub/float-parent': typeof SubhubFloatParentRoute
   '/subhub/hr': typeof SubhubHrRouteWithChildren
-  '/subhub/production': typeof SubhubProductionRoute
+  '/subhub/production': typeof SubhubProductionRouteWithChildren
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
   '/subhub/reports': typeof SubhubReportsRoute
   '/worker/$id': typeof WorkerIdRoute
@@ -379,6 +397,8 @@ export interface FileRoutesById {
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
   '/subhub/hr/employee/$employeeId': typeof SubhubHrEmployeeEmployeeIdRoute
+  '/subhub/production/orders/$orderId': typeof SubhubProductionOrdersOrderIdRouteWithChildren
+  '/subhub/production/orders/$orderId/allocation': typeof SubhubProductionOrdersOrderIdAllocationRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -423,6 +443,8 @@ export interface FileRouteTypes {
     | '/subhub/parent/$code'
     | '/hr/employee/$subhubId/$employeeId'
     | '/subhub/hr/employee/$employeeId'
+    | '/subhub/production/orders/$orderId'
+    | '/subhub/production/orders/$orderId/allocation'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -465,6 +487,8 @@ export interface FileRouteTypes {
     | '/subhub/parent/$code'
     | '/hr/employee/$subhubId/$employeeId'
     | '/subhub/hr/employee/$employeeId'
+    | '/subhub/production/orders/$orderId'
+    | '/subhub/production/orders/$orderId/allocation'
   id:
     | '__root__'
     | '/'
@@ -507,6 +531,8 @@ export interface FileRouteTypes {
     | '/subhub/parent/$code'
     | '/hr/employee/$subhubId/$employeeId'
     | '/subhub/hr/employee/$employeeId'
+    | '/subhub/production/orders/$orderId'
+    | '/subhub/production/orders/$orderId/allocation'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -814,6 +840,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SubhubHrEmployeeEmployeeIdRouteImport
       parentRoute: typeof SubhubHrRoute
     }
+    '/subhub/production/orders/$orderId': {
+      id: '/subhub/production/orders/$orderId'
+      path: '/orders/$orderId'
+      fullPath: '/subhub/production/orders/$orderId'
+      preLoaderRoute: typeof SubhubProductionOrdersOrderIdRouteImport
+      parentRoute: typeof SubhubProductionRoute
+    }
+    '/subhub/production/orders/$orderId/allocation': {
+      id: '/subhub/production/orders/$orderId/allocation'
+      path: '/allocation'
+      fullPath: '/subhub/production/orders/$orderId/allocation'
+      preLoaderRoute: typeof SubhubProductionOrdersOrderIdAllocationRouteImport
+      parentRoute: typeof SubhubProductionOrdersOrderIdRoute
+    }
   }
 }
 
@@ -904,11 +944,38 @@ const SubhubHrRouteWithChildren = SubhubHrRoute._addFileChildren(
   SubhubHrRouteChildren,
 )
 
+interface SubhubProductionOrdersOrderIdRouteChildren {
+  SubhubProductionOrdersOrderIdAllocationRoute: typeof SubhubProductionOrdersOrderIdAllocationRoute
+}
+
+const SubhubProductionOrdersOrderIdRouteChildren: SubhubProductionOrdersOrderIdRouteChildren =
+  {
+    SubhubProductionOrdersOrderIdAllocationRoute:
+      SubhubProductionOrdersOrderIdAllocationRoute,
+  }
+
+const SubhubProductionOrdersOrderIdRouteWithChildren =
+  SubhubProductionOrdersOrderIdRoute._addFileChildren(
+    SubhubProductionOrdersOrderIdRouteChildren,
+  )
+
+interface SubhubProductionRouteChildren {
+  SubhubProductionOrdersOrderIdRoute: typeof SubhubProductionOrdersOrderIdRouteWithChildren
+}
+
+const SubhubProductionRouteChildren: SubhubProductionRouteChildren = {
+  SubhubProductionOrdersOrderIdRoute:
+    SubhubProductionOrdersOrderIdRouteWithChildren,
+}
+
+const SubhubProductionRouteWithChildren =
+  SubhubProductionRoute._addFileChildren(SubhubProductionRouteChildren)
+
 interface SubhubRouteChildren {
   SubhubBomRoute: typeof SubhubBomRouteWithChildren
   SubhubFloatParentRoute: typeof SubhubFloatParentRoute
   SubhubHrRoute: typeof SubhubHrRouteWithChildren
-  SubhubProductionRoute: typeof SubhubProductionRoute
+  SubhubProductionRoute: typeof SubhubProductionRouteWithChildren
   SubhubRawMaterialsRoute: typeof SubhubRawMaterialsRoute
   SubhubReportsRoute: typeof SubhubReportsRoute
   SubhubParentCodeRoute: typeof SubhubParentCodeRoute
@@ -918,7 +985,7 @@ const SubhubRouteChildren: SubhubRouteChildren = {
   SubhubBomRoute: SubhubBomRouteWithChildren,
   SubhubFloatParentRoute: SubhubFloatParentRoute,
   SubhubHrRoute: SubhubHrRouteWithChildren,
-  SubhubProductionRoute: SubhubProductionRoute,
+  SubhubProductionRoute: SubhubProductionRouteWithChildren,
   SubhubRawMaterialsRoute: SubhubRawMaterialsRoute,
   SubhubReportsRoute: SubhubReportsRoute,
   SubhubParentCodeRoute: SubhubParentCodeRoute,
