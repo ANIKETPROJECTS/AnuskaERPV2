@@ -1,10 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { assignEmployeeToShift, createEmployee, createShift, getAdminAttendanceReport, getAdminEmployeeAttendanceHistory, getAdminHrData, getAdminSubhubDetails, getEmployeeAttendanceHistory, getManagerAttendanceReport, getManagerHrData, saveAttendance, updateEmployee, updateShift } from "./hr.server";
+import { assignEmployeeToShift, createEmployee, createShift, getAdminAttendanceReport, getAdminEmployeeAttendanceHistory, getAdminHeadcountReport, getAdminHrData, getAdminSubhubDetails, getEmployeeAttendanceHistory, getManagerAttendanceReport, getManagerHeadcountData, getManagerHrData, saveAttendance, saveManagerHeadcount, updateEmployee, updateShift } from "./hr.server";
 import { ATTENDANCE_STATUSES } from "./hr.server";
 
 const managerSchema = z.object({ month: z.string(), date: z.string().optional() });
 const monthSchema = z.object({ month: z.string() });
+const headcountSchema = z.object({ presentCount: z.number().int().min(1).max(1_000_000) });
 const employeeHistorySchema = z.object({
   employeeId: z.string().min(1),
   period: z.enum(["all", "week", "month", "range"]),
@@ -24,6 +25,8 @@ const adminEmployeeHistorySchema = employeeHistorySchema.extend({ subhubId: z.st
 const subhubDetailsSchema = z.object({ userId: z.string().min(1) });
 
 export const getManagerHrDataFn = createServerFn({ method: "GET" }).validator(managerSchema).handler(({ data }) => getManagerHrData(data.month) as any);
+export const getManagerHeadcountDataFn = createServerFn({ method: "GET" }).handler(() => getManagerHeadcountData());
+export const saveManagerHeadcountFn = createServerFn({ method: "POST" }).validator(headcountSchema).handler(({ data }) => saveManagerHeadcount(data));
 export const getEmployeeAttendanceHistoryFn = createServerFn({ method: "GET" }).validator(employeeHistorySchema).handler(({ data }) =>
   getEmployeeAttendanceHistory({
     employeeId: data.employeeId,
@@ -47,6 +50,15 @@ export const getAdminHrDataFn = createServerFn({ method: "GET" }).validator(mont
 export const getAdminSubhubDetailsFn = createServerFn({ method: "GET" }).validator(subhubDetailsSchema).handler(({ data }) => getAdminSubhubDetails(data.userId));
 export const getAdminAttendanceReportFn = createServerFn({ method: "GET" }).validator(managerReportSchema).handler(({ data }) =>
   getAdminAttendanceReport({
+    rangeType: data.rangeType,
+    ...(data.month ? { month: data.month } : {}),
+    ...(data.date ? { date: data.date } : {}),
+    ...(data.startDate ? { startDate: data.startDate } : {}),
+    ...(data.endDate ? { endDate: data.endDate } : {}),
+  }),
+);
+export const getAdminHeadcountReportFn = createServerFn({ method: "GET" }).validator(managerReportSchema).handler(({ data }) =>
+  getAdminHeadcountReport({
     rangeType: data.rangeType,
     ...(data.month ? { month: data.month } : {}),
     ...(data.date ? { date: data.date } : {}),

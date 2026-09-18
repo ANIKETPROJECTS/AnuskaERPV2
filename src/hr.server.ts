@@ -1053,3 +1053,150 @@ export async function getAdminEmployeeAttendanceHistory(input: {
     },
   };
 }
+
+function emptyManagerHeadcountData(): ManagerHeadcountData {
+  return {
+    subhubName: "",
+    subhubManagerName: "",
+    date: "",
+    presentCount: null,
+    recentRecords: [],
+  };
+}
+
+function emptyAdminHeadcountReport(): AdminHeadcountReport {
+  return { startDate: "", endDate: "", subhubs: [], summaries: [], entries: [] };
+}
+
+function serializeHeadcount(record: HeadcountDocument): HeadcountRecord {
+  return {
+    id: record._id,
+    date: record.date,
+    presentCount: record.presentCount,
+    updatedAt: record.updatedAt.toISOString(),
+  };
+}
+
+function isPositiveInteger(value: number): boolean {
+  return Number.isSafeInteger(value) && value >= 1 && value <= 1_000_000;
+}
+
+export async function getManagerHeadcountData(): Promise<
+  { ok: true; data: ManagerHeadcountData } | { ok: false; data: ManagerHeadcountData; message: string }
+> {
+  const current = await getCurrentUserRecord("subhub");
+  if (!isSubhub(current)) {
+    return { ok: false, data: emptyManagerHeadcountData(), message: "Only SubHub Managers can use HR & Attendance." };
+  }
+
+  const date = todayInIndia();
+  const bounds = monthBounds(date.slice(0, 7));
+  const db = await getMongoDb(current.databaseName);
+  await ensureHrIndexes(db);
+  const records = await db.collection<HeadcountDocument>("hr_headcount")
+    .find({ date: { $gte: bounds.start, $lte: date } })
+    .sort({ date: -1 })
+    .toArray();
+  const todayRecord = records.find((record) => record.date === date);
+
+  return {
+    ok: true,
+    data: {
+      subhubName: current.subhubName ?? "SubHub",
+      subhubManagerName: current.name,
+      date,
+      presentCount: todayRecord?.presentCount ?? null,
+      recentRecords: records.map(serializeHeadcount),
+    },
+  };
+}
+
+export async function saveManagerHeadcount(input: {
+  presentCount: number;
+}): Promise<{ ok: true; record: HeadcountRecord } | { ok: false; message: string }> {
+  const current = await getCurrentUserRecord("subhub");
+  if (!isSubhub(current)) return { ok: false, message: "Only SubHub Managers can record today's presence." };
+  if (!isPositiveInteger(input.presentCount)) {
+    return { ok: false, message: "Enter a positive whole number of people present today." };
+  }
+
+  const date = todayInIndia();
+  const db = await getMongoDb(current.databaseName);
+  await ensureHrIndexes(db);
+  const now = new Date();
+  const id = `${date}`;
+  await db.collection<HeadcountDocument>("hr_headcount").updateOne(
+    { date },
+    {
+      $set: {
+        date,
+        presentCount: input.presentCount,
+        recordedByUserId: current._id,
+        recordedByName: current.name,
+        updatedAt: now,
+      },
+      $setOnInsert: { _id: id, createdAt: now },
+    },
+    { upsert: true },
+  );
+  const record = await db.collection<HeadcountDocument>("hr_headcount").findOne({ date });
+  if (!record) return { ok: false, message: "Today's headcount could not be saved. Please try again." };
+  return { ok: true, record: serializeHeadcount(record) };
+}
+
+export async function getAdminHeadcountReport(input: {
+  rangeType: "month" | "date" | "range";
+  month?: string;
+  date?: string;
+  startDate?: string;
+  endDate?: string;
+}): Promise<
+  { ok: true; data: AdminHeadcountReport } | { ok: false; data: AdminHeadcountReport; message: string }
+> {
+  const current = await getCurrentUserRecord("admin");
+  if (!isAdmin(current)) {
+    return { ok: false, data: emptyAdminHeadcountReport(), message: "Only Admin users can view HR reports across SubHubs." };
+  }
+  const bounds = adminReportBounds(input);
+  if (!bounds.ok) return { ok: false, data: emptyAdminHeadcountReport(), message: bounds.message };
+
+  const controlDb = await getControlPlaneDatabase();
+  const users = await controlDb.collection<UserDocument>("users")
+    .find({ panel: "subhub", role: "subhub", active: true })
+    .sort({ subhubName: 1, name: 1 })
+    .toArray();
+  const workspaces = await Promise.all(users.map(async (user) => {
+    const db = await getMongoDb(user.databaseName);
+    await ensureHrIndexes(db);
+    const records = await db.collection<HeadcountDocument>("hr_headcount")
+      .find({ date: { $gte: bounds.startDate, $lte: bounds.endDate } })
+      .sort({ date: -1 })
+      .toArray();
+    return { user, records };
+  }));
+
+  const subhubs = users.map((user) => ({ id: user._id, name: user.subhubName ?? "SubHub", managerName: user.name }));
+  const summaries = workspaces.map(({ user, records }) => ({
+    subhubId: user._id,
+    subhubName: user.subhubName ?? "SubHub",
+    subhubManagerName: user.name,
+    totalPresent: records.reduce((total, record) => total + record.presentCount, 0),
+    averagePresent: records.length
+      ? Math.round((records.reduce((total, record) => total + record.presentCount, 0) / records.length) * 10) / 10
+      : 0,
+    reportedDays: records.length,
+  }));
+  const entries = workspaces.flatMap(({ user, records }) =>
+    records.map((record) => ({
+      ...serializeHeadcount(record),
+      subhubId: user._id,
+      subhubName: user.subhubName ?? "SubHub",
+      subhubManagerName: user.name,
+    })),
+  );
+
+  return {
+    ok: true,
+    data: { startDate: bounds.startDate, endDate: bounds.endDate, subhubs, summaries, entries },
+  };
+}
