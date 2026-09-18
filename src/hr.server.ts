@@ -83,6 +83,44 @@ export type AdminAttendanceReport = {
   attendance: AdminAttendanceRecord[];
 };
 
+export type HeadcountRecord = {
+  id: string;
+  date: string;
+  presentCount: number;
+  updatedAt: string;
+};
+
+export type ManagerHeadcountData = {
+  subhubName: string;
+  subhubManagerName: string;
+  date: string;
+  presentCount: number | null;
+  recentRecords: HeadcountRecord[];
+};
+
+export type AdminHeadcountEntry = HeadcountRecord & {
+  subhubId: string;
+  subhubName: string;
+  subhubManagerName: string;
+};
+
+export type AdminHeadcountSummary = {
+  subhubId: string;
+  subhubName: string;
+  subhubManagerName: string;
+  totalPresent: number;
+  averagePresent: number;
+  reportedDays: number;
+};
+
+export type AdminHeadcountReport = {
+  startDate: string;
+  endDate: string;
+  subhubs: AdminHrSubhub[];
+  summaries: AdminHeadcountSummary[];
+  entries: AdminHeadcountEntry[];
+};
+
 export type AdminSubhubDetails = {
   user: PublicUser & {
     createdAt: string;
@@ -147,6 +185,16 @@ type AttendanceDocument = {
   employeeId: string;
   date: string;
   status: AttendanceStatus;
+  updatedAt: Date;
+  createdAt: Date;
+};
+
+type HeadcountDocument = {
+  _id: string;
+  date: string;
+  presentCount: number;
+  recordedByUserId: string;
+  recordedByName: string;
   updatedAt: Date;
   createdAt: Date;
 };
@@ -249,6 +297,7 @@ async function ensureHrIndexes(db: Db): Promise<void> {
       db.collection<ShiftAssignmentDocument>("hr_shift_assignments").createIndex({ employeeId: 1, shiftId: 1 }, { unique: true }),
       db.collection<AttendanceDocument>("hr_attendance").createIndex({ employeeId: 1, date: 1 }, { unique: true }),
       db.collection<AttendanceDocument>("hr_attendance").createIndex({ date: 1 }),
+      db.collection<HeadcountDocument>("hr_headcount").createIndex({ date: 1 }, { unique: true }),
     ]).then(() => undefined);
     indexesByDatabase.set(databaseName, promise);
   }
