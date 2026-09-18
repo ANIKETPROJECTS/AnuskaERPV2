@@ -321,7 +321,14 @@ function ProductionRow({
         <p className="mt-1 text-xs text-muted-foreground">Due {order.dueDate}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <a href={`/subhub/production/orders/${encodeURIComponent(order.id)}`} className="inline-flex items-center rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted">Order details</a>
-          <a href={`/subhub/production/allocation/${encodeURIComponent(order.id)}?date=${encodeURIComponent(selectedDate)}&quantity=${quantity}`} className="inline-flex items-center rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted">Material allocation</a>
+          <Link
+            to="/subhub/production/allocation/$orderId"
+            params={{ orderId: order.id }}
+            search={{ date: selectedDate, quantity }}
+            className="inline-flex items-center rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted"
+          >
+            Material allocation
+          </Link>
         </div>
       </td>
       <td className="tabular px-5 py-4 text-right font-semibold">{num(order.target)}</td>
