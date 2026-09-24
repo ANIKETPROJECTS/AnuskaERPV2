@@ -646,13 +646,16 @@ export async function updateManagedUser(input: {
     active: input.active,
     updatedAt: new Date(),
   };
-  const databaseName = await allocateWorkspaceDatabaseName(
-    db,
-    input.id,
-    input.panel,
-    normalizedSubhubName,
-    existing.databaseName,
-  );
+  // Changing panel alone does not require renaming or moving a SubHub workspace.
+  const databaseName = input.panel !== "subhub" && existing.panel === "subhub"
+    ? existing.databaseName
+    : await allocateWorkspaceDatabaseName(
+        db,
+        input.id,
+        input.panel,
+        normalizedSubhubName,
+        existing.databaseName,
+      );
   if (input.panel === "subhub") update["subhubName"] = normalizedSubhubName;
   update["databaseName"] = databaseName;
   if (input.password) update["passwordHash"] = await hashPassword(input.password);
