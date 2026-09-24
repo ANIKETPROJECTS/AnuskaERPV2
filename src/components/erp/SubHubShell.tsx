@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { Boxes, ClipboardCheck, Database, FileBarChart, Layers, LogOut, PackageOpen, PanelLeftClose, PanelLeftOpen, ShoppingCart, UserRoundCog } from "lucide-react";
+import { Boxes, ClipboardCheck, ClipboardList, Database, FileBarChart, Layers, LogOut, PackageOpen, PanelLeftClose, PanelLeftOpen, ShoppingCart, UserRoundCog } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { logoutFn } from "@/auth";
@@ -10,6 +10,7 @@ const subhubNav = [
   { to: "/inventory", label: "Inventory Management", permission: "inventory", icon: PackageOpen },
   { to: "/subhub/production", label: "Hub Manager", permission: "hub-manager", icon: ClipboardCheck },
   { to: "/subhub/reports", label: "Hub Reports", permission: "hub-reports", icon: FileBarChart },
+  { to: "/subhub/request-items", label: "Request items", permission: "item-requests", icon: ClipboardList },
   { to: "/subhub/hr", label: "HR & Attendance", permission: "hr", icon: UserRoundCog },
   { to: "/procurement", label: "Procurement", permission: "procurement", icon: ShoppingCart },
   { to: "/subhub/bom", label: "Bill of Materials", permission: "bom", icon: Layers },
@@ -87,6 +88,7 @@ export function SubHubShell({
               <Link
                 key={item.to}
                 to={item.to}
+                search={item.permission === "procurement" ? { panel: "subhub" } : undefined}
                 title={sidebarCollapsed ? item.label : undefined}
                 className={`flex items-center gap-3 rounded-md py-2 text-sm transition-colors ${sidebarCollapsed ? "justify-center px-2" : "px-3"} ${
                   active ? "bg-sidebar-accent font-medium text-sidebar-primary" : "text-sidebar-foreground hover:bg-sidebar-accent/60"

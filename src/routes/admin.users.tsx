@@ -34,16 +34,23 @@ const permissionGroups: Array<{ label: string; panel: Panel; items: Array<{ valu
       { value: "inventory", label: "Inventory Management" },
       { value: "hub-manager", label: "Hub Manager" },
       { value: "hub-reports", label: "Hub Reports" },
+      { value: "item-requests", label: "Request items" },
       { value: "hr", label: "HR & Attendance" },
       { value: "bom", label: "Bill of Materials (view only)" },
       { value: "raw-materials", label: "Raw Materials (view only)" },
       { value: "procurement", label: "Procurement" },
     ],
   },
+  {
+    label: "Procurement Management Panel",
+    panel: "procurement",
+    items: [{ value: "procurement", label: "Procurement Management" }],
+  },
 ];
 
 const adminDefaults: AccessSection[] = permissionGroups[0]?.items.map((item) => item.value) ?? [];
 const subhubDefaults: AccessSection[] = permissionGroups[1]?.items.map((item) => item.value) ?? [];
+const procurementDefaults: AccessSection[] = permissionGroups[2]?.items.map((item) => item.value) ?? [];
 
 export const Route = createFileRoute("/admin/users")({
   loader: () => listUsersFn(),
@@ -172,7 +179,7 @@ function UserManagementPage() {
       ...current,
       panel,
       subhubName: panel === "subhub" ? current.subhubName : "",
-      permissions: panel === "admin" ? adminDefaults : subhubDefaults,
+      permissions: panel === "admin" ? adminDefaults : panel === "subhub" ? subhubDefaults : procurementDefaults,
     }));
   }
 
@@ -323,6 +330,7 @@ function UserManagementPage() {
               <option value="all">All panels</option>
               <option value="admin">Admin Panel</option>
               <option value="subhub">SubHub Panel</option>
+              <option value="procurement">Procurement Management</option>
             </select>
           </label>
           <label className="text-xs font-medium">
@@ -591,8 +599,8 @@ function UserForm({
           </label>
           <div>
             <p className="text-sm font-medium">Panel</p>
-            <div className="mt-2 grid grid-cols-2 gap-3">
-              {(["admin", "subhub"] as const).map((panel) => (
+            <div className="mt-2 grid gap-3 sm:grid-cols-3">
+              {(["admin", "subhub", "procurement"] as const).map((panel) => (
                 <button
                   key={panel}
                   type="button"
@@ -601,9 +609,9 @@ function UserForm({
                     form.panel === panel ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-input hover:bg-muted"
                   }`}
                 >
-                  <p className="text-sm font-medium">{panel === "admin" ? "Admin Panel" : "SubHub Panel"}</p>
+                  <p className="text-sm font-medium">{panel === "admin" ? "Admin Panel" : panel === "subhub" ? "SubHub Panel" : "Procurement Management"}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {panel === "admin" ? "Master data and administration" : "Hub operations and reporting"}
+                    {panel === "admin" ? "Master data and administration" : panel === "subhub" ? "Hub operations and reporting" : "Hub needs, purchase orders, and vendors"}
                   </p>
                 </button>
               ))}

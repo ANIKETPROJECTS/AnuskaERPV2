@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { z } from "zod";
 import { useAuth } from "@/components/auth/AuthContext";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
 import { Shell } from "@/components/erp/Shell";
@@ -25,18 +26,21 @@ import { SubHubShell } from "@/components/erp/SubHubShell";
 import { TablePagination } from "@/components/erp/TablePagination";
 import {
   createProcurementOrderFn,
+  updateProcurementItemRequestFn,
   createVendorFn,
   deleteOrArchiveVendorFn,
   getProcurementDataFn,
   updateProcurementOrderStatusFn,
   updateVendorFn,
 } from "@/procurement";
-import type { ProcurementData, ProcurementOrder, ProcurementStatus, ProcurementVendor } from "@/procurement.server";
+import type { HubMaterialNeed, ProcurementData, ProcurementItemRequest, ProcurementOrder, ProcurementStatus, ProcurementVendor } from "@/procurement.server";
 import { MISCELLANEOUS_VENDOR_ID, ONE_OFF_MATERIAL_CODE, PROCUREMENT_STATUSES } from "@/lib/procurement-types";
 import { useRawMaterials } from "@/lib/raw-material-store";
 
 export const Route = createFileRoute("/procurement")({
-  loader: () => getProcurementDataFn(),
+  validateSearch: z.object({ panel: z.enum(["admin", "subhub", "procurement"]).optional() }),
+  loaderDeps: ({ search }) => ({ panel: search.panel ?? "procurement" }),
+  loader: ({ deps }) => getProcurementDataFn({ data: { panel: deps.panel } }),
   head: () => ({
     meta: [
       { title: "Procurement — Gadsons ERP" },
@@ -54,6 +58,8 @@ const emptyData: ProcurementData = {
   subhubs: [],
   vendorPerformance: [],
   subhubSummary: [],
+  materialNeeds: [],
+  itemRequests: [],
   summary: {
     vendorCount: 0,
     openOrders: 0,
@@ -65,7 +71,7 @@ const emptyData: ProcurementData = {
   },
 };
 
-type Tab = "orders" | "vendors";
+type Tab = "orders" | "vendors" | "needs" | "requests";
 type SortKey = "orderDate-desc" | "orderDate-asc" | "delivery-asc" | "amount-desc" | "quantity-desc" | "vendor-asc";
 
 function today() {
@@ -99,9 +105,15 @@ function statusTone(status: ProcurementStatus): "good" | "warn" | "info" | "neut
 }
 
 function Procurement() {
+  return <ProcurementPage result={Route.useLoaderData()} />;
+}
+
+type ProcurementResult = Awaited<ReturnType<typeof getProcurementDataFn>>;
+
+export function ProcurementPage({ result }: { result: ProcurementResult }) {
   const auth = useAuth();
-  const result = Route.useLoaderData();
-  const isAdmin = auth.user?.panel === "admin";
+  const canManageProcurement = auth.user?.panel === "admin" || auth.user?.panel === "procurement";
+  const panel = auth.user?.panel ?? "admin";
   const [data, setData] = useState<ProcurementData>(result.ok ? result.data : emptyData);
   const [tab, setTab] = useState<Tab>("orders");
   const [query, setQuery] = useState("");
@@ -133,7 +145,7 @@ function Procurement() {
 
   async function reload() {
     setLoading(true);
-    const response = await getProcurementDataFn();
+    const response = await getProcurementDataFn({ data: { panel } });
     if (response.ok) {
       setData(response.data);
       setError("");
@@ -147,7 +159,7 @@ function Procurement() {
     const normalized = query.trim().toLowerCase();
     return data.orders
       .filter((order) => {
-        const searchable = [order.orderNumber, order.vendorName, order.materialName, order.materialCode, order.subhubName, order.notes].join(" ").toLowerCase();
+        const searchable = [order.orderNumber, order.vendorName, order.materialName, order.materialCode, ...order.items.map((item) => `${item.materialName} ${item.materialCode}`), order.subhubName, order.notes].join(" ").toLowerCase();
         const matchesQuery = !normalized || searchable.includes(normalized);
         const matchesVendor = vendorFilter === "all" || order.vendorId === vendorFilter;
         const matchesSubhub = subhubFilter === "all" || order.subhubUserId === subhubFilter;
@@ -201,7 +213,7 @@ function Procurement() {
   async function updateOrderStatus(order: ProcurementOrder, status: ProcurementStatus) {
     if (status === order.status) return;
     setNotice("");
-    const response = await updateProcurementOrderStatusFn({ data: { id: order.id, status } });
+    const response = await updateProcurementOrderStatusFn({ data: { id: order.id, status, panel } });
     if (!response.ok) setError(response.message);
     else {
       setNotice(`${order.orderNumber} changed from ${order.status} to ${status}.`);
@@ -216,7 +228,7 @@ function Procurement() {
       ? "Its order history will remain available for reporting."
       : "This vendor has no order history and will be permanently removed.";
     if (!window.confirm(`${actionLabel} ${vendor.name}? ${actionDescription}`)) return;
-    const response = await deleteOrArchiveVendorFn({ data: { id: vendor.id } });
+    const response = await deleteOrArchiveVendorFn({ data: { id: vendor.id, panel: panel as "admin" | "procurement" } });
     if (!response.ok) {
       setError(response.message);
       return;
@@ -243,25 +255,31 @@ function Procurement() {
       {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
       {notice ? <p role="status" className="rounded-md border border-success/25 bg-success/5 px-4 py-3 text-sm text-success">{notice}</p> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Active vendors" value={num(data.summary.vendorCount)} hint={isAdmin ? `${data.vendors.length} total records` : "shared vendor directory"} />
+      <div className={`grid gap-4 sm:grid-cols-2 ${canManageProcurement ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
+        {canManageProcurement ? <Kpi label="Active vendors" value={num(data.summary.vendorCount)} hint={`${data.vendors.length} total records`} /> : null}
         <Kpi label="Open orders" value={num(data.summary.openOrders)} tone="warn" hint={`${num(data.summary.unitsOnOrder)} units in progress`} />
         <Kpi label="Committed spend" value={inr(data.summary.committedSpend)} hint="open procurement orders" />
         <Kpi label="On-time delivery" value={data.summary.onTimeRate === null ? "—" : `${data.summary.onTimeRate}%`} tone={data.summary.onTimeRate === null ? "neutral" : data.summary.onTimeRate >= 85 ? "good" : "warn"} hint={`${data.summary.completedOrders} completed orders`} />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-md border border-border bg-card p-1" role="tablist" aria-label="Procurement sections">
+        <div className="inline-flex flex-wrap rounded-md border border-border bg-card p-1" role="tablist" aria-label="Procurement sections">
           <button type="button" role="tab" aria-selected={tab === "orders"} onClick={() => setTab("orders")} className={`inline-flex items-center gap-2 rounded px-3 py-2 text-sm font-medium ${tab === "orders" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
             <ClipboardList className="size-4" /> Order Management
           </button>
-          <button type="button" role="tab" aria-selected={tab === "vendors"} onClick={() => setTab("vendors")} className={`inline-flex items-center gap-2 rounded px-3 py-2 text-sm font-medium ${tab === "vendors" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
+          {canManageProcurement ? <button type="button" role="tab" aria-selected={tab === "vendors"} onClick={() => setTab("vendors")} className={`inline-flex items-center gap-2 rounded px-3 py-2 text-sm font-medium ${tab === "vendors" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
             <Store className="size-4" /> Vendor Management
-          </button>
+          </button> : null}
+          {canManageProcurement ? <button type="button" role="tab" aria-selected={tab === "needs"} onClick={() => setTab("needs")} className={`inline-flex items-center gap-2 rounded px-3 py-2 text-sm font-medium ${tab === "needs" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
+            <PackagePlus className="size-4" /> Hub stock & targets
+          </button> : null}
+          {canManageProcurement ? <button type="button" role="tab" aria-selected={tab === "requests"} onClick={() => setTab("requests")} className={`inline-flex items-center gap-2 rounded px-3 py-2 text-sm font-medium ${tab === "requests" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
+            <ClipboardList className="size-4" /> Item requests{data.itemRequests.some((request) => request.status === "Pending") ? ` (${data.itemRequests.filter((request) => request.status === "Pending").length})` : ""}
+          </button> : null}
         </div>
         <div className="flex gap-2">
-          {isAdmin ? <button type="button" onClick={openCreateVendor} className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm font-medium hover:bg-muted"><Plus className="size-4" /> Add vendor</button> : null}
-          <button type="button" onClick={() => setShowOrderForm(true)} className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"><PackagePlus className="size-4" /> New procurement order</button>
+          {canManageProcurement && tab === "vendors" ? <button type="button" onClick={openCreateVendor} className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm font-medium hover:bg-muted"><Plus className="size-4" /> Add vendor</button> : null}
+          {canManageProcurement && tab === "orders" ? <button type="button" onClick={() => setShowOrderForm(true)} className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"><PackagePlus className="size-4" /> New procurement order</button> : null}
           <button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh</button>
         </div>
       </div>
@@ -291,29 +309,170 @@ function Procurement() {
             clearFilters={clearFilters}
           />
           <Panel title="Procurement orders" description={`${filteredOrders.length} of ${data.orders.length} orders · every row is stored in MongoDB`}>
-            {loading ? <Loading /> : <OrderTable orders={paginatedOrders} total={filteredOrders.length} page={orderPage} pageSize={orderPageSize} onPageChange={setOrderPage} onPageSizeChange={setOrderPageSize} isAdmin={isAdmin} onStatusChange={(order, status) => void updateOrderStatus(order, status)} />}
+            {loading ? <Loading /> : <OrderTable orders={paginatedOrders} total={filteredOrders.length} page={orderPage} pageSize={orderPageSize} onPageChange={setOrderPage} onPageSizeChange={setOrderPageSize} isAdmin={canManageProcurement} panel={panel} onStatusChange={(order, status) => void updateOrderStatus(order, status)} />}
           </Panel>
-          {isAdmin ? <AdminReports data={data} /> : null}
+          {canManageProcurement ? <AdminReports data={data} /> : null}
         </>
-      ) : (
+      ) : tab === "vendors" ? (
         <>
-          <Panel title="Vendor directory" description={isAdmin ? "Create, edit, archive, and review every procurement vendor." : "Active vendors are shared across the procurement directory. Vendor changes are managed by the Master Admin."}>
-            <VendorTable vendors={visibleVendors} data={data} isAdmin={isAdmin} onSelect={setSelectedVendorId} selectedVendorId={selectedVendorId} onEdit={openEditVendor} onRemove={(vendor) => void removeVendor(vendor)} />
+          <Panel title="Vendor directory" description="Create, edit, archive, and review the shared procurement vendor directory.">
+            <VendorTable vendors={visibleVendors} data={data} isAdmin={canManageProcurement} onSelect={setSelectedVendorId} selectedVendorId={selectedVendorId} onEdit={openEditVendor} onRemove={(vendor) => void removeVendor(vendor)} />
           </Panel>
           {selectedVendor ? <VendorDetail vendor={selectedVendor} orders={selectedVendorOrders} onClose={() => setSelectedVendorId("")} /> : null}
         </>
-      )}
+      ) : null}
+      {tab === "needs" ? <HubMaterialNeeds data={data} panel={panel as "admin" | "procurement"} onSaved={async (message) => { setNotice(message); await reload(); }} /> : null}
+      {tab === "requests" ? <ItemRequestsTable requests={data.itemRequests} panel={panel as "admin" | "procurement"} onUpdated={async (message) => { setNotice(message); await reload(); }} /> : null}
 
-      {showOrderForm ? <OrderForm data={data} isAdmin={isAdmin} onClose={() => setShowOrderForm(false)} onSaved={async (message) => { setShowOrderForm(false); setNotice(message); await reload(); }} /> : null}
-      {vendorFormMode ? <VendorForm mode={vendorFormMode} vendor={editingVendor} onClose={() => setVendorFormMode(null)} onSaved={async (message) => { setVendorFormMode(null); setNotice(message); await reload(); }} /> : null}
+      {showOrderForm ? <OrderForm data={data} isAdmin={canManageProcurement} panel={panel as "admin" | "procurement"} onClose={() => setShowOrderForm(false)} onSaved={async (message) => { setShowOrderForm(false); setNotice(message); await reload(); }} /> : null}
+      {vendorFormMode ? <VendorForm mode={vendorFormMode} vendor={editingVendor} panel={panel as "admin" | "procurement"} onClose={() => setVendorFormMode(null)} onSaved={async (message) => { setVendorFormMode(null); setNotice(message); await reload(); }} /> : null}
     </div>
   );
 
-  return isAdmin ? (
-    <Shell title="Procurement" subtitle="Live vendor management, purchase orders, and SubHub-wide delivery reporting">{content}</Shell>
+  return auth.user?.panel === "subhub" ? (
+    <SubHubShell title="Procurement" subtitle={`Orders assigned to ${auth.user?.subhubName ?? "this SubHub"}`}>{content}</SubHubShell>
   ) : (
-    <SubHubShell title="Procurement" subtitle={`Manage ${auth.user?.subhubName ?? "this SubHub"} vendors and procurement orders`}>{content}</SubHubShell>
+    <Shell title="Procurement" subtitle="Live vendor management, purchase orders, and SubHub-wide delivery reporting">{content}</Shell>
   );
+}
+
+function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; panel: "admin" | "procurement"; onSaved: (message: string) => Promise<void> }) {
+  const grouped = useMemo(() => {
+    const groups = new Map<string, HubMaterialNeed[]>();
+    data.materialNeeds.forEach((need) => groups.set(need.subhubUserId, [...(groups.get(need.subhubUserId) ?? []), need]));
+    return [...groups.entries()];
+  }, [data.materialNeeds]);
+  const [orderHub, setOrderHub] = useState<string | null>(null);
+
+  if (!grouped.length) {
+    return <Panel title="Hub stock and target material needs" description="Required quantities are calculated from each active production target, production reports, current hub stock, and outstanding procurement orders.">
+      <p className="p-8 text-center text-sm text-muted-foreground">No assigned production targets are available to calculate material needs.</p>
+    </Panel>;
+  }
+
+  return <>
+    <div className="space-y-4">
+      <Panel title="Hub stock and target material needs" description="Remaining BOM requirements are compared with stock in each SubHub and material already on order.">
+        <p className="border-b border-border px-5 py-3 text-xs text-muted-foreground">A shortage is the remaining target requirement minus available stock and undelivered procurement quantities. Values recalculate when this page is refreshed.</p>
+      </Panel>
+      {grouped.map(([hubId, needs]) => {
+        const shortageCount = needs.filter((need) => need.shortageQuantity > 0).length;
+        return <section key={hubId} className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+            <div><h2 className="font-semibold">{needs[0]?.subhubName ?? "SubHub"}</h2><p className="mt-1 text-sm text-muted-foreground">{needs.length} raw materials · {shortageCount} below required quantity</p></div>
+            <button type="button" disabled={!shortageCount} onClick={() => setOrderHub(hubId)} className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><PackagePlus className="size-4" /> Create order for shortages</button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead className="border-b border-border bg-muted/15 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Raw material</th><th className="px-5 py-3 text-right font-medium">Needed for remaining targets</th><th className="px-5 py-3 text-right font-medium">Hub stock</th><th className="px-5 py-3 text-right font-medium">On order</th><th className="px-5 py-3 text-right font-medium">Additional quantity</th><th className="px-5 py-3 text-right font-medium">Stock status</th></tr></thead>
+              <tbody>{needs.map((need) => <tr key={need.itemCode} className="border-b border-border/70 last:border-0"><td className="px-5 py-3 font-medium">{need.itemName}<span className="ml-2 text-xs font-normal text-muted-foreground">{need.itemCode}</span></td><td className="tabular px-5 py-3 text-right">{num(need.requiredQuantity)}</td><td className="tabular px-5 py-3 text-right">{num(need.stockQuantity)}</td><td className="tabular px-5 py-3 text-right">{num(need.onOrderQuantity)}</td><td className={`tabular px-5 py-3 text-right font-semibold ${need.shortageQuantity > 0 ? "text-destructive" : "text-success"}`}>{num(need.shortageQuantity)}</td><td className="px-5 py-3 text-right"><Tag tone={need.shortageQuantity > 0 ? "warn" : "good"}>{need.shortageQuantity > 0 ? "Low stock" : "Sufficient"}</Tag></td></tr>)}</tbody>
+            </table>
+          </div>
+        </section>;
+      })}
+    </div>
+    {orderHub ? <ShortageOrderForm
+      data={data}
+      needs={data.materialNeeds.filter((need) => need.subhubUserId === orderHub && need.shortageQuantity > 0)}
+      panel={panel}
+      onClose={() => setOrderHub(null)}
+      onSaved={async (message) => { setOrderHub(null); await onSaved(message); }}
+    /> : null}
+  </>;
+}
+
+function ShortageOrderForm({ data, needs, panel, onClose, onSaved }: { data: ProcurementData; needs: HubMaterialNeed[]; panel: "admin" | "procurement"; onClose: () => void; onSaved: (message: string) => Promise<void> }) {
+  const [selected, setSelected] = useState<string[]>(needs.map((need) => need.itemCode));
+  const [prices, setPrices] = useState<Record<string, string>>({});
+  const [vendorId, setVendorId] = useState("");
+  const [orderDate, setOrderDate] = useState(today());
+  const [expectedDelivery, setExpectedDelivery] = useState(dateAfter(7));
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const hubId = needs[0]?.subhubUserId ?? "";
+  const hubName = needs[0]?.subhubName ?? "SubHub";
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    if (!vendorId) {
+      setError("Choose a vendor before creating the order.");
+      return;
+    }
+    const selectedNeeds = needs.filter((need) => selected.includes(need.itemCode));
+    if (selectedNeeds.some((need) => !(prices[need.itemCode] ?? "").trim())) {
+      setError("Enter a unit price for every selected material.");
+      return;
+    }
+    const items = selectedNeeds.map((need) => {
+      const price = Number(prices[need.itemCode] ?? 0);
+      return { materialCode: need.itemCode, materialName: need.itemName, quantity: need.shortageQuantity, unitPrice: price };
+    });
+    if (!items.length) {
+      setError("Select at least one material with a shortage.");
+      return;
+    }
+    if (items.some((item) => !Number.isFinite(item.unitPrice) || item.unitPrice < 0)) {
+      setError("Enter a valid non-negative unit price for every selected material.");
+      return;
+    }
+    setBusy(true);
+    const response = await createProcurementOrderFn({
+      data: { panel, subhubUserId: hubId, vendorId, items, orderDate, expectedDelivery, notes },
+    });
+    if (!response.ok) {
+      setError(response.message);
+      setBusy(false);
+      return;
+    }
+    await onSaved(`${response.order.orderNumber} was created for ${hubName} with ${items.length} material line${items.length === 1 ? "" : "s"}.`);
+    setBusy(false);
+  }
+
+  return <Drawer title="Create shortage procurement order" subtitle={`Assign the missing materials for ${hubName} in one order.`} onClose={onClose}>
+    <form onSubmit={(event) => void submit(event)} className="space-y-4">
+      <label className="block text-sm font-medium">Vendor
+        <select required value={vendorId} onChange={(event) => setVendorId(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+          <option value="">Choose an active vendor</option>{data.vendors.filter((vendor) => vendor.status === "active").map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}
+          <option value={MISCELLANEOUS_VENDOR_ID}>Miscellaneous</option>
+        </select>
+      </label>
+      <div className="overflow-hidden rounded-md border border-border">
+        {needs.map((need) => <label key={need.itemCode} className="grid grid-cols-[auto_minmax(0,1fr)_7rem] items-center gap-3 border-b border-border px-3 py-3 last:border-0">
+          <input type="checkbox" checked={selected.includes(need.itemCode)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, need.itemCode] : current.filter((code) => code !== need.itemCode))} className="size-4 accent-[var(--color-primary)]" />
+          <span className="min-w-0"><span className="block truncate text-sm font-medium">{need.itemName}</span><span className="text-xs text-muted-foreground">{need.itemCode} · order {num(need.shortageQuantity)} units</span></span>
+          <input aria-label={`Unit price for ${need.itemName}`} required={selected.includes(need.itemCode)} type="number" min="0" step="0.01" value={prices[need.itemCode] ?? ""} onChange={(event) => setPrices((current) => ({ ...current, [need.itemCode]: event.target.value }))} className="h-9 w-28 rounded-md border border-input px-2 text-right text-sm" />
+        </label>)}
+      </div>
+      <p className="text-xs text-muted-foreground">Enter the quoted unit price for each selected material. Shortage quantities are prefilled from current hub targets and stock.</p>
+      <div className="grid gap-3 sm:grid-cols-2"><TextField label="Order date" type="date" required value={orderDate} onChange={setOrderDate} /><TextField label="Expected delivery" type="date" required value={expectedDelivery} onChange={setExpectedDelivery} /></div>
+      <label className="block text-sm font-medium">Notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={2} maxLength={500} placeholder="Supplier quote or delivery instructions" className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm" /></label>
+      {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}
+      <DrawerActions busy={busy} submitLabel="Create procurement order" onClose={onClose} />
+    </form>
+  </Drawer>;
+}
+
+function ItemRequestsTable({ requests, panel, onUpdated }: { requests: ProcurementItemRequest[]; panel: "admin" | "procurement"; onUpdated: (message: string) => Promise<void> }) {
+  const [responses, setResponses] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState("");
+  const [error, setError] = useState("");
+  async function update(request: ProcurementItemRequest, status: "Approved" | "Declined") {
+    setBusyId(request.id);
+    setError("");
+    const result = await updateProcurementItemRequestFn({ data: { id: request.id, status, response: responses[request.id] ?? "", panel } });
+    if (!result.ok) setError(result.message);
+    else await onUpdated(`${request.itemName} request was ${status.toLowerCase()}.`);
+    setBusyId("");
+  }
+  return <Panel title="SubHub item requests" description="Requests submitted by SubHub teams for small supplies, tools, and other items.">
+    {error ? <p role="alert" className="border-b border-border bg-destructive/5 px-5 py-3 text-sm text-destructive">{error}</p> : null}
+    {requests.length ? <div className="divide-y divide-border">{requests.map((request) => <article key={request.id} className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center">
+      <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-medium">{request.itemName}</h3><Tag tone={request.status === "Approved" ? "good" : request.status === "Declined" ? "neutral" : "warn"}>{request.status}</Tag></div><p className="mt-1 text-xs text-muted-foreground">{request.subhubName} · quantity {num(request.quantity)} · {formatDate(request.createdAt.slice(0, 10))}</p>{request.notes ? <p className="mt-2 text-sm text-muted-foreground">{request.notes}</p> : null}{request.response ? <p className="mt-2 text-sm">Response: {request.response}</p> : null}</div>
+      {request.status === "Pending" ? <div className="flex flex-col gap-2 sm:flex-row"><input value={responses[request.id] ?? ""} onChange={(event) => setResponses((current) => ({ ...current, [request.id]: event.target.value }))} maxLength={500} aria-label={`Response to ${request.itemName} request`} placeholder="Response (optional)" className="h-9 rounded-md border border-input px-3 text-sm" /><button type="button" disabled={busyId === request.id} onClick={() => void update(request, "Declined")} className="rounded-md border border-input px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50">Decline</button><button type="button" disabled={busyId === request.id} onClick={() => void update(request, "Approved")} className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">Approve</button></div> : null}
+    </article>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">No SubHub item requests have been submitted.</p>}
+  </Panel>;
 }
 
 function OrderFilters({
@@ -357,13 +516,13 @@ function DateFilter({ label, value, onChange }: { label: string; value: string; 
   return <label className="shrink-0 text-xs font-medium">{label}<input type="date" value={value} onChange={(event) => onChange(event.target.value)} className="mt-1.5 h-9 rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus:border-primary" /></label>;
 }
 
-function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeChange, isAdmin, onStatusChange }: { orders: ProcurementOrder[]; total: number; page: number; pageSize: number; onPageChange: (page: number) => void; onPageSizeChange: (pageSize: number) => void; isAdmin: boolean; onStatusChange: (order: ProcurementOrder, status: ProcurementStatus) => void }) {
+function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeChange, isAdmin, panel, onStatusChange }: { orders: ProcurementOrder[]; total: number; page: number; pageSize: number; onPageChange: (page: number) => void; onPageSizeChange: (pageSize: number) => void; isAdmin: boolean; panel: "admin" | "subhub" | "procurement"; onStatusChange: (order: ProcurementOrder, status: ProcurementStatus) => void }) {
   return orders.length ? (
     <>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1120px] text-sm">
-          <thead className="border-b border-border bg-muted/15 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Order</th>{isAdmin ? <th className="px-5 py-3 font-medium">SubHub</th> : null}<th className="px-5 py-3 font-medium">Vendor</th><th className="px-5 py-3 font-medium">Material</th><th className="px-5 py-3 text-right font-medium">Qty</th><th className="px-5 py-3 text-right font-medium">Amount</th><th className="px-5 py-3 font-medium">Ordered</th><th className="px-5 py-3 font-medium">Expected</th><th className="px-5 py-3 font-medium">Status</th><th className="px-5 py-3 text-right font-medium">Action</th></tr></thead>
-           <tbody>{orders.map((order) => <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40"><td className="px-5 py-3"><Link to="/po/$id" params={{ id: order.id }} className="font-semibold text-primary hover:underline">{order.orderNumber}</Link><p className="mt-1 text-[11px] text-muted-foreground">{order.notes || "No notes"}</p></td>{isAdmin ? <td className="px-5 py-3 text-xs">{order.subhubName}</td> : null}<td className="px-5 py-3 font-medium">{order.vendorName}</td><td className="px-5 py-3"><span className="font-medium">{order.materialName}</span><span className="tabular ml-2 text-xs text-muted-foreground">{order.materialCode}</span></td><td className="tabular px-5 py-3 text-right">{num(order.quantity)}</td><td className="tabular px-5 py-3 text-right">{inr(order.totalAmount)}</td><td className="tabular whitespace-nowrap px-5 py-3 text-muted-foreground">{formatDate(order.orderDate)}</td><td className="tabular whitespace-nowrap px-5 py-3 text-muted-foreground">{formatDate(order.expectedDelivery)}</td><td className="px-5 py-3"><Tag tone={statusTone(order.status)}>{order.status}</Tag></td><td className="px-5 py-3 text-right"><select aria-label={`Change status for ${order.orderNumber}`} value={order.status} onChange={(event) => onStatusChange(order, event.target.value as ProcurementStatus)} className="h-8 min-w-32 rounded-md border border-input bg-background px-2 text-xs font-medium outline-none focus:border-primary">{PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></td></tr>)}</tbody>
+        <table className="w-full min-w-[980px] text-sm">
+          <thead className="border-b border-border bg-muted/15 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Order</th>{isAdmin ? <th className="px-5 py-3 font-medium">SubHub</th> : null}<th className="px-5 py-3 font-medium">Vendor</th><th className="px-5 py-3 font-medium">Materials</th><th className="px-5 py-3 text-right font-medium">Qty</th><th className="px-5 py-3 text-right font-medium">Amount</th><th className="px-5 py-3 font-medium">Ordered</th><th className="px-5 py-3 font-medium">Expected</th><th className="px-5 py-3 font-medium">Status</th>{isAdmin ? <th className="px-5 py-3 text-right font-medium">Action</th> : null}</tr></thead>
+            <tbody>{orders.map((order) => <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40"><td className="px-5 py-3"><Link to="/po/$id" params={{ id: order.id }} search={{ panel }} className="font-semibold text-primary hover:underline">{order.orderNumber}</Link><p className="mt-1 text-[11px] text-muted-foreground">{order.notes || "No notes"}</p></td>{isAdmin ? <td className="px-5 py-3 text-xs">{order.subhubName}</td> : null}<td className="px-5 py-3 font-medium">{order.vendorName}</td><td className="px-5 py-3">{order.items.map((item) => <p key={`${item.materialCode}:${item.materialName}`} className="font-medium">{item.materialName} <span className="tabular text-xs text-muted-foreground">{item.materialCode}</span></p>)}</td><td className="tabular px-5 py-3 text-right">{num(order.quantity)}</td><td className="tabular px-5 py-3 text-right">{inr(order.totalAmount)}</td><td className="tabular whitespace-nowrap px-5 py-3 text-muted-foreground">{formatDate(order.orderDate)}</td><td className="tabular whitespace-nowrap px-5 py-3 text-muted-foreground">{formatDate(order.expectedDelivery)}</td><td className="px-5 py-3"><Tag tone={statusTone(order.status)}>{order.status}</Tag></td>{isAdmin ? <td className="px-5 py-3 text-right"><select aria-label={`Change status for ${order.orderNumber}`} value={order.status} onChange={(event) => onStatusChange(order, event.target.value as ProcurementStatus)} className="h-8 min-w-32 rounded-md border border-input bg-background px-2 text-xs font-medium outline-none focus:border-primary">{PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></td> : null}</tr>)}</tbody>
         </table>
       </div>
       <TablePagination total={total} page={page} pageSize={pageSize} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} />
@@ -384,7 +543,7 @@ function AdminReports({ data }: { data: ProcurementData }) {
   return <div className="grid gap-6 lg:grid-cols-2"><Panel title="SubHub procurement report" description="Spend, quantities, and order status across every active SubHub.">{data.subhubSummary.length ? <div className="overflow-x-auto"><table className="w-full min-w-[580px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">SubHub</th><th className="px-5 py-3 text-right font-medium">Orders</th><th className="px-5 py-3 text-right font-medium">Units</th><th className="px-5 py-3 text-right font-medium">Spend</th><th className="px-5 py-3 text-right font-medium">Status</th></tr></thead><tbody>{data.subhubSummary.map((row) => <tr key={row.subhubName} className="border-b border-border/70 last:border-0"><td className="px-5 py-3 font-medium">{row.subhubName}</td><td className="tabular px-5 py-3 text-right">{row.orders}</td><td className="tabular px-5 py-3 text-right">{num(row.quantity)}</td><td className="tabular px-5 py-3 text-right">{inr(row.spend)}</td><td className="px-5 py-3 text-right text-xs text-muted-foreground">{row.pendingOrders} pending · {row.completedOrders} complete</td></tr>)}</tbody></table></div> : <EmptyState icon={<Users className="size-7" />} title="No SubHub orders yet" description="Orders created for SubHubs will be summarized here." />}</Panel><Panel title="Vendor performance" description="Order volume, spend and completed-delivery reliability.">{data.vendorPerformance.length ? <ul className="divide-y divide-border">{data.vendorPerformance.map((vendor) => <li key={vendor.vendorId} className="flex items-center gap-4 px-5 py-3.5 text-sm"><div className="min-w-0 flex-1"><p className="truncate font-medium">{vendor.vendorName}</p><p className="mt-1 text-xs text-muted-foreground">{vendor.orders} orders · {inr(vendor.spend)} spend</p></div><div className="text-right">{vendor.onTimeRate === null ? <span className="text-xs text-muted-foreground">No deliveries</span> : <Tag tone={vendor.onTimeRate >= 85 ? "good" : "warn"}>{vendor.onTimeRate}% on time</Tag>}<p className="mt-1 text-xs text-muted-foreground">{vendor.pendingOrders} pending</p></div></li>)}</ul> : <EmptyState icon={<Truck className="size-7" />} title="No performance data yet" description="Vendor metrics appear once orders are created." />}</Panel></div>;
 }
 
-function VendorForm({ mode, vendor, onClose, onSaved }: { mode: "create" | "edit"; vendor: ProcurementVendor | null; onClose: () => void; onSaved: (message: string) => Promise<void> }) {
+function VendorForm({ mode, vendor, panel, onClose, onSaved }: { mode: "create" | "edit"; vendor: ProcurementVendor | null; panel: "admin" | "procurement"; onClose: () => void; onSaved: (message: string) => Promise<void> }) {
   const [form, setForm] = useState(() => ({ name: vendor?.name ?? "", contactName: vendor?.contactName ?? "", phone: vendor?.phone ?? "", email: vendor?.email ?? "", address: vendor?.address ?? "", city: vendor?.city ?? "", state: vendor?.state ?? "", pincode: vendor?.pincode ?? "", paymentTerms: vendor?.paymentTerms ?? "30 days credit", categories: vendor?.categories.join(", ") ?? "", notes: vendor?.notes ?? "" }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -393,7 +552,7 @@ function VendorForm({ mode, vendor, onClose, onSaved }: { mode: "create" | "edit
     setBusy(true);
     setError("");
     const data = { ...form, categories: form.categories.split(",").map((value) => value.trim()).filter(Boolean) };
-    const response = mode === "edit" && vendor ? await updateVendorFn({ data: { ...data, id: vendor.id } }) : await createVendorFn({ data });
+    const response = mode === "edit" && vendor ? await updateVendorFn({ data: { ...data, id: vendor.id, panel } }) : await createVendorFn({ data: { ...data, panel } });
     if (!response.ok) setError(response.message);
     else await onSaved(`${form.name} ${mode === "edit" ? "was updated" : "was added"} successfully.`);
     setBusy(false);
@@ -401,7 +560,7 @@ function VendorForm({ mode, vendor, onClose, onSaved }: { mode: "create" | "edit
   return <Drawer title={mode === "edit" ? "Edit vendor" : "Add vendor"} subtitle="Vendor information is shared with authorized procurement users." onClose={onClose}><form onSubmit={submit} className="space-y-4"><TextField label="Vendor name" value={form.name} required onChange={(value) => setForm({ ...form, name: value })} placeholder="Sanjay Brass Works" /><div className="grid gap-4 sm:grid-cols-2"><TextField label="Contact person" value={form.contactName} onChange={(value) => setForm({ ...form, contactName: value })} /><TextField label="Phone" value={form.phone} onChange={(value) => setForm({ ...form, phone: value })} /><TextField label="Email" type="email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} /><TextField label="Payment terms" value={form.paymentTerms} onChange={(value) => setForm({ ...form, paymentTerms: value })} /><TextField label="City" value={form.city} onChange={(value) => setForm({ ...form, city: value })} /><TextField label="State" value={form.state} onChange={(value) => setForm({ ...form, state: value })} /><TextField label="Pincode" value={form.pincode} onChange={(value) => setForm({ ...form, pincode: value })} /></div><TextField label="Address" value={form.address} onChange={(value) => setForm({ ...form, address: value })} /><TextField label="Categories" value={form.categories} onChange={(value) => setForm({ ...form, categories: value })} placeholder="Brass, fasteners, molded parts" /><label className="block text-sm font-medium">Notes<textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={3} className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary" /></label>{error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}<DrawerActions busy={busy} submitLabel={mode === "edit" ? "Save changes" : "Create vendor"} onClose={onClose} /></form></Drawer>;
 }
 
-function OrderForm({ data, isAdmin, onClose, onSaved }: { data: ProcurementData; isAdmin: boolean; onClose: () => void; onSaved: (message: string) => Promise<void> }) {
+function OrderForm({ data, isAdmin, panel, onClose, onSaved }: { data: ProcurementData; isAdmin: boolean; panel: "admin" | "procurement"; onClose: () => void; onSaved: (message: string) => Promise<void> }) {
   const materials = useRawMaterials();
   const [vendorId, setVendorId] = useState("");
   const [addingVendor, setAddingVendor] = useState(false);
@@ -444,7 +603,7 @@ function OrderForm({ data, isAdmin, onClose, onSaved }: { data: ProcurementData;
       return;
     }
     setBusy(true);
-    const response = await createProcurementOrderFn({ data: { vendorId: addingVendor ? undefined : vendorId || undefined, newVendor: addingVendor ? { name: newVendorName, phone: newVendorPhone, email: newVendorEmail } : isMiscellaneousVendor && miscellaneousVendorName.trim() ? { name: miscellaneousVendorName, categories: ["Miscellaneous"] } : undefined, subhubUserId: isAdmin ? subhubUserId : undefined, materialCode, materialName: isOneOffMaterial ? customMaterialName : selectedMaterial?.name, quantity: parsedQuantity, ...(parsedPrice === undefined ? {} : { unitPrice: parsedPrice }), orderDate, expectedDelivery, notes } });
+    const response = await createProcurementOrderFn({ data: { panel, vendorId: addingVendor ? undefined : vendorId || undefined, newVendor: addingVendor ? { name: newVendorName, phone: newVendorPhone, email: newVendorEmail } : isMiscellaneousVendor && miscellaneousVendorName.trim() ? { name: miscellaneousVendorName, categories: ["Miscellaneous"] } : undefined, subhubUserId: isAdmin ? subhubUserId : undefined, materialCode, materialName: isOneOffMaterial ? customMaterialName : selectedMaterial?.name, quantity: parsedQuantity, ...(parsedPrice === undefined ? {} : { unitPrice: parsedPrice }), orderDate, expectedDelivery, notes } });
     if (!response.ok) setError(response.message);
     else await onSaved(`${response.order.orderNumber} was created successfully.`);
     setBusy(false);

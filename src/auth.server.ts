@@ -8,6 +8,7 @@ const LEGACY_SESSION_COOKIE = "float_erp_session";
 const SESSION_COOKIES: Record<Panel, string> = {
   admin: "float_erp_admin_session",
   subhub: "float_erp_subhub_session",
+  procurement: "float_erp_procurement_session",
 };
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 
@@ -25,12 +26,13 @@ export const ACCESS_SECTIONS = [
   "quality-management",
   "hub-manager",
   "hub-reports",
+  "item-requests",
   "hr",
 ] as const;
 
 export type AccessSection = (typeof ACCESS_SECTIONS)[number];
-export type Panel = "admin" | "subhub";
-export type UserRole = "master_admin" | "admin" | "subhub";
+export type Panel = "admin" | "subhub" | "procurement";
+export type UserRole = "master_admin" | "admin" | "subhub" | "procurement_manager";
 
 export type PublicUser = {
   id: string;
@@ -98,14 +100,16 @@ const ADMIN_PERMISSIONS: AccessSection[] = [
   "hr",
 ];
 
-const SUBHUB_PERMISSIONS: AccessSection[] = ["inventory", "hub-manager", "hub-reports", "hr", "bom", "raw-materials", "procurement"];
+const SUBHUB_PERMISSIONS: AccessSection[] = ["inventory", "hub-manager", "hub-reports", "item-requests", "hr", "bom", "raw-materials", "procurement"];
+const PROCUREMENT_PERMISSIONS: AccessSection[] = ["procurement"];
 const PANEL_PERMISSIONS: Record<Panel, readonly AccessSection[]> = {
   admin: ADMIN_PERMISSIONS,
   subhub: SUBHUB_PERMISSIONS,
+  procurement: PROCUREMENT_PERMISSIONS,
 };
 
 export function getDefaultPermissions(panel: Panel): AccessSection[] {
-  return panel === "admin" ? [...ADMIN_PERMISSIONS] : [...SUBHUB_PERMISSIONS];
+  return [...PANEL_PERMISSIONS[panel]];
 }
 
 export function getAllPermissions(): AccessSection[] {
@@ -129,8 +133,12 @@ async function ensureControlPlane(): Promise<Db> {
     db.collection("production_order_activity").createIndex({ orderId: 1, createdAt: -1 }),
     db.collection("production_reassignments").createIndex({ createdAt: -1 }),
     db.collection<UserDocument>("users").updateMany(
-      { panel: { $in: ["admin", "subhub"] } },
+      { panel: { $in: ["admin", "subhub", "procurement"] } },
       { $addToSet: { permissions: { $each: ["hr", "bom", "raw-materials", "procurement"] } } },
+    ),
+    db.collection<UserDocument>("users").updateMany(
+      { panel: "subhub" },
+      { $addToSet: { permissions: "item-requests" } },
     ),
   ]).then(() => undefined);
   await indexesPromise;
@@ -420,7 +428,7 @@ export async function getAuthState(panel?: Panel): Promise<{ setupRequired: bool
     db.collection<UserDocument>("users").countDocuments({ role: "master_admin" }),
     panel
       ? getUserBySession(panel)
-      : Promise.all([getUserBySession("admin"), getUserBySession("subhub")]).then(([admin, subhub]) => admin ?? subhub),
+      : Promise.all([getUserBySession("admin"), getUserBySession("subhub"), getUserBySession("procurement")]).then(([admin, subhub, procurement]) => admin ?? subhub ?? procurement),
   ]);
   return {
     setupRequired: masterAdminCount === 0,
@@ -441,7 +449,7 @@ export async function loginUser(email: string, password: string, requestedPanel?
   if (requestedPanel && user.panel !== requestedPanel) {
     return {
       ok: false,
-      message: `These credentials belong to the ${user.panel === "admin" ? "Master Admin" : "SubHub Manager"} login.`,
+      message: `These credentials belong to the ${user.panel === "admin" ? "Master Admin" : user.panel === "subhub" ? "SubHub Manager" : "Procurement Management"} login.`,
     };
   }
 
@@ -565,7 +573,7 @@ export async function createManagedUser(input: {
     passwordHash: await hashPassword(input.password),
     panel: input.panel,
     subhubName: input.panel === "subhub" ? normalizedSubhubName : undefined,
-    role: input.panel === "admin" ? "admin" : "subhub",
+    role: input.panel === "admin" ? "admin" : input.panel === "subhub" ? "subhub" : "procurement_manager",
     permissions: sanitizePermissions(input.panel, input.permissions),
     databaseName,
     active: true,
@@ -633,7 +641,7 @@ export async function updateManagedUser(input: {
     name: normalizeName(input.name),
     email: normalizedEmail,
     panel: input.panel,
-    role: input.panel === "admin" ? "admin" : "subhub",
+    role: input.panel === "admin" ? "admin" : input.panel === "subhub" ? "subhub" : "procurement_manager",
     permissions: sanitizePermissions(input.panel, input.permissions),
     active: input.active,
     updatedAt: new Date(),
@@ -649,7 +657,7 @@ export async function updateManagedUser(input: {
   update["databaseName"] = databaseName;
   if (input.password) update["passwordHash"] = await hashPassword(input.password);
   const updateDocument: { $set: Record<string, unknown>; $unset?: Record<string, ""> } = { $set: update };
-  if (input.panel === "admin") updateDocument.$unset = { subhubName: "" };
+  if (input.panel !== "subhub") updateDocument.$unset = { subhubName: "" };
 
   try {
     await moveWorkspaceDatabase(existing.databaseName, databaseName);

@@ -1,6 +1,6 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowRight, Boxes, LockKeyhole, ShieldCheck, UserRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, Boxes, LockKeyhole, ShieldCheck, ShoppingCart, UserRound } from "lucide-react";
 import { bootstrapMasterAdminFn, loginFn } from "@/auth";
 import { useAuth } from "@/components/auth/AuthContext";
 
@@ -17,7 +17,7 @@ export const Route = createFileRoute("/login")({
 function LoginPage() {
   const auth = useAuth();
   const [flow, setFlow] = useState<"selection" | "login" | "setup">(auth.setupRequired ? "setup" : "selection");
-  const [panel, setPanel] = useState<"admin" | "subhub" | null>(auth.setupRequired ? "admin" : null);
+  const [panel, setPanel] = useState<"admin" | "subhub" | "procurement" | null>(auth.setupRequired ? "admin" : null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -41,7 +41,7 @@ function LoginPage() {
         setMessage(result.message);
         return;
       }
-      window.location.assign(result.user.panel === "subhub" ? "/subhub" : "/");
+    window.location.assign(result.user.panel === "subhub" ? "/subhub" : result.user.panel === "procurement" ? "/procurement-management" : "/");
     } catch {
       setMessage("Unable to reach the authentication service. Please try again.");
     } finally {
@@ -49,7 +49,7 @@ function LoginPage() {
     }
   }
 
-  function choosePanel(nextPanel: "admin" | "subhub") {
+  function choosePanel(nextPanel: "admin" | "subhub" | "procurement") {
     setPanel(nextPanel);
     setFlow("login");
     setMessage("");
@@ -111,9 +111,11 @@ function LoginPage() {
                 ? "Create the Master Admin"
                 : flow === "selection"
                   ? "Choose your workspace"
-                  : panel === "admin"
-                    ? "Master Admin login"
-                    : "SubHub Manager login"}
+                    : panel === "admin"
+                      ? "Master Admin login"
+                      : panel === "procurement"
+                        ? "Procurement Management login"
+                        : "SubHub Manager login"}
             </h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               {flow === "setup"
@@ -122,7 +124,9 @@ function LoginPage() {
                   ? "Select the panel you want to access, then continue with the matching credentials."
                   : panel === "admin"
                     ? "Sign in to manage master data, hubs, and panel access."
-                    : "Sign in to manage hub inventory, production, and reports."}
+                    : panel === "procurement"
+                      ? "Sign in to review hub material needs, manage vendors, and assign procurement orders."
+                      : "Sign in to manage hub inventory, production, and reports."}
             </p>
 
             {flow === "selection" ? (
@@ -160,6 +164,24 @@ function LoginPage() {
                     </span>
                     <span className="mt-1 block text-sm leading-5 text-muted-foreground">
                       Inventory, hub production, and operational reports.
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => choosePanel("procurement")}
+                  className="group flex w-full items-start gap-4 rounded-xl border border-border bg-background p-4 text-left transition hover:border-primary/50 hover:bg-primary/5"
+                >
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <ShoppingCart className="size-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="font-semibold">Procurement Management</span>
+                      <ArrowRight className="size-4 text-muted-foreground transition group-hover:text-primary" />
+                    </span>
+                    <span className="mt-1 block text-sm leading-5 text-muted-foreground">
+                      Review hub stock needs, assign purchases, and manage vendors.
                     </span>
                   </span>
                 </button>
@@ -230,7 +252,7 @@ function LoginPage() {
                     disabled={busy}
                     className="rule-header inline-flex h-10 w-full items-center justify-center gap-2 rounded-md px-4 text-sm font-medium disabled:cursor-wait disabled:opacity-60"
                   >
-                    {busy ? "Please wait…" : flow === "setup" ? "Create Master Admin" : `Sign in as ${panel === "admin" ? "Master Admin" : "SubHub Manager"}`}
+                    {busy ? "Please wait…" : flow === "setup" ? "Create Master Admin" : `Sign in as ${panel === "admin" ? "Master Admin" : panel === "procurement" ? "Procurement Management" : "SubHub Manager"}`}
                     <ArrowRight className="size-4" />
                   </button>
                 </form>

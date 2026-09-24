@@ -77,7 +77,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  loader: ({ location }) => getAuthStateFn({ data: { panel: panelForPath(location.pathname) } }),
+  loader: ({ location }) => getAuthStateFn({ data: { panel: panelForPath(location.pathname, location.searchStr) } }),
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -140,13 +140,14 @@ function RootComponent() {
     pathname.startsWith("/inventory") ||
     ((pathname.startsWith("/procurement") || pathname.startsWith("/po/")) && auth.user?.panel === "subhub");
   const isAdminPath = !isSubHubPath && pathname !== "/login";
+  const isProcurementPath = pathname.startsWith("/procurement") || pathname.startsWith("/po/");
   const requiredSection = sectionForPath(pathname);
 
   if (!auth.user && pathname !== "/login") {
     return <Navigate to="/login" replace />;
   }
   if (auth.user && pathname === "/login") {
-    return <Navigate to={auth.user.panel === "subhub" ? "/subhub" : "/"} replace />;
+    return <Navigate to={auth.user.panel === "subhub" ? "/subhub" : auth.user.panel === "procurement" ? "/procurement-management" : "/"} replace />;
   }
   if (auth.user?.role === "subhub" && isAdminPath) {
     return <Navigate to="/subhub" replace />;
@@ -154,8 +155,14 @@ function RootComponent() {
   if (auth.user?.role === "admin" && isSubHubPath) {
     return <Navigate to="/" replace />;
   }
+  if (auth.user?.role === "procurement_manager" && !isProcurementPath) {
+    return <Navigate to="/procurement-management" replace />;
+  }
+  if (auth.user?.role !== "procurement_manager" && pathname.startsWith("/procurement-management")) {
+    return <Navigate to={auth.user?.panel === "subhub" ? "/subhub" : "/"} replace />;
+  }
   if (auth.user && requiredSection && !canAccess(auth.user, requiredSection)) {
-    return <Navigate to={auth.user.panel === "subhub" ? "/subhub" : "/"} replace />;
+    return <Navigate to={auth.user.panel === "subhub" ? "/subhub" : auth.user.panel === "procurement" ? "/procurement-management" : "/"} replace />;
   }
 
   return (
@@ -189,12 +196,23 @@ function sectionForPath(pathname: string): string | null {
   if (pathname.startsWith("/subhub/reports")) return "hub-reports";
   if (pathname.startsWith("/subhub/production")) return "hub-manager";
   if (pathname.startsWith("/subhub/hr")) return "hr";
+  if (pathname.startsWith("/subhub/request-items")) return "item-requests";
   if (pathname.startsWith("/subhub/")) return "hub-manager";
   return null;
 }
 
-function panelForPath(pathname: string): "admin" | "subhub" | undefined {
+function panelForPath(pathname: string, searchStr = ""): "admin" | "subhub" | "procurement" | undefined {
   if (pathname.startsWith("/subhub") || pathname.startsWith("/inventory")) return "subhub";
+  if (pathname.startsWith("/procurement-management")) return "procurement";
+  if (pathname.startsWith("/procurement")) {
+    const requested = new URLSearchParams(searchStr).get("panel");
+    if (requested === "admin" || requested === "subhub" || requested === "procurement") return requested;
+    return "procurement";
+  }
+  if (pathname.startsWith("/po/")) {
+    const requested = new URLSearchParams(searchStr).get("panel");
+    if (requested === "admin" || requested === "subhub" || requested === "procurement") return requested;
+  }
   if (pathname.startsWith("/procurement") || pathname.startsWith("/po/")) return undefined;
   if (pathname === "/login") return undefined;
   return "admin";

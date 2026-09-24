@@ -224,6 +224,13 @@ type DeliveredProcurementDocument = {
   materialName: string;
   quantity: number;
   unitPrice: number;
+  items?: Array<{
+    lineId?: string;
+    materialCode: string;
+    materialName: string;
+    quantity: number;
+    unitPrice: number;
+  }>;
 };
 
 function emptyData(): SubhubInventoryData {
@@ -990,21 +997,35 @@ async function syncDeliveredProcurementOrders(user: UserDocument, workspaceDb: D
     .toArray();
 
   for (const order of orders) {
-    const part = masterPart(order.materialCode);
-    warnings.push(...await applySourcedQuantity({
-      db: workspaceDb,
-      sourceId: `procurement:${order._id}`,
-      sourceType: "procurement",
-      code: order.materialCode,
-      product: order.materialName || part?.name || order.materialCode,
-      category: "Raw Material",
-      price: order.unitPrice || part?.rate || 0,
-      desiredQuantity: order.quantity,
-      reason: `Procurement receipt · ${order.orderNumber}`,
-      notes: "Added automatically when the procurement order reached Delivery done.",
-      updatedBy: user._id,
-      batchMetadata: { poNumber: order.orderNumber, vendor: (order as DeliveredProcurementDocument & { vendorName?: string }).vendorName ?? "", orderDate: (order as DeliveredProcurementDocument & { orderDate?: Date }).orderDate?.toISOString() ?? "" },
-    }));
+    const items = order.items?.length
+      ? order.items.map((item, index) => ({
+          ...item,
+          sourceId: `procurement:${order._id}:${item.lineId ?? `${index}-${item.materialCode}`}`,
+        }))
+      : [{
+          materialCode: order.materialCode,
+          materialName: order.materialName,
+          quantity: order.quantity,
+          unitPrice: order.unitPrice,
+          sourceId: `procurement:${order._id}`,
+        }];
+    for (const item of items) {
+      const part = masterPart(item.materialCode);
+      warnings.push(...await applySourcedQuantity({
+        db: workspaceDb,
+        sourceId: item.sourceId,
+        sourceType: "procurement",
+        code: item.materialCode,
+        product: item.materialName || part?.name || item.materialCode,
+        category: "Raw Material",
+        price: item.unitPrice || part?.rate || 0,
+        desiredQuantity: item.quantity,
+        reason: `Procurement receipt · ${order.orderNumber}`,
+        notes: "Added automatically when the procurement order reached Delivery done.",
+        updatedBy: user._id,
+        batchMetadata: { poNumber: order.orderNumber, vendor: (order as DeliveredProcurementDocument & { vendorName?: string }).vendorName ?? "", orderDate: (order as DeliveredProcurementDocument & { orderDate?: Date }).orderDate?.toISOString() ?? "" },
+      }));
+    }
   }
   return warnings;
 }

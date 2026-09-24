@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "mongodb";
-import { getCurrentUserRecord, getControlPlaneDatabase } from "./auth.server";
+import { getCurrentUserRecord, getControlPlaneDatabase, type Panel, type UserDocument } from "./auth.server";
+import { bomCatalog } from "./lib/bom-catalog";
 import { subparts } from "./lib/erp-data";
 import { MISCELLANEOUS_VENDOR_ID, ONE_OFF_MATERIAL_CODE, PROCUREMENT_STATUSES, type ProcurementStatus } from "./lib/procurement-types";
+import { getMongoDb } from "./mongodb.server";
 
 export { PROCUREMENT_STATUSES };
 export type { ProcurementStatus };
@@ -34,6 +36,15 @@ type StatusHistoryDocument = {
   changedByName: string;
 };
 
+type ProcurementLineDocument = {
+  lineId?: string;
+  materialCode: string;
+  materialName: string;
+  quantity: number;
+  unitPrice: number;
+  totalAmount: number;
+};
+
 type ProcurementOrderDocument = {
   _id: string;
   orderNumber: string;
@@ -43,6 +54,7 @@ type ProcurementOrderDocument = {
   subhubName: string;
   materialCode: string;
   materialName: string;
+  items?: ProcurementLineDocument[];
   quantity: number;
   unitPrice: number;
   totalAmount: number;
@@ -54,6 +66,19 @@ type ProcurementOrderDocument = {
   createdAt: Date;
   updatedAt: Date;
   createdBy: string;
+};
+
+type ItemRequestDocument = {
+  _id: string;
+  subhubUserId: string;
+  subhubName: string;
+  itemName: string;
+  quantity: number;
+  notes: string;
+  status: "Pending" | "Approved" | "Declined";
+  response: string;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 export type ProcurementVendor = {
@@ -83,6 +108,7 @@ export type ProcurementOrder = {
   subhubName: string;
   materialCode: string;
   materialName: string;
+  items: ProcurementLineDocument[];
   quantity: number;
   unitPrice: number;
   totalAmount: number;
@@ -96,6 +122,31 @@ export type ProcurementOrder = {
     changedBy: string;
     changedByName: string;
   }>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type HubMaterialNeed = {
+  subhubUserId: string;
+  subhubName: string;
+  itemCode: string;
+  itemName: string;
+  remainingTargetUnits: number;
+  requiredQuantity: number;
+  stockQuantity: number;
+  onOrderQuantity: number;
+  shortageQuantity: number;
+};
+
+export type ProcurementItemRequest = {
+  id: string;
+  subhubUserId: string;
+  subhubName: string;
+  itemName: string;
+  quantity: number;
+  notes: string;
+  status: "Pending" | "Approved" | "Declined";
+  response: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -126,6 +177,8 @@ export type ProcurementData = {
   subhubs: Array<{ id: string; name: string }>;
   vendorPerformance: VendorPerformance[];
   subhubSummary: SubhubProcurementSummary[];
+  materialNeeds: HubMaterialNeed[];
+  itemRequests: ProcurementItemRequest[];
   summary: {
     vendorCount: number;
     openOrders: number;
@@ -175,6 +228,8 @@ async function getProcurementDb(): Promise<Db> {
     db.collection<ProcurementOrderDocument>("procurement_orders").createIndex({ subhubUserId: 1, orderDate: -1 }),
     db.collection<ProcurementOrderDocument>("procurement_orders").createIndex({ vendorId: 1, orderDate: -1 }),
     db.collection<ProcurementOrderDocument>("procurement_orders").createIndex({ status: 1, expectedDelivery: 1 }),
+    db.collection<ItemRequestDocument>("procurement_item_requests").createIndex({ subhubUserId: 1, createdAt: -1 }),
+    db.collection<ItemRequestDocument>("procurement_item_requests").createIndex({ status: 1, createdAt: -1 }),
   ]).then(() => undefined);
   await indexesPromise;
   return db;
@@ -218,6 +273,9 @@ function toVendor(document: VendorDocument): ProcurementVendor {
 }
 
 function toOrder(document: ProcurementOrderDocument): ProcurementOrder {
+  const items = document.items?.length
+    ? document.items
+    : [{ materialCode: document.materialCode, materialName: document.materialName, quantity: document.quantity, unitPrice: document.unitPrice, totalAmount: document.totalAmount }];
   return {
     id: document._id,
     orderNumber: document.orderNumber,
@@ -227,7 +285,8 @@ function toOrder(document: ProcurementOrderDocument): ProcurementOrder {
     subhubName: document.subhubName,
     materialCode: document.materialCode,
     materialName: document.materialName,
-    quantity: document.quantity,
+    items,
+    quantity: items.reduce((sum, item) => sum + item.quantity, 0),
     unitPrice: document.unitPrice,
     totalAmount: document.totalAmount,
     orderDate: dateOnly(document.orderDate),
@@ -245,6 +304,21 @@ function toOrder(document: ProcurementOrderDocument): ProcurementOrder {
   };
 }
 
+function toItemRequest(document: ItemRequestDocument): ProcurementItemRequest {
+  return {
+    id: document._id,
+    subhubUserId: document.subhubUserId,
+    subhubName: document.subhubName,
+    itemName: document.itemName,
+    quantity: document.quantity,
+    notes: document.notes,
+    status: document.status,
+    response: document.response,
+    createdAt: document.createdAt.toISOString(),
+    updatedAt: document.updatedAt.toISOString(),
+  };
+}
+
 function emptyData(): ProcurementData {
   return {
     vendors: [],
@@ -252,6 +326,8 @@ function emptyData(): ProcurementData {
     subhubs: [],
     vendorPerformance: [],
     subhubSummary: [],
+    materialNeeds: [],
+    itemRequests: [],
     summary: {
       vendorCount: 0,
       openOrders: 0,
@@ -264,9 +340,9 @@ function emptyData(): ProcurementData {
   };
 }
 
-function currentUserRequired(user: Awaited<ReturnType<typeof getCurrentUserRecord>>, panel: "admin" | "subhub") {
+function currentUserRequired(user: Awaited<ReturnType<typeof getCurrentUserRecord>>, panel: Panel) {
   if (!user || user.panel !== panel || !user.active) {
-    throw new Error(panel === "admin" ? "Only Admin Panel users can access Procurement." : "Only SubHub Managers can access Procurement.");
+    throw new Error(panel === "admin" ? "Only Admin Panel users can access Procurement." : panel === "subhub" ? "Only SubHub Managers can access Procurement." : "Only Procurement Management users can access this workspace.");
   }
   return user;
 }
@@ -285,7 +361,7 @@ function calculatePerformance(orders: ProcurementOrder[]): VendorPerformance[] {
       onTimeRate: null,
     };
     row.orders += 1;
-    row.totalQuantity += order.quantity;
+    row.totalQuantity += order.items.reduce((sum, item) => sum + item.quantity, 0);
     row.spend += order.totalAmount;
     if (order.status === "Delivery done") row.completedOrders += 1;
     else row.pendingOrders += 1;
@@ -302,32 +378,112 @@ function calculatePerformance(orders: ProcurementOrder[]): VendorPerformance[] {
   }).sort((a, b) => b.spend - a.spend);
 }
 
-export async function getProcurementData(): Promise<
+function orderItems(order: ProcurementOrderDocument): ProcurementLineDocument[] {
+  return order.items?.length
+    ? order.items
+    : [{ materialCode: order.materialCode, materialName: order.materialName, quantity: order.quantity, unitPrice: order.unitPrice, totalAmount: order.totalAmount }];
+}
+
+async function calculateHubMaterialNeeds(
+  db: Db,
+  subhubs: UserDocument[],
+  procurementOrders: ProcurementOrderDocument[],
+): Promise<HubMaterialNeed[]> {
+  if (!subhubs.length) return [];
+  const productionOrders = await db.collection<{
+    _id: string;
+    subhubUserId: string;
+    productCode: string;
+    variantCode: string;
+    target: number;
+  }>("production_orders").find({ subhubUserId: { $in: subhubs.map((hub) => hub._id) } }).toArray();
+  const needs = new Map<string, HubMaterialNeed>();
+  const onOrder = new Map<string, number>();
+
+  for (const order of procurementOrders) {
+    if (order.status === "Delivery done") continue;
+    for (const item of orderItems(order)) {
+      const key = `${order.subhubUserId}:${item.materialCode}`;
+      onOrder.set(key, (onOrder.get(key) ?? 0) + item.quantity);
+    }
+  }
+
+  await Promise.all(subhubs.map(async (hub) => {
+    const hubOrders = productionOrders.filter((order) => order.subhubUserId === hub._id);
+    if (!hubOrders.length) return;
+    const workspace = await getMongoDb(hub.databaseName);
+    const orderIds = hubOrders.map((order) => order._id);
+    const [reports, inventory] = await Promise.all([
+      workspace.collection<{ orderId: string; quantity: number }>("production_reports")
+        .find({ orderId: { $in: orderIds } }).toArray(),
+      workspace.collection<{ _id: string; quantity: number }>("inventory_items").find().toArray(),
+    ]);
+    const producedByOrder = new Map<string, number>();
+    for (const report of reports) producedByOrder.set(report.orderId, (producedByOrder.get(report.orderId) ?? 0) + report.quantity);
+    const stockByCode = new Map(inventory.map((item) => [item._id, item.quantity]));
+
+    for (const order of hubOrders) {
+      const remaining = Math.max(0, order.target - (producedByOrder.get(order._id) ?? 0));
+      if (!remaining) continue;
+      const variant = bomCatalog.find((product) => product.code === order.productCode)?.variants.find((item) => item.code === order.variantCode);
+      if (!variant) continue;
+      for (const [itemCode, unitsPerProduct] of Object.entries(variant.parts)) {
+        const key = `${hub._id}:${itemCode}`;
+        const existing = needs.get(key);
+        const item = subparts.find((part) => part.code === itemCode);
+        needs.set(key, {
+          subhubUserId: hub._id,
+          subhubName: hub.subhubName ? `${hub.subhubName} · ${hub.name}` : hub.name,
+          itemCode,
+          itemName: item?.name ?? itemCode,
+          remainingTargetUnits: (existing?.remainingTargetUnits ?? 0) + remaining,
+          requiredQuantity: (existing?.requiredQuantity ?? 0) + remaining * unitsPerProduct,
+          stockQuantity: stockByCode.get(itemCode) ?? 0,
+          onOrderQuantity: onOrder.get(key) ?? 0,
+          shortageQuantity: 0,
+        });
+      }
+    }
+  }));
+
+  return [...needs.values()]
+    .map((need) => ({
+      ...need,
+      shortageQuantity: Math.max(0, need.requiredQuantity - need.stockQuantity - need.onOrderQuantity),
+    }))
+    .sort((left, right) => left.subhubName.localeCompare(right.subhubName) || right.shortageQuantity - left.shortageQuantity || left.itemName.localeCompare(right.itemName));
+}
+
+export async function getProcurementData(requestedPanel?: Panel): Promise<
   { ok: true; data: ProcurementData } | { ok: false; data: ProcurementData; message: string }
 > {
   try {
-    const requestedPanel = "admin";
-    const admin = await getCurrentUserRecord(requestedPanel);
-    const subhub = admin ? null : await getCurrentUserRecord("subhub");
-    const user = admin ?? subhub;
+    const admin = requestedPanel ? null : await getCurrentUserRecord("admin");
+    const subhub = requestedPanel ? null : admin ? null : await getCurrentUserRecord("subhub");
+    const procurementManager = requestedPanel ? null : admin || subhub ? null : await getCurrentUserRecord("procurement");
+    const panel: Panel = requestedPanel ?? (admin ? "admin" : subhub ? "subhub" : "procurement");
+    const user = requestedPanel ? await getCurrentUserRecord(requestedPanel) : admin ?? subhub ?? procurementManager;
     if (!user) return { ok: false, data: emptyData(), message: "Sign in to view Procurement." };
-    const panel = admin ? "admin" : "subhub";
     currentUserRequired(user, panel);
     const db = await getProcurementDb();
     const [vendorDocuments, orderDocuments, subhubDocuments] = await Promise.all([
-      db.collection<VendorDocument>("procurement_vendors").find(panel === "admin" ? {} : { status: "active" }).sort({ name: 1 }).toArray(),
+      db.collection<VendorDocument>("procurement_vendors").find(panel === "subhub" ? { status: "active" } : {}).sort({ name: 1 }).toArray(),
       db.collection<ProcurementOrderDocument>("procurement_orders")
-        .find(panel === "admin" ? {} : { subhubUserId: user._id })
+        .find(panel === "subhub" ? { subhubUserId: user._id } : {})
         .sort({ orderDate: -1, createdAt: -1 })
         .toArray(),
-      panel === "admin"
-        ? db.collection<{ _id: string; name: string; subhubName?: string; panel: string; role: string; active: boolean }>("users")
+      panel !== "subhub"
+        ? db.collection<UserDocument>("users")
             .find({ panel: "subhub", role: "subhub", active: true })
             .sort({ subhubName: 1, name: 1 })
             .toArray()
         : Promise.resolve([]),
     ]);
-    const vendors = vendorDocuments.map(toVendor);
+    const itemRequestDocuments = await db.collection<ItemRequestDocument>("procurement_item_requests")
+      .find(panel === "subhub" ? { subhubUserId: user._id } : {})
+      .sort({ createdAt: -1 })
+      .toArray();
+    const vendors = panel === "subhub" ? [] : vendorDocuments.map(toVendor);
     const orders = orderDocuments.map(toOrder);
     const completedOrders = orders.filter((order) => order.status === "Delivery done");
     const pendingOrders = orders.length - completedOrders.length;
@@ -336,7 +492,7 @@ export async function getProcurementData(): Promise<
       return delivered ? dateOnly(new Date(delivered.changedAt)) <= order.expectedDelivery : false;
     }).length;
     const subhubMap = new Map<string, SubhubProcurementSummary>();
-    for (const order of orders) {
+      for (const order of orders) {
       const row = subhubMap.get(order.subhubUserId) ?? {
         subhubName: order.subhubName,
         orders: 0,
@@ -360,6 +516,8 @@ export async function getProcurementData(): Promise<
         subhubs: subhubDocuments.map((subhub) => ({ id: subhub._id, name: subhub.subhubName ? `${subhub.subhubName} · ${subhub.name}` : subhub.name })),
         vendorPerformance: calculatePerformance(orders),
         subhubSummary: [...subhubMap.values()].sort((a, b) => b.spend - a.spend),
+        materialNeeds: panel === "subhub" ? [] : await calculateHubMaterialNeeds(db, subhubDocuments as UserDocument[], orderDocuments),
+        itemRequests: itemRequestDocuments.map(toItemRequest),
         summary: {
           vendorCount: vendors.filter((vendor) => vendor.status === "active").length,
           openOrders: pendingOrders,
@@ -373,6 +531,61 @@ export async function getProcurementData(): Promise<
     };
   } catch (error) {
     return { ok: false, data: emptyData(), message: error instanceof Error ? error.message : "Procurement data could not be loaded." };
+  }
+}
+
+export async function createProcurementItemRequest(input: {
+  itemName: string;
+  quantity: number;
+  notes: string;
+}): Promise<{ ok: true; request: ProcurementItemRequest } | { ok: false; message: string }> {
+  try {
+    const user = currentUserRequired(await getCurrentUserRecord("subhub"), "subhub");
+    const itemName = clean(input.itemName);
+    if (itemName.length < 2) return { ok: false, message: "Enter an item name." };
+    if (!Number.isInteger(input.quantity) || input.quantity < 1) return { ok: false, message: "Quantity must be a whole number greater than zero." };
+    const db = await getProcurementDb();
+    const now = new Date();
+    const request: ItemRequestDocument = {
+      _id: randomUUID().replace(/-/g, ""),
+      subhubUserId: user._id,
+      subhubName: user.subhubName ?? user.name,
+      itemName,
+      quantity: input.quantity,
+      notes: clean(input.notes),
+      status: "Pending",
+      response: "",
+      createdAt: now,
+      updatedAt: now,
+    };
+    await db.collection<ItemRequestDocument>("procurement_item_requests").insertOne(request);
+    return { ok: true, request: toItemRequest(request) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "The item request could not be sent." };
+  }
+}
+
+export async function updateProcurementItemRequest(input: {
+  id: string;
+  status: "Approved" | "Declined";
+  response: string;
+}, panel: Panel): Promise<{ ok: true; request: ProcurementItemRequest } | { ok: false; message: string }> {
+  try {
+    if (panel === "subhub") return { ok: false, message: "Only Procurement Management or Master Admin can review item requests." };
+    const user = currentUserRequired(await getCurrentUserRecord(panel), panel);
+    const db = await getProcurementDb();
+    const existing = await db.collection<ItemRequestDocument>("procurement_item_requests").findOne({ _id: input.id });
+    if (!existing) return { ok: false, message: "Item request not found." };
+    const updated: ItemRequestDocument = {
+      ...existing,
+      status: input.status,
+      response: clean(input.response),
+      updatedAt: new Date(),
+    };
+    await db.collection<ItemRequestDocument>("procurement_item_requests").replaceOne({ _id: input.id }, updated);
+    return { ok: true, request: toItemRequest(updated) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "The item request could not be updated." };
   }
 }
 
@@ -408,11 +621,10 @@ async function createVendorRecord(db: Db, userId: string, input: VendorInput | N
   return toVendor(document);
 }
 
-export async function createVendor(input: VendorInput): Promise<{ ok: true; vendor: ProcurementVendor } | { ok: false; message: string }> {
+export async function createVendor(input: VendorInput, panel: Panel): Promise<{ ok: true; vendor: ProcurementVendor } | { ok: false; message: string }> {
   try {
-    const user = await getCurrentUserRecord("admin");
-    const subhub = user ? null : await getCurrentUserRecord("subhub");
-    const current = currentUserRequired(user ?? subhub, user ? "admin" : "subhub");
+    if (panel === "subhub") return { ok: false, message: "SubHub users cannot manage vendors." };
+    const current = currentUserRequired(await getCurrentUserRecord(panel), panel);
     const db = await getProcurementDb();
     return { ok: true, vendor: await createVendorRecord(db, current._id, input) };
   } catch (error) {
@@ -420,9 +632,10 @@ export async function createVendor(input: VendorInput): Promise<{ ok: true; vend
   }
 }
 
-export async function updateVendor(input: VendorInput & { id: string }): Promise<{ ok: true; vendor: ProcurementVendor } | { ok: false; message: string }> {
+export async function updateVendor(input: VendorInput & { id: string }, panel: Panel): Promise<{ ok: true; vendor: ProcurementVendor } | { ok: false; message: string }> {
   try {
-    const user = currentUserRequired(await getCurrentUserRecord("admin"), "admin");
+    if (panel === "subhub") return { ok: false, message: "SubHub users cannot manage vendors." };
+    const user = currentUserRequired(await getCurrentUserRecord(panel), panel);
     const db = await getProcurementDb();
     const existing = await db.collection<VendorDocument>("procurement_vendors").findOne({ _id: input.id });
     if (!existing) return { ok: false, message: "Vendor not found." };
@@ -457,9 +670,10 @@ export async function updateVendor(input: VendorInput & { id: string }): Promise
   }
 }
 
-export async function deleteOrArchiveVendor(id: string): Promise<{ ok: true; action: "deleted" | "archived" } | { ok: false; message: string }> {
+export async function deleteOrArchiveVendor(id: string, panel: Panel): Promise<{ ok: true; action: "deleted" | "archived" } | { ok: false; message: string }> {
   try {
-    const user = currentUserRequired(await getCurrentUserRecord("admin"), "admin");
+    if (panel === "subhub") return { ok: false, message: "SubHub users cannot manage vendors." };
+    const user = currentUserRequired(await getCurrentUserRecord(panel), panel);
     const db = await getProcurementDb();
     const vendor = await db.collection<VendorDocument>("procurement_vendors").findOne({ _id: id });
     if (!vendor) return { ok: false, message: "Vendor not found." };
@@ -481,42 +695,60 @@ export async function deleteOrArchiveVendor(id: string): Promise<{ ok: true; act
 export async function createProcurementOrder(input: {
   vendorId?: string | undefined;
   newVendor?: NewVendorInput | undefined;
-  materialCode: string;
+  materialCode?: string | undefined;
   materialName?: string | undefined;
-  quantity: number;
+  quantity?: number | undefined;
   unitPrice?: number | undefined;
+  items?: Array<{ materialCode: string; materialName?: string | undefined; quantity: number; unitPrice?: number | undefined }> | undefined;
   orderDate: string;
   expectedDelivery: string;
   notes: string;
   subhubUserId?: string | undefined;
-}): Promise<{ ok: true; order: ProcurementOrder; vendor?: ProcurementVendor } | { ok: false; message: string }> {
+}, panel: Panel): Promise<{ ok: true; order: ProcurementOrder; vendor?: ProcurementVendor } | { ok: false; message: string }> {
   try {
-    const admin = await getCurrentUserRecord("admin");
-    const subhub = admin ? null : await getCurrentUserRecord("subhub");
-    const user = currentUserRequired(admin ?? subhub, admin ? "admin" : "subhub");
+    if (panel === "subhub") return { ok: false, message: "SubHub users can only view assigned procurement and submit item requests." };
+    const user = currentUserRequired(await getCurrentUserRecord(panel), panel);
     const orderDate = parseDate(input.orderDate);
     const expectedDelivery = parseDate(input.expectedDelivery);
     if (!orderDate || !expectedDelivery) return { ok: false, message: "Enter valid order and expected delivery dates." };
     if (expectedDelivery < orderDate) return { ok: false, message: "Expected delivery cannot be before the order date." };
-    const catalogMaterial = subparts.find((part) => part.code === input.materialCode);
-    const customMaterialName = clean(input.materialName);
-    const material = catalogMaterial ?? (customMaterialName
-      ? {
-          code: input.materialCode === ONE_OFF_MATERIAL_CODE
-            ? `MISC-${customMaterialName.toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 38)}-${randomUUID().slice(0, 6).toUpperCase()}`
-            : input.materialCode,
-          name: customMaterialName,
-        }
-      : null);
-    if (!material) return { ok: false, message: "Select a raw material or enter a one-off material name." };
-    if (!Number.isInteger(input.quantity) || input.quantity < 1) return { ok: false, message: "Quantity must be a whole number greater than zero." };
-    if (subparts.some((part) => part.code === input.materialCode) && input.unitPrice === undefined) return { ok: false, message: "Enter a unit price for catalog materials." };
-    const unitPrice = input.unitPrice ?? 0;
-    if (!Number.isFinite(unitPrice) || unitPrice < 0) return { ok: false, message: "Unit price cannot be negative." };
+    const requestedLines = input.items?.length
+      ? input.items
+      : input.materialCode && input.quantity !== undefined
+        ? [{ materialCode: input.materialCode, materialName: input.materialName, quantity: input.quantity, unitPrice: input.unitPrice }]
+        : [];
+    if (!requestedLines.length) return { ok: false, message: "Add at least one raw material to this procurement order." };
+    if (requestedLines.length > 40) return { ok: false, message: "A procurement order can contain up to 40 material lines." };
+    const materialLines: ProcurementLineDocument[] = [];
+    for (const line of requestedLines) {
+      const catalogMaterial = subparts.find((part) => part.code === line.materialCode);
+      const customMaterialName = clean(line.materialName);
+      const material = catalogMaterial ?? (customMaterialName
+        ? {
+            code: line.materialCode === ONE_OFF_MATERIAL_CODE
+              ? `MISC-${customMaterialName.toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 38)}-${randomUUID().slice(0, 6).toUpperCase()}`
+              : line.materialCode,
+            name: customMaterialName,
+          }
+        : null);
+      if (!material) return { ok: false, message: "Select a raw material or enter a name for every one-off item." };
+      if (!Number.isInteger(line.quantity) || line.quantity < 1) return { ok: false, message: `Enter a whole-number quantity for ${material.name}.` };
+      if (catalogMaterial && line.unitPrice === undefined) return { ok: false, message: `Enter a unit price for ${material.name}.` };
+      const unitPrice = line.unitPrice ?? 0;
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) return { ok: false, message: `Unit price for ${material.name} cannot be negative.` };
+      materialLines.push({
+        lineId: randomUUID().replace(/-/g, ""),
+        materialCode: material.code,
+        materialName: material.name,
+        quantity: line.quantity,
+        unitPrice: Math.round(unitPrice * 100) / 100,
+        totalAmount: Math.round(line.quantity * unitPrice * 100) / 100,
+      });
+    }
     const db = await getProcurementDb();
     let destinationUserId = user._id;
-    let destinationName = user.panel === "subhub" ? user.subhubName ?? user.name : "Admin procurement";
-    if (user.panel === "admin") {
+    let destinationName = "Admin procurement";
+    if (user.panel !== "subhub") {
       if (!input.subhubUserId) return { ok: false, message: "Select the destination SubHub." };
       const destination = await db.collection<{ _id: string; name: string; subhubName?: string; panel: string; role: string; active: boolean }>("users").findOne({
         _id: input.subhubUserId,
@@ -581,11 +813,12 @@ export async function createProcurementOrder(input: {
       vendorName: vendor.name,
       subhubUserId: destinationUserId,
       subhubName: destinationName,
-      materialCode: material.code,
-      materialName: material.name,
-      quantity: input.quantity,
-       unitPrice: Math.round(unitPrice * 100) / 100,
-       totalAmount: Math.round(input.quantity * unitPrice * 100) / 100,
+      materialCode: materialLines[0]!.materialCode,
+      materialName: materialLines[0]!.materialName,
+      items: materialLines,
+      quantity: materialLines.reduce((sum, item) => sum + item.quantity, 0),
+      unitPrice: materialLines[0]!.unitPrice,
+      totalAmount: materialLines.reduce((sum, item) => sum + item.totalAmount, 0),
       orderDate,
       expectedDelivery,
       notes: clean(input.notes),
@@ -607,15 +840,12 @@ export async function createProcurementOrder(input: {
 export async function updateProcurementOrderStatus(input: {
   id: string;
   status: ProcurementStatus;
-}): Promise<{ ok: true; order: ProcurementOrder } | { ok: false; message: string }> {
+}, panel: Panel): Promise<{ ok: true; order: ProcurementOrder } | { ok: false; message: string }> {
   try {
-    const admin = await getCurrentUserRecord("admin");
-    const subhub = admin ? null : await getCurrentUserRecord("subhub");
-    const user = currentUserRequired(admin ?? subhub, admin ? "admin" : "subhub");
+    if (panel === "subhub") return { ok: false, message: "SubHub users cannot change procurement order status." };
+    const user = currentUserRequired(await getCurrentUserRecord(panel), panel);
     const db = await getProcurementDb();
-    const order = await db.collection<ProcurementOrderDocument>("procurement_orders").findOne(
-      admin ? { _id: input.id } : { _id: input.id, subhubUserId: user._id },
-    );
+    const order = await db.collection<ProcurementOrderDocument>("procurement_orders").findOne({ _id: input.id });
     if (!order) return { ok: false, message: "Order not found in your procurement workspace." };
     if (!PROCUREMENT_STATUSES.includes(input.status)) return { ok: false, message: "Select a valid procurement status." };
     if (order.status === input.status) return { ok: true, order: toOrder(order) };
@@ -633,16 +863,14 @@ export async function updateProcurementOrderStatus(input: {
   }
 }
 
-export async function getProcurementOrder(id: string): Promise<
+export async function getProcurementOrder(id: string, panel: Panel): Promise<
   { ok: true; order: ProcurementOrder } | { ok: false; message: string }
 > {
   try {
-    const admin = await getCurrentUserRecord("admin");
-    const subhub = admin ? null : await getCurrentUserRecord("subhub");
-    const user = currentUserRequired(admin ?? subhub, admin ? "admin" : "subhub");
+    const user = currentUserRequired(await getCurrentUserRecord(panel), panel);
     const db = await getProcurementDb();
     const order = await db.collection<ProcurementOrderDocument>("procurement_orders").findOne(
-      admin ? { _id: id } : { _id: id, subhubUserId: user._id },
+      panel === "subhub" ? { _id: id, subhubUserId: user._id } : { _id: id },
     );
     return order ? { ok: true, order: toOrder(order) } : { ok: false, message: "Procurement order not found." };
   } catch (error) {

@@ -17,6 +17,7 @@ import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as ProcurementRouteImport } from './routes/procurement'
+import { Route as ProcurementManagementRouteImport } from './routes/procurement-management'
 import { Route as ProductionRouteImport } from './routes/production'
 import { Route as ProductionTargetsRouteImport } from './routes/production-targets'
 import { Route as QualityManagementRouteImport } from './routes/quality-management'
@@ -41,6 +42,7 @@ import { Route as SubhubHrRouteImport } from './routes/subhub.hr'
 import { Route as SubhubProductionRouteImport } from './routes/subhub.production'
 import { Route as SubhubRawMaterialsRouteImport } from './routes/subhub.raw-materials'
 import { Route as SubhubReportsRouteImport } from './routes/subhub.reports'
+import { Route as SubhubRequestItemsRouteImport } from './routes/subhub.request-items'
 import { Route as WorkerIdRouteImport } from './routes/worker.$id'
 import { Route as AdminUsersUserIdRouteImport } from './routes/admin.users.$userId'
 import { Route as InventoryBatchesBatchIdRouteImport } from './routes/inventory.batches.$batchId'
@@ -90,6 +92,11 @@ const OrdersRoute = OrdersRouteImport.update({
 const ProcurementRoute = ProcurementRouteImport.update({
   id: '/procurement',
   path: '/procurement',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProcurementManagementRoute = ProcurementManagementRouteImport.update({
+  id: '/procurement-management',
+  path: '/procurement-management',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductionRoute = ProductionRouteImport.update({
@@ -212,6 +219,11 @@ const SubhubReportsRoute = SubhubReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => SubhubRoute,
 } as any)
+const SubhubRequestItemsRoute = SubhubRequestItemsRouteImport.update({
+  id: '/request-items',
+  path: '/request-items',
+  getParentRoute: () => SubhubRoute,
+} as any)
 const WorkerIdRoute = WorkerIdRouteImport.update({
   id: '/worker/$id',
   path: '/worker/$id',
@@ -276,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/orders': typeof OrdersRoute
   '/procurement': typeof ProcurementRoute
+  '/procurement-management': typeof ProcurementManagementRoute
   '/production': typeof ProductionRoute
   '/production-targets': typeof ProductionTargetsRoute
   '/quality-management': typeof QualityManagementRoute
@@ -300,6 +313,7 @@ export interface FileRoutesByFullPath {
   '/subhub/production': typeof SubhubProductionRouteWithChildren
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
   '/subhub/reports': typeof SubhubReportsRoute
+  '/subhub/request-items': typeof SubhubRequestItemsRoute
   '/worker/$id': typeof WorkerIdRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
@@ -320,6 +334,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/orders': typeof OrdersRoute
   '/procurement': typeof ProcurementRoute
+  '/procurement-management': typeof ProcurementManagementRoute
   '/production': typeof ProductionRoute
   '/production-targets': typeof ProductionTargetsRoute
   '/quality-management': typeof QualityManagementRoute
@@ -344,6 +359,7 @@ export interface FileRoutesByTo {
   '/subhub/production': typeof SubhubProductionRouteWithChildren
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
   '/subhub/reports': typeof SubhubReportsRoute
+  '/subhub/request-items': typeof SubhubRequestItemsRoute
   '/worker/$id': typeof WorkerIdRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
@@ -365,6 +381,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/orders': typeof OrdersRoute
   '/procurement': typeof ProcurementRoute
+  '/procurement-management': typeof ProcurementManagementRoute
   '/production': typeof ProductionRoute
   '/production-targets': typeof ProductionTargetsRoute
   '/quality-management': typeof QualityManagementRoute
@@ -389,6 +406,7 @@ export interface FileRoutesById {
   '/subhub/production': typeof SubhubProductionRouteWithChildren
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
   '/subhub/reports': typeof SubhubReportsRoute
+  '/subhub/request-items': typeof SubhubRequestItemsRoute
   '/worker/$id': typeof WorkerIdRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
@@ -411,6 +429,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/orders'
     | '/procurement'
+    | '/procurement-management'
     | '/production'
     | '/production-targets'
     | '/quality-management'
@@ -435,6 +454,7 @@ export interface FileRouteTypes {
     | '/subhub/production'
     | '/subhub/raw-materials'
     | '/subhub/reports'
+    | '/subhub/request-items'
     | '/worker/$id'
     | '/admin/users/$userId'
     | '/inventory/batches/$batchId'
@@ -455,6 +475,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/orders'
     | '/procurement'
+    | '/procurement-management'
     | '/production'
     | '/production-targets'
     | '/quality-management'
@@ -479,6 +500,7 @@ export interface FileRouteTypes {
     | '/subhub/production'
     | '/subhub/raw-materials'
     | '/subhub/reports'
+    | '/subhub/request-items'
     | '/worker/$id'
     | '/admin/users/$userId'
     | '/inventory/batches/$batchId'
@@ -499,6 +521,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/orders'
     | '/procurement'
+    | '/procurement-management'
     | '/production'
     | '/production-targets'
     | '/quality-management'
@@ -523,6 +546,7 @@ export interface FileRouteTypes {
     | '/subhub/production'
     | '/subhub/raw-materials'
     | '/subhub/reports'
+    | '/subhub/request-items'
     | '/worker/$id'
     | '/admin/users/$userId'
     | '/inventory/batches/$batchId'
@@ -544,6 +568,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   OrdersRoute: typeof OrdersRoute
   ProcurementRoute: typeof ProcurementRoute
+  ProcurementManagementRoute: typeof ProcurementManagementRoute
   ProductionRoute: typeof ProductionRoute
   ProductionTargetsRoute: typeof ProductionTargetsRoute
   QualityManagementRoute: typeof QualityManagementRoute
@@ -614,6 +639,13 @@ declare module '@tanstack/react-router' {
       path: '/procurement'
       fullPath: '/procurement'
       preLoaderRoute: typeof ProcurementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/procurement-management': {
+      id: '/procurement-management'
+      path: '/procurement-management'
+      fullPath: '/procurement-management'
+      preLoaderRoute: typeof ProcurementManagementRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/production': {
@@ -782,6 +814,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/subhub/reports'
       preLoaderRoute: typeof SubhubReportsRouteImport
+      parentRoute: typeof SubhubRoute
+    }
+    '/subhub/request-items': {
+      id: '/subhub/request-items'
+      path: '/request-items'
+      fullPath: '/subhub/request-items'
+      preLoaderRoute: typeof SubhubRequestItemsRouteImport
       parentRoute: typeof SubhubRoute
     }
     '/worker/$id': {
@@ -965,6 +1004,7 @@ interface SubhubRouteChildren {
   SubhubProductionRoute: typeof SubhubProductionRouteWithChildren
   SubhubRawMaterialsRoute: typeof SubhubRawMaterialsRoute
   SubhubReportsRoute: typeof SubhubReportsRoute
+  SubhubRequestItemsRoute: typeof SubhubRequestItemsRoute
   SubhubParentCodeRoute: typeof SubhubParentCodeRoute
 }
 
@@ -975,6 +1015,7 @@ const SubhubRouteChildren: SubhubRouteChildren = {
   SubhubProductionRoute: SubhubProductionRouteWithChildren,
   SubhubRawMaterialsRoute: SubhubRawMaterialsRoute,
   SubhubReportsRoute: SubhubReportsRoute,
+  SubhubRequestItemsRoute: SubhubRequestItemsRoute,
   SubhubParentCodeRoute: SubhubParentCodeRoute,
 }
 
@@ -1002,6 +1043,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   OrdersRoute: OrdersRoute,
   ProcurementRoute: ProcurementRoute,
+  ProcurementManagementRoute: ProcurementManagementRoute,
   ProductionRoute: ProductionRoute,
   ProductionTargetsRoute: ProductionTargetsRoute,
   QualityManagementRoute: QualityManagementRoute,

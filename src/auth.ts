@@ -15,10 +15,10 @@ import type { AccessSection } from "./auth.server";
 const loginSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(1),
-  panel: z.enum(["admin", "subhub"]).optional(),
+  panel: z.enum(["admin", "subhub", "procurement"]).optional(),
 });
 
-const panelSchema = z.object({ panel: z.enum(["admin", "subhub"]).optional() });
+const panelSchema = z.object({ panel: z.enum(["admin", "subhub", "procurement"]).optional() });
 
 const bootstrapSchema = z.object({
   name: z.string().trim().min(2).max(80),
@@ -30,7 +30,7 @@ const managedUserSchema = z.object({
   name: z.string().trim().min(2).max(80),
   email: z.string().trim().email(),
   password: z.string().min(8).max(200),
-  panel: z.enum(["admin", "subhub"]),
+  panel: z.enum(["admin", "subhub", "procurement"]),
   subhubName: z.string().trim().max(120).optional(),
   permissions: z.array(z.string()),
 });
@@ -39,7 +39,7 @@ const updateUserSchema = z.object({
   id: z.string().min(1),
   name: z.string().trim().min(2).max(80),
   email: z.string().trim().email(),
-  panel: z.enum(["admin", "subhub"]),
+  panel: z.enum(["admin", "subhub", "procurement"]),
   subhubName: z.string().trim().max(120).optional(),
   permissions: z.array(z.string()),
   active: z.boolean(),
@@ -59,7 +59,7 @@ export const bootstrapMasterAdminFn = createServerFn({ method: "POST" })
   .handler(({ data }) => bootstrapMasterAdmin(data.name, data.email, data.password));
 
 export const logoutFn = createServerFn({ method: "POST" })
-  .validator(z.object({ panel: z.enum(["admin", "subhub"]) }))
+  .validator(z.object({ panel: z.enum(["admin", "subhub", "procurement"]) }))
   .handler(({ data }) => logoutUser(data.panel));
 
 export const listUsersFn = createServerFn({ method: "GET" }).handler(() => listUsers());

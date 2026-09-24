@@ -59,7 +59,7 @@ export function Shell({
     .toUpperCase() || "FA";
 
   async function signOut() {
-    await logoutFn({ data: { panel: "admin" } });
+    await logoutFn({ data: { panel: user?.panel === "procurement" ? "procurement" : "admin" } });
     await router.invalidate();
     await router.navigate({ to: "/login" });
   }
@@ -80,7 +80,7 @@ export function Shell({
           <button
             type="button"
             onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-            aria-label={sidebarCollapsed ? "Open Admin sidebar" : "Close Admin sidebar"}
+            aria-label={sidebarCollapsed ? "Open workspace sidebar" : "Close workspace sidebar"}
             title={sidebarCollapsed ? "Open sidebar" : "Close sidebar"}
             className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
           >
@@ -91,11 +91,13 @@ export function Shell({
         <nav className={`flex-1 space-y-1 overflow-y-auto ${sidebarCollapsed ? "p-2" : "p-3"}`}>
           {!sidebarCollapsed ? <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Modules</p> : null}
           {visibleNav.map((item) => {
-            const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
+            const destination = user?.panel === "procurement" && item.permission === "procurement" ? "/procurement-management" : item.to;
+            const active = destination === "/" ? pathname === "/" : pathname.startsWith(destination);
             return (
               <Link
                 key={item.to}
-                to={item.to}
+                to={destination}
+                search={item.permission === "procurement" ? { panel: user?.panel ?? "admin" } : undefined}
                 title={sidebarCollapsed ? item.label : undefined}
                 className={`flex items-center gap-3 rounded-md py-2 text-sm transition-colors ${
                   sidebarCollapsed ? "justify-center px-2" : "px-3"
@@ -145,14 +147,15 @@ export function Shell({
               <h1 className="truncate text-xl font-semibold">{title}</h1>
               {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
             </div>
-            <NotificationBell panel="admin" />
+            {user?.panel === "admin" ? <NotificationBell panel="admin" /> : null}
             {actions}
           </div>
           <nav className="flex gap-1 overflow-x-auto border-t border-border px-4 py-2 lg:hidden">
             {visibleNav.map((item) => (
               <Link
                 key={item.to}
-                to={item.to}
+                to={user?.panel === "procurement" && item.permission === "procurement" ? "/procurement-management" : item.to}
+                search={item.permission === "procurement" && user?.panel !== "procurement" ? { panel: user?.panel ?? "admin" } : undefined}
                 className="whitespace-nowrap rounded-md px-3 py-1.5 text-xs text-muted-foreground"
                 activeProps={{ className: "bg-secondary text-foreground font-medium" }}
               >
