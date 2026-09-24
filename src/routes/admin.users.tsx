@@ -474,6 +474,7 @@ function UserManagementPage() {
           closing={closingUserForm}
           form={form}
           busy={busy}
+          error={message}
           onChange={setForm}
           onPanelChange={changePanel}
           onTogglePermission={togglePermission}
@@ -508,6 +509,7 @@ function UserForm({
   closing,
   form,
   busy,
+  error,
   onChange,
   onPanelChange,
   onTogglePermission,
@@ -519,6 +521,7 @@ function UserForm({
   closing: boolean;
   form: UserFormState;
   busy: boolean;
+  error: string;
   onChange: (value: UserFormState) => void;
   onPanelChange: (panel: Panel) => void;
   onTogglePermission: (permission: AccessSection) => void;
@@ -589,13 +592,18 @@ function UserForm({
                 required={!editing}
                 type="password"
                 autoComplete={editing ? "new-password" : "new-password"}
-                minLength={editing ? undefined : 8}
+                minLength={8}
                 value={form.password}
                 onChange={(event) => onChange({ ...form, password: event.target.value })}
                 placeholder={editing ? "Leave blank to keep current password" : "At least 8 characters"}
                 className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"
               />
             </span>
+            {editing ? (
+              <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                Leave blank to keep the current password. A new password must be at least 8 characters.
+              </span>
+            ) : null}
           </label>
           <div>
             <p className="text-sm font-medium">Panel</p>
@@ -670,6 +678,12 @@ function UserForm({
             </label>
           ) : null}
         </div>
+
+        {error ? (
+          <p role="alert" className="mt-4 rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
 
         <div className="mt-auto flex justify-end gap-3 border-t border-border pt-5">
           <button type="button" onClick={onClose} className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted">
