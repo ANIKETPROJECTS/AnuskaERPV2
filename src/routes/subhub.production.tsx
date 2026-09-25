@@ -227,7 +227,7 @@ function DailyProductionManager() {
     >
       <form
         onSubmit={(event) => void saveProduction(event)}
-        className="space-y-5 p-4 pb-28 sm:p-6 sm:pb-28"
+        className="space-y-5 p-4 pb-24 sm:p-6 sm:pb-24"
       >
         {error ? (
           <p
@@ -241,25 +241,30 @@ function DailyProductionManager() {
         {assignedOrdersSection}
 
         {data.orders.length ? (
-          <div className="sticky bottom-0 z-10 -mx-4 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div aria-live="polite">
+          <div
+            className="fixed bottom-0 left-64 right-0 z-30 flex h-[77px] items-center border-t border-border bg-background/95 px-4 backdrop-blur sm:px-6"
+            style={{ marginBlockStart: 0 }}
+          >
+            <div className="flex w-full items-center justify-between gap-3">
+              <div className="min-w-0" aria-live="polite">
                 {saved ? (
                   <p role="status" className="text-sm font-medium text-success">
                     Production saved for {selectedDate}.
                   </p>
                 ) : hasUnsavedWork ? (
-                  <p className="text-sm font-medium text-warning">You have unsaved changes.</p>
+                  <p className="text-sm font-medium text-warning">
+                    Your numbers are entered but not saved. Select Save production to record them.
+                  </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Enter the finished units, then save your production.
+                    Enter the number of units finished above. Select Save production to record it.
                   </p>
                 )}
               </div>
               <button
                 type="submit"
                 disabled={saving || loading}
-                className="inline-flex min-h-12 items-center gap-2 rounded-md bg-primary px-5 text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md bg-primary px-5 text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Save className="size-5" />
                 {saving ? "Saving…" : "Save production"}
