@@ -105,11 +105,11 @@ export function BomMatrix({
               <tr>
                 {largeText ? (
                   <>
-                    <th scope="col" className="w-[145px] min-w-[145px] px-4 py-4 font-medium">Raw material code</th>
-                    <th scope="col" className="w-[170px] min-w-[170px] px-4 py-4 font-medium">Name</th>
-                    <th scope="col" className="w-[130px] min-w-[130px] px-4 py-4 font-medium">Material</th>
-                    <th scope="col" className="w-[100px] min-w-[100px] px-4 py-4 text-right font-medium">Weight (kg)</th>
-                    <th scope="col" className="w-[110px] min-w-[110px] px-4 py-4 font-medium">Source</th>
+                    <th scope="col" className="w-[110px] min-w-[110px] whitespace-nowrap px-3 py-4 font-medium">Code</th>
+                    <th scope="col" className="w-[150px] min-w-[150px] whitespace-nowrap px-3 py-4 font-medium">Name</th>
+                    <th scope="col" className="w-[130px] min-w-[130px] whitespace-nowrap px-3 py-4 font-medium">Material</th>
+                    <th scope="col" className="w-[112px] min-w-[112px] whitespace-nowrap px-3 py-4 text-right font-medium">Weight (kg)</th>
+                    <th scope="col" className="w-[120px] min-w-[120px] whitespace-nowrap px-3 py-4 font-medium">Source</th>
                   </>
                 ) : (
                   <>
@@ -133,11 +133,11 @@ export function BomMatrix({
                 <tr key={code} className="border-b border-border/70 last:border-0">
                   {largeText ? (
                     <>
-                      <td className="tabular px-4 py-4 text-muted-foreground">{code}</td>
-                      <th scope="row" className="px-4 py-4 text-left font-semibold">{part?.name ?? "—"}</th>
-                      <td className="px-4 py-4 text-muted-foreground">{part?.material ?? "—"}</td>
-                      <td className="tabular px-4 py-4 text-right text-muted-foreground">{part?.weight ?? "—"}</td>
-                      <td className="px-4 py-4 text-muted-foreground">{part?.source ?? "—"}</td>
+                      <td className="tabular w-[110px] min-w-[110px] whitespace-nowrap px-3 py-4 text-muted-foreground">{code}</td>
+                      <th scope="row" className="w-[150px] min-w-[150px] px-3 py-4 text-left font-semibold">{part?.name ?? "—"}</th>
+                      <td className="w-[130px] min-w-[130px] whitespace-nowrap px-3 py-4 text-muted-foreground">{part?.material ?? "—"}</td>
+                      <td className="tabular w-[112px] min-w-[112px] whitespace-nowrap px-3 py-4 text-right text-muted-foreground">{part?.weight ?? "—"}</td>
+                      <td className="w-[120px] min-w-[120px] whitespace-nowrap px-3 py-4 text-muted-foreground">{part?.source ?? "—"}</td>
                     </>
                   ) : (
                     <>
