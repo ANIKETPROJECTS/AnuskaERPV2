@@ -26,6 +26,7 @@ import { Route as ShortagesRouteImport } from './routes/shortages'
 import { Route as SubhubRouteImport } from './routes/subhub'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as BomCodeRouteImport } from './routes/bom.$code'
+import { Route as HrHistoryRouteImport } from './routes/hr.history'
 import { Route as HubCodeRouteImport } from './routes/hub.$code'
 import { Route as HubsHubIdRouteImport } from './routes/hubs.$hubId'
 import { Route as InventoryBatchesRouteImport } from './routes/inventory.batches'
@@ -49,6 +50,7 @@ import { Route as AdminUsersUserIdRouteImport } from './routes/admin.users.$user
 import { Route as InventoryBatchesBatchIdRouteImport } from './routes/inventory.batches.$batchId'
 import { Route as InventoryItemsItemCodeRouteImport } from './routes/inventory.items.$itemCode'
 import { Route as SubhubBomCodeRouteImport } from './routes/subhub.bom.$code'
+import { Route as SubhubHrHistoryRouteImport } from './routes/subhub.hr.history'
 import { Route as SubhubParentCodeRouteImport } from './routes/subhub.parent.$code'
 import { Route as SubhubRequestItemsHistoryRouteImport } from './routes/subhub.request-items.history'
 import { Route as HrEmployeeSubhubIdEmployeeIdRouteImport } from './routes/hr.employee.$subhubId.$employeeId'
@@ -140,6 +142,11 @@ const BomCodeRoute = BomCodeRouteImport.update({
   id: '/$code',
   path: '/$code',
   getParentRoute: () => BomRoute,
+} as any)
+const HrHistoryRoute = HrHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => HrRoute,
 } as any)
 const HubCodeRoute = HubCodeRouteImport.update({
   id: '/hub/$code',
@@ -256,6 +263,11 @@ const SubhubBomCodeRoute = SubhubBomCodeRouteImport.update({
   path: '/$code',
   getParentRoute: () => SubhubBomRoute,
 } as any)
+const SubhubHrHistoryRoute = SubhubHrHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => SubhubHrRoute,
+} as any)
 const SubhubParentCodeRoute = SubhubParentCodeRouteImport.update({
   id: '/parent/$code',
   path: '/parent/$code',
@@ -310,6 +322,7 @@ export interface FileRoutesByFullPath {
   '/subhub': typeof SubhubRouteWithChildren
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/bom/$code': typeof BomCodeRoute
+  '/hr/history': typeof HrHistoryRoute
   '/hub/$code': typeof HubCodeRoute
   '/hubs/$hubId': typeof HubsHubIdRoute
   '/inventory/batches': typeof InventoryBatchesRouteWithChildren
@@ -333,6 +346,7 @@ export interface FileRoutesByFullPath {
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
   '/inventory/items/$itemCode': typeof InventoryItemsItemCodeRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
+  '/subhub/hr/history': typeof SubhubHrHistoryRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/subhub/request-items/history': typeof SubhubRequestItemsHistoryRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
@@ -358,6 +372,7 @@ export interface FileRoutesByTo {
   '/subhub': typeof SubhubRouteWithChildren
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/bom/$code': typeof BomCodeRoute
+  '/hr/history': typeof HrHistoryRoute
   '/hub/$code': typeof HubCodeRoute
   '/hubs/$hubId': typeof HubsHubIdRoute
   '/inventory/batches': typeof InventoryBatchesRouteWithChildren
@@ -381,6 +396,7 @@ export interface FileRoutesByTo {
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
   '/inventory/items/$itemCode': typeof InventoryItemsItemCodeRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
+  '/subhub/hr/history': typeof SubhubHrHistoryRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/subhub/request-items/history': typeof SubhubRequestItemsHistoryRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
@@ -407,6 +423,7 @@ export interface FileRoutesById {
   '/subhub': typeof SubhubRouteWithChildren
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/bom/$code': typeof BomCodeRoute
+  '/hr/history': typeof HrHistoryRoute
   '/hub/$code': typeof HubCodeRoute
   '/hubs/$hubId': typeof HubsHubIdRoute
   '/inventory/batches': typeof InventoryBatchesRouteWithChildren
@@ -430,6 +447,7 @@ export interface FileRoutesById {
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
   '/inventory/items/$itemCode': typeof InventoryItemsItemCodeRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
+  '/subhub/hr/history': typeof SubhubHrHistoryRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
   '/subhub/request-items/history': typeof SubhubRequestItemsHistoryRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
@@ -457,6 +475,7 @@ export interface FileRouteTypes {
     | '/subhub'
     | '/admin/users'
     | '/bom/$code'
+    | '/hr/history'
     | '/hub/$code'
     | '/hubs/$hubId'
     | '/inventory/batches'
@@ -480,6 +499,7 @@ export interface FileRouteTypes {
     | '/inventory/batches/$batchId'
     | '/inventory/items/$itemCode'
     | '/subhub/bom/$code'
+    | '/subhub/hr/history'
     | '/subhub/parent/$code'
     | '/subhub/request-items/history'
     | '/hr/employee/$subhubId/$employeeId'
@@ -505,6 +525,7 @@ export interface FileRouteTypes {
     | '/subhub'
     | '/admin/users'
     | '/bom/$code'
+    | '/hr/history'
     | '/hub/$code'
     | '/hubs/$hubId'
     | '/inventory/batches'
@@ -528,6 +549,7 @@ export interface FileRouteTypes {
     | '/inventory/batches/$batchId'
     | '/inventory/items/$itemCode'
     | '/subhub/bom/$code'
+    | '/subhub/hr/history'
     | '/subhub/parent/$code'
     | '/subhub/request-items/history'
     | '/hr/employee/$subhubId/$employeeId'
@@ -553,6 +575,7 @@ export interface FileRouteTypes {
     | '/subhub'
     | '/admin/users'
     | '/bom/$code'
+    | '/hr/history'
     | '/hub/$code'
     | '/hubs/$hubId'
     | '/inventory/batches'
@@ -576,6 +599,7 @@ export interface FileRouteTypes {
     | '/inventory/batches/$batchId'
     | '/inventory/items/$itemCode'
     | '/subhub/bom/$code'
+    | '/subhub/hr/history'
     | '/subhub/parent/$code'
     | '/subhub/request-items/history'
     | '/hr/employee/$subhubId/$employeeId'
@@ -728,6 +752,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/bom/$code'
       preLoaderRoute: typeof BomCodeRouteImport
       parentRoute: typeof BomRoute
+    }
+    '/hr/history': {
+      id: '/hr/history'
+      path: '/history'
+      fullPath: '/hr/history'
+      preLoaderRoute: typeof HrHistoryRouteImport
+      parentRoute: typeof HrRoute
     }
     '/hub/$code': {
       id: '/hub/$code'
@@ -890,6 +921,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SubhubBomCodeRouteImport
       parentRoute: typeof SubhubBomRoute
     }
+    '/subhub/hr/history': {
+      id: '/subhub/hr/history'
+      path: '/history'
+      fullPath: '/subhub/hr/history'
+      preLoaderRoute: typeof SubhubHrHistoryRouteImport
+      parentRoute: typeof SubhubHrRoute
+    }
     '/subhub/parent/$code': {
       id: '/subhub/parent/$code'
       path: '/parent/$code'
@@ -946,10 +984,12 @@ const BomRouteChildren: BomRouteChildren = {
 const BomRouteWithChildren = BomRoute._addFileChildren(BomRouteChildren)
 
 interface HrRouteChildren {
+  HrHistoryRoute: typeof HrHistoryRoute
   HrEmployeeSubhubIdEmployeeIdRoute: typeof HrEmployeeSubhubIdEmployeeIdRoute
 }
 
 const HrRouteChildren: HrRouteChildren = {
+  HrHistoryRoute: HrHistoryRoute,
   HrEmployeeSubhubIdEmployeeIdRoute: HrEmployeeSubhubIdEmployeeIdRoute,
 }
 
@@ -1013,10 +1053,12 @@ const SubhubBomRouteWithChildren = SubhubBomRoute._addFileChildren(
 )
 
 interface SubhubHrRouteChildren {
+  SubhubHrHistoryRoute: typeof SubhubHrHistoryRoute
   SubhubHrEmployeeEmployeeIdRoute: typeof SubhubHrEmployeeEmployeeIdRoute
 }
 
 const SubhubHrRouteChildren: SubhubHrRouteChildren = {
+  SubhubHrHistoryRoute: SubhubHrHistoryRoute,
   SubhubHrEmployeeEmployeeIdRoute: SubhubHrEmployeeEmployeeIdRoute,
 }
 
