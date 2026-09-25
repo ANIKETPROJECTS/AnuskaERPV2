@@ -50,6 +50,7 @@ import { Route as InventoryBatchesBatchIdRouteImport } from './routes/inventory.
 import { Route as InventoryItemsItemCodeRouteImport } from './routes/inventory.items.$itemCode'
 import { Route as SubhubBomCodeRouteImport } from './routes/subhub.bom.$code'
 import { Route as SubhubParentCodeRouteImport } from './routes/subhub.parent.$code'
+import { Route as SubhubRequestItemsHistoryRouteImport } from './routes/subhub.request-items.history'
 import { Route as HrEmployeeSubhubIdEmployeeIdRouteImport } from './routes/hr.employee.$subhubId.$employeeId'
 import { Route as SubhubHrEmployeeEmployeeIdRouteImport } from './routes/subhub.hr.employee.$employeeId'
 import { Route as SubhubProductionAllocationOrderIdRouteImport } from './routes/subhub.production.allocation.$orderId'
@@ -260,6 +261,12 @@ const SubhubParentCodeRoute = SubhubParentCodeRouteImport.update({
   path: '/parent/$code',
   getParentRoute: () => SubhubRoute,
 } as any)
+const SubhubRequestItemsHistoryRoute =
+  SubhubRequestItemsHistoryRouteImport.update({
+    id: '/history',
+    path: '/history',
+    getParentRoute: () => SubhubRequestItemsRoute,
+  } as any)
 const HrEmployeeSubhubIdEmployeeIdRoute =
   HrEmployeeSubhubIdEmployeeIdRouteImport.update({
     id: '/employee/$subhubId/$employeeId',
@@ -320,13 +327,14 @@ export interface FileRoutesByFullPath {
   '/subhub/production': typeof SubhubProductionRouteWithChildren
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
   '/subhub/reports': typeof SubhubReportsRoute
-  '/subhub/request-items': typeof SubhubRequestItemsRoute
+  '/subhub/request-items': typeof SubhubRequestItemsRouteWithChildren
   '/worker/$id': typeof WorkerIdRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
   '/inventory/items/$itemCode': typeof InventoryItemsItemCodeRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
+  '/subhub/request-items/history': typeof SubhubRequestItemsHistoryRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
   '/subhub/hr/employee/$employeeId': typeof SubhubHrEmployeeEmployeeIdRoute
   '/subhub/production/allocation/$orderId': typeof SubhubProductionAllocationOrderIdRoute
@@ -367,13 +375,14 @@ export interface FileRoutesByTo {
   '/subhub/production': typeof SubhubProductionRouteWithChildren
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
   '/subhub/reports': typeof SubhubReportsRoute
-  '/subhub/request-items': typeof SubhubRequestItemsRoute
+  '/subhub/request-items': typeof SubhubRequestItemsRouteWithChildren
   '/worker/$id': typeof WorkerIdRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
   '/inventory/items/$itemCode': typeof InventoryItemsItemCodeRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
+  '/subhub/request-items/history': typeof SubhubRequestItemsHistoryRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
   '/subhub/hr/employee/$employeeId': typeof SubhubHrEmployeeEmployeeIdRoute
   '/subhub/production/allocation/$orderId': typeof SubhubProductionAllocationOrderIdRoute
@@ -415,13 +424,14 @@ export interface FileRoutesById {
   '/subhub/production': typeof SubhubProductionRouteWithChildren
   '/subhub/raw-materials': typeof SubhubRawMaterialsRoute
   '/subhub/reports': typeof SubhubReportsRoute
-  '/subhub/request-items': typeof SubhubRequestItemsRoute
+  '/subhub/request-items': typeof SubhubRequestItemsRouteWithChildren
   '/worker/$id': typeof WorkerIdRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
   '/inventory/items/$itemCode': typeof InventoryItemsItemCodeRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
+  '/subhub/request-items/history': typeof SubhubRequestItemsHistoryRoute
   '/hr/employee/$subhubId/$employeeId': typeof HrEmployeeSubhubIdEmployeeIdRoute
   '/subhub/hr/employee/$employeeId': typeof SubhubHrEmployeeEmployeeIdRoute
   '/subhub/production/allocation/$orderId': typeof SubhubProductionAllocationOrderIdRoute
@@ -471,6 +481,7 @@ export interface FileRouteTypes {
     | '/inventory/items/$itemCode'
     | '/subhub/bom/$code'
     | '/subhub/parent/$code'
+    | '/subhub/request-items/history'
     | '/hr/employee/$subhubId/$employeeId'
     | '/subhub/hr/employee/$employeeId'
     | '/subhub/production/allocation/$orderId'
@@ -518,6 +529,7 @@ export interface FileRouteTypes {
     | '/inventory/items/$itemCode'
     | '/subhub/bom/$code'
     | '/subhub/parent/$code'
+    | '/subhub/request-items/history'
     | '/hr/employee/$subhubId/$employeeId'
     | '/subhub/hr/employee/$employeeId'
     | '/subhub/production/allocation/$orderId'
@@ -565,6 +577,7 @@ export interface FileRouteTypes {
     | '/inventory/items/$itemCode'
     | '/subhub/bom/$code'
     | '/subhub/parent/$code'
+    | '/subhub/request-items/history'
     | '/hr/employee/$subhubId/$employeeId'
     | '/subhub/hr/employee/$employeeId'
     | '/subhub/production/allocation/$orderId'
@@ -884,6 +897,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SubhubParentCodeRouteImport
       parentRoute: typeof SubhubRoute
     }
+    '/subhub/request-items/history': {
+      id: '/subhub/request-items/history'
+      path: '/history'
+      fullPath: '/subhub/request-items/history'
+      preLoaderRoute: typeof SubhubRequestItemsHistoryRouteImport
+      parentRoute: typeof SubhubRequestItemsRoute
+    }
     '/hr/employee/$subhubId/$employeeId': {
       id: '/hr/employee/$subhubId/$employeeId'
       path: '/employee/$subhubId/$employeeId'
@@ -1018,6 +1038,17 @@ const SubhubProductionRouteChildren: SubhubProductionRouteChildren = {
 const SubhubProductionRouteWithChildren =
   SubhubProductionRoute._addFileChildren(SubhubProductionRouteChildren)
 
+interface SubhubRequestItemsRouteChildren {
+  SubhubRequestItemsHistoryRoute: typeof SubhubRequestItemsHistoryRoute
+}
+
+const SubhubRequestItemsRouteChildren: SubhubRequestItemsRouteChildren = {
+  SubhubRequestItemsHistoryRoute: SubhubRequestItemsHistoryRoute,
+}
+
+const SubhubRequestItemsRouteWithChildren =
+  SubhubRequestItemsRoute._addFileChildren(SubhubRequestItemsRouteChildren)
+
 interface SubhubRouteChildren {
   SubhubBomRoute: typeof SubhubBomRouteWithChildren
   SubhubFloatParentRoute: typeof SubhubFloatParentRoute
@@ -1025,7 +1056,7 @@ interface SubhubRouteChildren {
   SubhubProductionRoute: typeof SubhubProductionRouteWithChildren
   SubhubRawMaterialsRoute: typeof SubhubRawMaterialsRoute
   SubhubReportsRoute: typeof SubhubReportsRoute
-  SubhubRequestItemsRoute: typeof SubhubRequestItemsRoute
+  SubhubRequestItemsRoute: typeof SubhubRequestItemsRouteWithChildren
   SubhubParentCodeRoute: typeof SubhubParentCodeRoute
 }
 
@@ -1036,7 +1067,7 @@ const SubhubRouteChildren: SubhubRouteChildren = {
   SubhubProductionRoute: SubhubProductionRouteWithChildren,
   SubhubRawMaterialsRoute: SubhubRawMaterialsRoute,
   SubhubReportsRoute: SubhubReportsRoute,
-  SubhubRequestItemsRoute: SubhubRequestItemsRoute,
+  SubhubRequestItemsRoute: SubhubRequestItemsRouteWithChildren,
   SubhubParentCodeRoute: SubhubParentCodeRoute,
 }
 

@@ -1,15 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { AlertCircle, Check, ClipboardList, Minus, Plus, Send } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
+import { AlertCircle, ArrowRight, Check, ClipboardList, Minus, Plus, Send } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
-import { createProcurementItemRequestFn, getProcurementDataFn } from "@/procurement";
-import type { ProcurementData, ProcurementItemRequest } from "@/procurement.server";
+import { createProcurementItemRequestFn, getSubhubItemRequestHistoryFn } from "@/procurement";
+import type { ProcurementItemRequest } from "@/procurement.server";
 import { num } from "@/lib/erp-data";
 
 export const Route = createFileRoute("/subhub/request-items")({
-  loader: () => getProcurementDataFn({ data: { panel: "subhub" } }),
+  loader: () => getSubhubItemRequestHistoryFn(),
   head: () => ({ meta: [{ title: "Request items — SubHub" }] }),
-  component: RequestItemsPage,
+  component: RequestItemsRoute,
 });
 
 const commonItems = [
@@ -21,41 +21,42 @@ const commonItems = [
   "Work gloves",
 ];
 
-const emptyData: ProcurementData = {
-  vendors: [],
-  orders: [],
-  subhubs: [],
-  vendorPerformance: [],
-  subhubSummary: [],
-  materialNeeds: [],
-  itemRequests: [],
-  summary: {
-    vendorCount: 0,
-    openOrders: 0,
-    unitsOnOrder: 0,
-    committedSpend: 0,
-    completedOrders: 0,
-    pendingOrders: 0,
-    onTimeRate: null,
-  },
-};
+function RequestItemsRoute() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  return pathname.replace(/\/+$/, "") === "/subhub/request-items" ? (
+    <RequestItemsPage />
+  ) : (
+    <Outlet />
+  );
+}
 
 function RequestItemsPage() {
   const result = Route.useLoaderData();
-  const [data, setData] = useState<ProcurementData>(() => (result.ok ? result.data : emptyData));
+  const router = useRouter();
+  const [requests, setRequests] = useState<ProcurementItemRequest[]>(() =>
+    result.ok ? result.requests : [],
+  );
   const [itemName, setItemName] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(result.ok ? "" : result.message);
   const [notice, setNotice] = useState("");
-  const requests = useMemo(
-    () =>
-      [...data.itemRequests].sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
-    [data.itemRequests],
+  const sortedRequests = useMemo(
+    () => [...requests].sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
+    [requests],
   );
-  const pendingCount = requests.filter((request) => request.status === "Pending").length;
-  const resolvedCount = requests.length - pendingCount;
+  const pendingCount = sortedRequests.filter((request) => request.status === "Pending").length;
+  const resolvedCount = sortedRequests.length - pendingCount;
+
+  useEffect(() => {
+    if (result.ok) {
+      setRequests(result.requests);
+      setError("");
+    } else {
+      setError(result.message);
+    }
+  }, [result]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -71,14 +72,16 @@ function RequestItemsPage() {
         setError(response.message);
         return;
       }
-      setData((current) => ({
-        ...current,
-        itemRequests: [response.request, ...current.itemRequests],
-      }));
+      setRequests((current) => [response.request, ...current]);
       setItemName("");
       setQuantity("1");
       setNotes("");
       setNotice("Your request was sent to Procurement Management.");
+      try {
+        await router.invalidate();
+      } catch {
+        setNotice("Your request was sent. Refresh the history page to see the latest records.");
+      }
     } catch {
       setError("Your request could not be sent. Check your connection and try again.");
     } finally {
@@ -95,7 +98,8 @@ function RequestItemsPage() {
     <SubHubShell headerTitle="Request items">
       <section className="space-y-4 p-4 pb-28 sm:space-y-5 sm:p-6 sm:pb-28">
         <p className="text-sm text-muted-foreground">
-          Request tools, supplies, or materials and track Procurement Management’s response here.
+          Request tools, supplies, or materials, then track Procurement Management’s response in
+          request history.
         </p>
 
         {error ? (
@@ -229,7 +233,7 @@ function RequestItemsPage() {
             <p className="text-sm text-muted-foreground">
               {pendingCount
                 ? `${num(pendingCount)} request${pendingCount === 1 ? "" : "s"} awaiting review`
-                : "Your requests and responses appear below"}
+                : "Open request history to review saved requests and responses"}
             </p>
             <button
               type="submit"
@@ -243,100 +247,31 @@ function RequestItemsPage() {
           </div>
         </div>
 
-        <section aria-labelledby="my-item-requests-heading" className="space-y-3">
-          <div className="flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <ClipboardList className="size-4 text-primary" aria-hidden="true" />
-                <h2 id="my-item-requests-heading" className="text-lg font-semibold">
-                  My item requests
-                </h2>
+        <section className="rounded-xl border border-border bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <ClipboardList className="size-4" aria-hidden="true" />
+              </span>
+              <div>
+                <h2 className="font-semibold">My item requests</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {num(sortedRequests.length)} saved · {num(pendingCount)} awaiting review ·{" "}
+                  {num(resolvedCount)} resolved
+                </p>
               </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Check each request’s status and any response from Procurement Management.
-              </p>
             </div>
-            <p className="rounded-full bg-secondary px-3 py-1 text-sm font-medium">
-              {num(requests.length)} {requests.length === 1 ? "request" : "requests"}
-            </p>
+            <Link
+              to="/subhub/request-items/history"
+              className="inline-flex min-h-11 items-center gap-2 rounded-md border border-input px-4 text-sm font-semibold hover:bg-muted"
+            >
+              View request history <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
           </div>
-
-          {requests.length ? (
-            <div className="space-y-3">
-              {requests.map((request) => (
-                <RequestCard key={request.id} request={request} />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-border bg-white p-8 text-center shadow-sm sm:p-12">
-              <ClipboardList className="mx-auto size-10 text-primary" aria-hidden="true" />
-              <h3 className="mt-3 text-lg font-semibold">No item requests yet</h3>
-              <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-                Your submitted requests and their review status will appear here.
-              </p>
-            </div>
-          )}
         </section>
       </section>
     </SubHubShell>
   );
-}
-
-function RequestCard({ request }: { request: ProcurementItemRequest }) {
-  const statusStyle =
-    request.status === "Approved"
-      ? "bg-success/10 text-success"
-      : request.status === "Declined"
-        ? "bg-destructive/10 text-destructive"
-        : "bg-warning/10 text-warning";
-
-  return (
-    <article className="rounded-xl border border-border bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-base font-semibold">{request.itemName}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Quantity: <strong className="tabular text-foreground">{num(request.quantity)}</strong>
-            <span aria-hidden="true"> · </span>
-            Requested {formatRequestDate(request.createdAt)}
-          </p>
-        </div>
-        <span className={`shrink-0 rounded-full px-3 py-1 text-sm font-semibold ${statusStyle}`}>
-          {request.status}
-        </span>
-      </div>
-
-      {request.notes ? (
-        <div className="mt-4 rounded-md bg-muted/30 px-3 py-2.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Details
-          </p>
-          <p className="mt-1 whitespace-pre-wrap text-sm">{request.notes}</p>
-        </div>
-      ) : null}
-      {request.response ? (
-        <div className="mt-3 rounded-md border border-primary/15 bg-primary/5 px-3 py-2.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary">
-            Procurement response
-          </p>
-          <p className="mt-1 whitespace-pre-wrap text-sm">{request.response}</p>
-        </div>
-      ) : request.status === "Pending" ? (
-        <p className="mt-3 text-sm text-muted-foreground">
-          Waiting for Procurement Management to review this request.
-        </p>
-      ) : null}
-    </article>
-  );
-}
-
-function formatRequestDate(value: string) {
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "Asia/Kolkata",
-  }).format(new Date(value));
 }
 
 function Stat({
