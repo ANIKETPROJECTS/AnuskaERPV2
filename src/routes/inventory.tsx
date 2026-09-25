@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
-import { ArrowDownCircle, ArrowUpCircle, Check, ChevronDown, History as HistoryIcon, Package, Search, ShieldAlert } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Check, ChevronDown, Package, Search, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { Panel, Tag } from "@/components/erp/bits";
@@ -63,8 +63,24 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
   }
 
   return (
-    <SubHubShell headerTitle={title} actions={<div className="flex flex-wrap gap-2"><Link to="/inventory/raw-materials" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Raw materials</Link><Link to="/inventory/final-products" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Final products</Link><Link to="/inventory/quality" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><ShieldAlert className="size-4" /> Quality</Link><Link to="/inventory/quality-history" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><HistoryIcon className="size-4" /> Quality history</Link></div>}>
+    <SubHubShell headerTitle={title}>
       <section className="px-6 pb-6">
+        <nav aria-label="Inventory modules" className="-mx-6 mb-4 border-b border-border px-6">
+          <div className="flex flex-wrap gap-x-6">
+            <Link to="/inventory/raw-materials" aria-current={view === "raw-materials" ? "page" : undefined} className={`inline-flex min-h-12 items-center whitespace-nowrap border-b-2 px-1 text-base transition-colors ${view === "raw-materials" ? "border-primary font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:text-foreground"}`}>
+              Raw Materials Inventory
+            </Link>
+            <Link to="/inventory/final-products" aria-current={view === "final-products" ? "page" : undefined} className={`inline-flex min-h-12 items-center whitespace-nowrap border-b-2 px-1 text-base transition-colors ${view === "final-products" ? "border-primary font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:text-foreground"}`}>
+              Final Product Inventory
+            </Link>
+            <Link to="/inventory/quality" aria-current={view === "quality" ? "page" : undefined} className={`inline-flex min-h-12 items-center whitespace-nowrap border-b-2 px-1 text-base transition-colors ${view === "quality" ? "border-primary font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:text-foreground"}`}>
+              Quality Management
+            </Link>
+            <Link to="/inventory/quality-history" aria-current={view === "quality-history" ? "page" : undefined} className={`inline-flex min-h-12 items-center whitespace-nowrap border-b-2 px-1 text-base transition-colors ${view === "quality-history" ? "border-primary font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:text-foreground"}`}>
+              Quality Management History
+            </Link>
+          </div>
+        </nav>
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
         {view === "raw-materials" ? <InventoryTable inventoryType="Raw Material" items={data.items.filter((item) => item.category === "Raw Material")} loading={loading} /> : null}
         {view === "final-products" ? <InventoryTable inventoryType="Float" items={data.items.filter((item) => item.category === "Float")} loading={loading} /> : null}
