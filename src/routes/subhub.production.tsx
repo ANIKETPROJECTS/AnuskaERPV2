@@ -34,7 +34,6 @@ function DailyProductionManager() {
   const [data, setData] = useState(emptyData);
   const [selectedDate, setSelectedDate] = useState(today());
   const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [notes, setNotes] = useState("");
   const [hasUnsavedWork, setHasUnsavedWork] = useState(false);
   const hasUnsavedWorkRef = useRef(false);
   const loadInFlightRef = useRef(false);
@@ -98,7 +97,6 @@ function DailyProductionManager() {
       nextQuantities[report.orderId] = report.quantity;
     });
     setQuantities(nextQuantities);
-    setNotes(reportsForDate.find((report) => report.notes)?.notes ?? "");
   }, [reportsForDate]);
 
   function updateQuantity(orderId: string, value: number) {
@@ -122,7 +120,7 @@ function DailyProductionManager() {
               orderId: order.id,
               date: selectedDate,
               quantity: quantities[order.id] ?? 0,
-              notes,
+              notes: reportsForDate.find((report) => report.orderId === order.id)?.notes ?? "",
             },
           }),
         ),
@@ -241,24 +239,6 @@ function DailyProductionManager() {
         ) : null}
 
         {assignedOrdersSection}
-
-        {data.orders.length ? (
-          <label className="block rounded-xl border border-border bg-card p-4 text-sm font-semibold shadow-sm sm:p-5">
-            Notes for this date{" "}
-            <span className="font-normal text-muted-foreground">(optional)</span>
-            <textarea
-              value={notes}
-              onChange={(event) => {
-                setNotes(event.target.value);
-                setSaved(false);
-                updateUnsavedWork(true);
-              }}
-              rows={2}
-              placeholder="Add a delay or machine note…"
-              className="mt-2 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm font-normal outline-none focus:border-primary"
-            />
-          </label>
-        ) : null}
 
         {data.orders.length ? (
           <div className="sticky bottom-0 z-10 -mx-4 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
