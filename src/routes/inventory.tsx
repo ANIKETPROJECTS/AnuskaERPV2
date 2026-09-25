@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
-import { ArrowDownAZ, ArrowDownCircle, ArrowUpAZ, ArrowUpCircle, Check, ChevronDown, History as HistoryIcon, Package, Search, ShieldAlert } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Check, ChevronDown, History as HistoryIcon, Package, Search, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { Panel, Tag } from "@/components/erp/bits";
@@ -119,22 +119,17 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "Raw Material" | "Float">("all");
-  const [sortKey, setSortKey] = useState<"name" | "code" | "quantity">("name");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(1);
+  const pageSize = 25;
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return [...data.items]
       .filter((item) => categoryFilter === "all" || item.category === categoryFilter)
       .filter((item) => !normalizedQuery || `${item.name} ${item.code}`.toLowerCase().includes(normalizedQuery))
-      .sort((left, right) => {
-        const leftValue = sortKey === "name" ? `${left.name} ${left.code}` : left[sortKey];
-        const rightValue = sortKey === "name" ? `${right.name} ${right.code}` : right[sortKey];
-        const comparison = typeof leftValue === "string"
-          ? leftValue.localeCompare(rightValue as string)
-          : leftValue - (rightValue as number);
-        return sortDirection === "asc" ? comparison : -comparison;
-      });
-  }, [data.items, query, categoryFilter, sortKey, sortDirection]);
+      .sort((left, right) => `${left.name} ${left.code}`.localeCompare(`${right.name} ${right.code}`));
+  }, [data.items, query, categoryFilter]);
+  const paginatedItems = useMemo(() => filteredItems.slice((page - 1) * pageSize, page * pageSize), [filteredItems, page, pageSize]);
+  useEffect(() => setPage(1), [query, categoryFilter]);
   const updateChange = (code: string, field: "quantity" | "reason", value: string) => {
     setChanges((current) => ({ ...current, [code]: { quantity: current[code]?.quantity ?? "", reason: current[code]?.reason ?? "", reasonOption: current[code]?.reasonOption ?? "", [field]: value } }));
     setMessage("");
@@ -224,66 +219,141 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
     setSaving(false);
   }
 
-  return <div className="w-full">
-    <div>
-        <div className="mb-4 flex flex-wrap items-end gap-3">
-          <label className="min-w-[240px] flex-1 text-xs font-medium text-muted-foreground">
-            Search inventory
-            <div className="relative mt-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name or unique code" className="h-9 w-full rounded-md border border-input pl-9 pr-3 text-sm font-normal text-foreground outline-none focus:border-primary" />
-            </div>
-          </label>
-          <label className="text-xs font-medium text-muted-foreground">
-            Show
-            <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as typeof categoryFilter)} className="mt-1 h-9 rounded-md border border-input bg-white px-3 text-sm font-normal text-foreground outline-none focus:border-primary">
-              <option value="all">Raw materials & final products</option>
-              <option value="Raw Material">Raw materials only</option>
-              <option value="Float">Final products only</option>
-            </select>
-          </label>
-          <label className="text-xs font-medium text-muted-foreground">
-            Sort by
-            <select value={sortKey} onChange={(event) => setSortKey(event.target.value as typeof sortKey)} className="mt-1 h-9 rounded-md border border-input bg-white px-3 text-sm font-normal text-foreground outline-none focus:border-primary">
-              <option value="name">Item name</option>
-              <option value="code">Unique code</option>
-              <option value="quantity">Current stock</option>
-            </select>
-          </label>
-          <button type="button" onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-white px-3 text-sm" aria-label={`Sort ${sortDirection === "asc" ? "descending" : "ascending"}`}>
-            {sortDirection === "asc" ? <ArrowUpAZ className="size-4" /> : <ArrowDownAZ className="size-4" />}
-            {sortDirection === "asc" ? "Ascending" : "Descending"}
-          </button>
+  return (
+    <div className="w-full">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <label className="relative min-w-[240px] flex-1">
+          <span className="sr-only">Search inventory</span>
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            aria-label="Search inventory"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Name or unique code"
+            className="h-10 w-full rounded-md border border-input pl-9 pr-3 text-base outline-none focus:border-primary"
+          />
+        </label>
+        <label className="w-full shrink-0 sm:w-64">
+          <span className="sr-only">Filter inventory type</span>
+          <select
+            aria-label="Filter inventory type"
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value as typeof categoryFilter)}
+            className="h-10 w-full rounded-md border border-input bg-white px-3 text-base text-foreground outline-none focus:border-primary"
+          >
+            <option value="all">Raw materials &amp; final products</option>
+            <option value="Raw Material">Raw materials only</option>
+            <option value="Float">Final products only</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="sticky top-[57px] z-10 -mx-6 mb-3 flex min-h-[58px] flex-wrap items-center justify-between gap-3 border-y border-border bg-background/95 px-6 py-2 shadow-sm backdrop-blur">
+        <div className="min-w-0 flex-1">
+          {error ? <p role="alert" className="text-sm font-medium text-destructive">{error}</p> : null}
+          {message && !error ? <p className="inline-flex items-center gap-1.5 text-sm font-medium text-success"><Check className="size-4" />{message}</p> : null}
         </div>
-        {loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading inventory items…</p> : data.items.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">No raw materials or final products are available.</p> : filteredItems.length === 0 ? <p className="border-y border-dashed border-border p-8 text-center text-sm text-muted-foreground">No inventory items match the current filter or search.</p> : <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-sm">
-            <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <tr><th className="px-4 py-3 font-medium">Item</th><th className="px-4 py-3 font-medium">Type</th><th className="px-4 py-3 text-right font-medium">Current stock</th><th className="w-44 px-4 py-3 font-medium">Updated count</th><th className="min-w-[280px] px-4 py-3 font-medium">Reason</th><th className="w-24 px-4 py-3 text-right font-medium">Status</th></tr>
-            </thead>
-            <tbody>{filteredItems.map((item) => {
-              const draft = changes[item.code] ?? { quantity: "", reason: "", reasonOption: "" };
-              const quantity = Number(draft.quantity);
-              const hasChange = draft.quantity.trim() !== "" && Number.isInteger(quantity) && quantity >= 0 && quantity !== item.quantity;
-              return <tr key={item.code} className={`border-t border-border/70 ${hasChange ? "bg-primary/[0.035]" : ""}`}>
-                <td className="whitespace-nowrap px-4 py-2.5"><p className="font-medium">{item.name}</p><p className="tabular text-xs text-muted-foreground">{item.code}</p></td>
-                <td className="whitespace-nowrap px-4 py-2.5"><Tag tone={item.category === "Float" ? "info" : "neutral"}>{item.category === "Float" ? "Final product" : "Raw material"}</Tag></td>
-                <td className="tabular whitespace-nowrap px-4 py-2.5 text-right font-semibold">{num(item.quantity)} <span className="text-xs font-normal text-muted-foreground">{item.unit}</span></td>
-                <td className="px-4 py-2.5"><input aria-label={`Updated count for ${item.name}`} type="text" inputMode="numeric" pattern="[0-9]*" value={draft.quantity} onChange={(event) => updateQuantity(item.code, event.target.value.replace(/\D/g, ""), item.quantity)} placeholder="New total" className={`tabular h-9 w-full rounded-md border px-3 text-sm outline-none focus:border-primary ${draft.quantity.trim() !== "" && quantity < item.quantity ? "border-destructive/40" : hasChange && quantity > item.quantity ? "border-success/40" : "border-input"}`} /></td>
-                 <td className="px-4 py-2.5">
-                   <select aria-label={`Reason type for ${item.name}`} value={draft.reasonOption} onChange={(event) => updateReasonOption(item.code, event.target.value)} className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus:border-primary">
-                     {qualityReasonOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                   </select>
-                   {draft.reasonOption === "custom" ? <input aria-label={`Custom reason for ${item.name}`} value={draft.reason} onChange={(event) => updateChange(item.code, "reason", event.target.value)} placeholder={hasChange ? "Type the reason…" : "Enter only when changing"} className="mt-1.5 h-9 w-full rounded-md border border-input px-3 text-sm outline-none focus:border-primary" /> : null}
-                 </td>
-                <td className="whitespace-nowrap px-4 py-2.5 text-right">{hasChange ? <button type="button" onClick={() => clearChange(item.code)} className="text-xs font-medium text-primary hover:underline">Clear</button> : <span className="text-xs text-muted-foreground">No change</span>}</td>
-              </tr>;
-            })}</tbody>
-          </table>
-        </div>}
-        {error ? <p role="alert" className="mt-4 rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
-        <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4">{message ? <span className="inline-flex items-center gap-1.5 text-sm text-success"><Check className="size-4" /> {message}</span> : null}<button type="button" disabled={saving || loading} onClick={() => void save()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><ShieldAlert className="size-4" /> {saving ? "Saving…" : "Save updated counts"}</button></div>
+        <button
+          type="button"
+          disabled={saving || loading}
+          onClick={() => void save()}
+          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-base font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <ShieldAlert className="size-4" />
+          {saving ? "Saving…" : "Save updated counts"}
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="p-8 text-center text-base text-muted-foreground">Loading inventory items…</p>
+      ) : data.items.length === 0 ? (
+        <p className="p-8 text-center text-base text-muted-foreground">No raw materials or final products are available.</p>
+      ) : filteredItems.length === 0 ? (
+        <p className="border-y border-dashed border-border p-8 text-center text-base text-muted-foreground">No inventory items match the current filter or search.</p>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[960px] text-base">
+              <thead className="bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Item</th>
+                  <th className="px-4 py-3 font-semibold">Type</th>
+                  <th className="px-4 py-3 text-right font-semibold">Current stock</th>
+                  <th className="w-52 px-4 py-3 font-semibold">Updated count</th>
+                  <th className="min-w-[280px] px-4 py-3 font-semibold">Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedItems.map((item) => {
+                  const draft = changes[item.code] ?? { quantity: "", reason: "", reasonOption: "" };
+                  const quantity = Number(draft.quantity);
+                  const hasChange = draft.quantity.trim() !== "" && Number.isInteger(quantity) && quantity >= 0 && quantity !== item.quantity;
+                  return (
+                    <tr key={item.code} className={`border-t border-border/70 ${hasChange ? "bg-primary/[0.035]" : ""}`}>
+                      <td className="px-4 py-3">
+                        <p className="font-medium">{item.name}</p>
+                        <p className="tabular text-sm text-muted-foreground">{item.code}</p>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-sm font-medium ${item.category === "Float" ? "bg-primary/10 text-primary" : "bg-secondary text-secondary-foreground"}`}>
+                          {item.category === "Float" ? "Final product" : "Raw material"}
+                        </span>
+                      </td>
+                      <td className="tabular whitespace-nowrap px-4 py-3 text-right font-semibold">
+                        {num(item.quantity)} <span className="text-sm font-normal text-muted-foreground">{item.unit}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <input
+                            aria-label={`Updated count for ${item.name}`}
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={draft.quantity}
+                            onChange={(event) => updateQuantity(item.code, event.target.value.replace(/\D/g, ""), item.quantity)}
+                            placeholder="New total"
+                            className={`tabular h-10 min-w-0 flex-1 rounded-md border px-3 text-base outline-none focus:border-primary ${draft.quantity.trim() !== "" && quantity < item.quantity ? "border-destructive/40" : hasChange && quantity > item.quantity ? "border-success/40" : "border-input"}`}
+                          />
+                          {hasChange ? <button type="button" onClick={() => clearChange(item.code)} className="shrink-0 text-sm font-medium text-primary hover:underline">Clear</button> : null}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          aria-label={`Reason type for ${item.name}`}
+                          value={draft.reasonOption}
+                          onChange={(event) => updateReasonOption(item.code, event.target.value)}
+                          className="h-10 w-full rounded-md border border-input bg-white px-3 text-base outline-none focus:border-primary"
+                        >
+                          {qualityReasonOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                        </select>
+                        {draft.reasonOption === "custom" ? (
+                          <input
+                            aria-label={`Custom reason for ${item.name}`}
+                            value={draft.reason}
+                            onChange={(event) => updateChange(item.code, "reason", event.target.value)}
+                            placeholder={hasChange ? "Type the reason…" : "Enter only when changing"}
+                            className="mt-1.5 h-10 w-full rounded-md border border-input px-3 text-base outline-none focus:border-primary"
+                          />
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <TablePagination
+            total={filteredItems.length}
+            page={page}
+            pageSize={pageSize}
+            showPageSizeSelect={false}
+            onPageChange={setPage}
+            onPageSizeChange={() => undefined}
+          />
+        </>
+      )}
     </div>
-  </div>;
+  );
 }
 
 function QualityManagementHistory({ data, loading }: { data: SubhubInventoryData; loading: boolean }) {
@@ -329,8 +399,8 @@ function InventoryTable({ inventoryType, items, loading }: { inventoryType: Inve
     </div>
     {loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading {inventoryType === "Raw Material" ? "raw materials" : "final products"}…</p> : <><div className="overflow-x-auto"><table className="w-full min-w-[720px] table-fixed text-base"><colgroup><col className="w-[35%]" /><col className="w-[20%]" /><col className="w-[25%]" /><col className="w-[20%]" /></colgroup><thead className="border-b border-border text-center text-sm font-semibold uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3">Item</th><th className="px-4 py-3">Unique code</th><th className="px-4 py-3">Available quantity</th><th className="px-4 py-3">Status</th></tr></thead><tbody>{paginatedItems.map((item) => {
       const status = item.quantity <= 0 ? "No stock" : item.quantity < 5 ? "Low stock" : "Available";
-      const tone = item.quantity <= 0 ? "bad" : item.quantity < 5 ? "warn" : "good";
-      return <tr key={item.code} className="border-b border-border/70 last:border-0"><td className="px-4 py-4 text-center font-medium">{item.name}</td><td className="tabular whitespace-nowrap px-4 py-4 text-center text-base text-muted-foreground">{item.code}</td><td className="tabular px-4 py-4 text-center text-base font-semibold">{num(item.quantity)} {item.unit}</td><td className="px-4 py-4 text-center"><Tag tone={tone}>{status}</Tag></td></tr>;
+      const statusColor = item.quantity <= 0 ? "bg-red-600" : item.quantity < 5 ? "bg-yellow-600" : "bg-green-600";
+      return <tr key={item.code} className="border-b border-border/70 last:border-0"><td className="px-4 py-4 text-center font-medium">{item.name}</td><td className="tabular whitespace-nowrap px-4 py-4 text-center text-base text-muted-foreground">{item.code}</td><td className="tabular px-4 py-4 text-center text-base font-semibold">{num(item.quantity)} {item.unit}</td><td className="px-4 py-4 text-center"><span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold text-white ${statusColor}`}>{status}</span></td></tr>;
     })}</tbody></table>{!paginatedItems.length ? <p className="p-8 text-center text-base text-muted-foreground">No {inventoryType === "Raw Material" ? "raw materials" : "final products"} match the current search or filters.</p> : null}</div><TablePagination total={filteredItems.length} page={page} pageSize={pageSize} showPageSizeSelect={false} onPageChange={setPage} onPageSizeChange={() => undefined} /></>}
   </div>;
 }
