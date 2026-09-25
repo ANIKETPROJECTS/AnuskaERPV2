@@ -38,7 +38,15 @@ export const getManagerHrDataFn = createServerFn({ method: "GET" }).validator(ma
 export const getManagerHeadcountDataFn = createServerFn({ method: "GET" }).handler(() => getManagerHeadcountData());
 export const getManagerHeadcountHistoryFn = createServerFn({ method: "GET" })
   .validator(managerHeadcountHistorySchema)
-  .handler(({ data }) => getManagerHeadcountHistory(data));
+  .handler(({ data }) =>
+    getManagerHeadcountHistory({
+      rangeType: data.rangeType,
+      ...(data.date ? { date: data.date } : {}),
+      ...(data.startDate ? { startDate: data.startDate } : {}),
+      ...(data.endDate ? { endDate: data.endDate } : {}),
+      ...(data.month ? { month: data.month } : {}),
+    }),
+  );
 export const saveManagerHeadcountFn = createServerFn({ method: "POST" }).validator(headcountSchema).handler(({ data }) => saveManagerHeadcount(data));
 export const getEmployeeAttendanceHistoryFn = createServerFn({ method: "GET" }).validator(employeeHistorySchema).handler(({ data }) =>
   getEmployeeAttendanceHistory({

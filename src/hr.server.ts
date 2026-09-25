@@ -975,8 +975,8 @@ function adminReportBounds(input: {
     const startDate = mondayOfWeek(date);
     return { ok: true, startDate, endDate: earlierDate(addDays(startDate, 6), todayInIndia()) };
   }
-  const startDate = normalizeDate(input.startDate ?? "");
-  const requestedEndDate = normalizeDate(input.endDate ?? "");
+  const startDate = input.startDate ? normalizeDate(input.startDate) : "0001-01-01";
+  const requestedEndDate = input.endDate ? normalizeDate(input.endDate) : todayInIndia();
   if (!startDate || !requestedEndDate) return { ok: false, message: "Choose a valid start and end date." };
   if (startDate > requestedEndDate) return { ok: false, message: "The start date must be before the end date." };
   if (startDate > todayInIndia()) return { ok: false, message: "Choose a start date no later than today." };

@@ -12,8 +12,7 @@ export const Route = createFileRoute("/hr/history")({
 });
 
 type ReportRequest =
-  | { rangeType: "all" }
-  | { rangeType: "range"; startDate?: string; endDate?: string };
+  { rangeType: "all" } | { rangeType: "range"; startDate?: string; endDate?: string };
 
 const emptyReport: AdminHeadcountReport = {
   startDate: "",
@@ -117,7 +116,7 @@ function AdminHrHistoryPage() {
   return (
     <Shell
       title="Headcount history"
-      subtitle="Leave both dates blank to see all history, or choose a date range."
+      subtitle="Read-only daily attendance recorded by each SubHub."
       actions={
         <Link
           to="/hr"
@@ -143,7 +142,7 @@ function AdminHrHistoryPage() {
             <div className="min-w-0">
               <h2 className="text-lg font-semibold">Attendance by date</h2>
               <p className="mt-1 text-base text-muted-foreground">
-                Leave both dates blank to see all history, or choose a date range.
+                Leave both blank for all history. Use the same date twice for one day.
               </p>
             </div>
             <div className="flex flex-wrap items-end justify-end gap-2">
