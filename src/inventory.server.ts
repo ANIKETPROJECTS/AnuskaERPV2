@@ -94,10 +94,21 @@ export type QualityLog = {
   allocations?: Array<{ batchId: string; batchCode: string; quantity: number }>;
 };
 
+export type QualityHistoryRecord = {
+  id: string;
+  date: string;
+  code: string;
+  product: string;
+  category: InventoryCategory | null;
+  reason: string;
+  change: number;
+};
+
 export type SubhubInventoryData = {
   items: InventoryItem[];
   movements: InventoryMovement[];
   qualityLogs: QualityLog[];
+  qualityHistory: QualityHistoryRecord[];
   qualitySummary: {
     records: number;
     rejectedUnits: number;
@@ -142,6 +153,8 @@ type InventoryMovementDocument = {
   notes: string;
   sourceType?: "manual" | "procurement" | "production" | "float-production" | "quality";
   sourceId?: string;
+  category?: InventoryItemDocument["category"];
+  qualityManagementAdjustment?: boolean;
   createdAt: Date;
 };
 
@@ -242,7 +255,7 @@ type DeliveredProcurementDocument = {
 };
 
 function emptyData(): SubhubInventoryData {
-  return { items: [], movements: [], qualityLogs: [], qualitySummary: { records: 0, rejectedUnits: 0 }, batches: [], batchMovements: [], consistencyWarnings: [] };
+  return { items: [], movements: [], qualityLogs: [], qualityHistory: [], qualitySummary: { records: 0, rejectedUnits: 0 }, batches: [], batchMovements: [], consistencyWarnings: [] };
 }
 
 function restrictSubhubInventory(data: SubhubInventoryData): SubhubInventoryData {
@@ -833,6 +846,7 @@ async function applyInventoryDelta(input: {
   updatedBy: string;
   sourceType?: InventoryMovementDocument["sourceType"];
   sourceId?: string;
+  qualityManagementAdjustment?: boolean;
   movementType?: InventoryMovementType;
   session?: ClientSession | undefined;
   movementId?: string;
@@ -875,6 +889,7 @@ async function applyInventoryDelta(input: {
     notes: input.notes,
     ...(input.sourceType ? { sourceType: input.sourceType } : {}),
     ...(input.sourceId ? { sourceId: input.sourceId } : {}),
+    ...(input.qualityManagementAdjustment ? { category: input.category, qualityManagementAdjustment: true } : {}),
     createdAt: now,
   }, sessionOptions(input.session));
   return { currentQuantity, nextQuantity };
@@ -1273,17 +1288,58 @@ async function readSubhubInventory(user: UserDocument, workspaceDb: Db, consiste
   const includeItems = view === "inventory" || view === "quality" || view === "adjustment" || view === "all";
   const includeMovements = view === "all";
   const includeQuality = view === "quality" || view === "quality-history" || view === "all";
+  const includeQualityAdjustments = view === "quality-history";
   const includeBatches = view === "adjustment" || view === "batches" || view === "all";
   const includeBatchMovements = view === "history" || view === "all";
   if (includeItems) await ensureMasterInventoryItems(user, workspaceDb);
-  const [records, movements, qualityLogs, batches, batchMovements] = await Promise.all([
+  const [records, movements, qualityLogs, qualityAdjustmentMovements, batches, batchMovements] = await Promise.all([
     includeItems ? workspaceDb.collection<InventoryItemDocument>("inventory_items").find({}, { projection: { _id: 1, name: 1, category: 1, unit: 1, quantity: 1, price: 1, createdAt: 1, updatedAt: 1 } }).sort({ name: 1, _id: 1 }).toArray() : Promise.resolve([]),
     includeMovements ? workspaceDb.collection<InventoryMovementDocument>("inventory_movements").find({}, { projection: { _id: 1, createdAt: 1, type: 1, product: 1, code: 1, sourceId: 1, change: 1, balance: 1, reason: 1, notes: 1 } }).sort({ createdAt: -1 }).limit(200).toArray() : Promise.resolve([]),
     includeQuality ? workspaceDb.collection<QualityLogDocument>("quality_logs").find().sort({ createdAt: -1 }).toArray() : Promise.resolve([]),
+    includeQualityAdjustments
+      ? workspaceDb.collection<InventoryMovementDocument>("inventory_movements").find({
+          $or: [
+            { qualityManagementAdjustment: true },
+            { sourceType: "manual", notes: "Quality management adjustment" },
+          ],
+        }, {
+          projection: { _id: 1, createdAt: 1, product: 1, code: 1, change: 1, reason: 1, category: 1 },
+        }).sort({ createdAt: -1 }).toArray()
+      : Promise.resolve([]),
     includeBatches ? workspaceDb.collection<InventoryBatchDocument>("inventory_batches").find().sort({ createdAt: -1 }).toArray() : Promise.resolve([]),
     includeBatchMovements ? workspaceDb.collection<BatchMovementDocument>("inventory_batch_movements").find().sort({ createdAt: -1 }).limit(500).toArray() : Promise.resolve([]),
   ]);
   const serializedQualityLogs = qualityLogs.map(serializeQualityLog);
+  const uncategorizedCodes = [...new Set(qualityAdjustmentMovements.filter((movement) => !movement.category).map((movement) => movement.code))];
+  const adjustedItems = uncategorizedCodes.length
+    ? await workspaceDb.collection<InventoryItemDocument>("inventory_items")
+        .find({ _id: { $in: uncategorizedCodes } }, { projection: { _id: 1, category: 1 } })
+        .toArray()
+    : [];
+  const categoryByCode = new Map(adjustedItems.map((item) => [item._id, item.category]));
+  const qualityHistory: QualityHistoryRecord[] = [
+    ...serializedQualityLogs.map((log) => ({
+      id: log.id,
+      date: log.date,
+      code: log.code,
+      product: log.product,
+      category: log.category,
+      reason: log.issue,
+      change: -log.quantity,
+    })),
+    ...qualityAdjustmentMovements.map((movement) => {
+      const category = movement.category ?? categoryByCode.get(movement.code);
+      return {
+        id: movement._id,
+        date: movement.createdAt.toISOString(),
+        code: movement.code,
+        product: movement.product,
+        category: category ? normalizeInventoryCategory(category) : null,
+        reason: movement.reason,
+        change: movement.change,
+      };
+    }),
+  ].sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime());
   return {
     items: records.map(serializeInventoryItem),
     movements: movements.map((movement) => ({
@@ -1299,6 +1355,7 @@ async function readSubhubInventory(user: UserDocument, workspaceDb: Db, consiste
       notes: movement.notes,
     })),
     qualityLogs: serializedQualityLogs,
+    qualityHistory,
     qualitySummary: {
       records: serializedQualityLogs.length,
       rejectedUnits: serializedQualityLogs.reduce((sum, log) => sum + log.quantity, 0),
@@ -1446,6 +1503,7 @@ export async function adjustSubhubInventoryBatch(inputs: AdjustInventoryInput[])
             category: normalizeInventoryCategory(existing?.category), price: existing?.price ?? part?.rate ?? 0,
             change: delta,
             reason, notes: input.notes.trim(), updatedBy: user._id,
+            qualityManagementAdjustment: true,
             sourceType: "manual", sourceId: reference, session,
             movementId: createHash("sha256").update(`${reference}:aggregate`).digest("hex"),
           });

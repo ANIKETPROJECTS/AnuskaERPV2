@@ -15,7 +15,7 @@ export const Route = createFileRoute("/inventory")({
   component: InventoryRouteLayout,
 });
 
-const emptyData: SubhubInventoryData = { items: [], movements: [], qualityLogs: [], qualitySummary: { records: 0, rejectedUnits: 0 }, batches: [], batchMovements: [], consistencyWarnings: [] };
+const emptyData: SubhubInventoryData = { items: [], movements: [], qualityLogs: [], qualityHistory: [], qualitySummary: { records: 0, rejectedUnits: 0 }, batches: [], batchMovements: [], consistencyWarnings: [] };
 const qualityReasonOptions = [
   { value: "", label: "Select reason" },
   { value: "quantity-increase", label: "Stock went up" },
@@ -448,19 +448,19 @@ function QualityManagementHistory({ data, loading }: { data: SubhubInventoryData
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 25;
-  const reasons = useMemo(() => [...new Set(data.qualityLogs.map((log) => log.issue))].sort(), [data.qualityLogs]);
+  const reasons = useMemo(() => [...new Set(data.qualityHistory.map((log) => log.reason))].sort(), [data.qualityHistory]);
   const filteredLogs = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return data.qualityLogs
-      .filter((log) => category === "all" || qualityCategoryLabel(log.category) === category)
-      .filter((log) => reason === "all" || log.issue === reason)
+    return data.qualityHistory
+      .filter((log) => category === "all" || (log.category !== null && qualityCategoryLabel(log.category) === category))
+      .filter((log) => reason === "all" || log.reason === reason)
       .filter((log) => {
         const dateKey = qualityDateKey(log.date);
         return (!dateFrom || dateKey >= dateFrom) && (!dateTo || dateKey <= dateTo);
       })
-      .filter((log) => !normalizedQuery || `${log.product} ${log.code} ${log.issue}`.toLowerCase().includes(normalizedQuery))
+      .filter((log) => !normalizedQuery || `${log.product} ${log.code} ${log.reason}`.toLowerCase().includes(normalizedQuery))
       .sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime());
-  }, [data.qualityLogs, query, category, reason, dateFrom, dateTo]);
+  }, [data.qualityHistory, query, category, reason, dateFrom, dateTo]);
   const visibleLogs = filteredLogs.slice((page - 1) * pageSize, page * pageSize);
   const hasFilters = Boolean(query || category !== "all" || reason !== "all" || dateFrom || dateTo);
   useEffect(() => setPage(1), [query, category, reason, dateFrom, dateTo]);
@@ -544,11 +544,11 @@ function QualityManagementHistory({ data, loading }: { data: SubhubInventoryData
         ) : null}
       </div>
 
-      {data.qualityLogs.length === 0 ? (
+      {data.qualityHistory.length === 0 ? (
         <div className="py-10 text-center">
           <ShieldAlert className="mx-auto size-8 text-muted-foreground" />
-          <p className="mt-3 text-base font-medium">No quality issues recorded</p>
-          <p className="mt-1 text-base text-muted-foreground">Saved quality adjustments will appear here.</p>
+          <p className="mt-3 text-base font-medium">No quality history recorded</p>
+          <p className="mt-1 text-base text-muted-foreground">Saved quality issues and stock count changes will appear here.</p>
         </div>
       ) : filteredLogs.length === 0 ? (
         <p className="border-y border-dashed border-border p-8 text-center text-base text-muted-foreground">
@@ -565,7 +565,7 @@ function QualityManagementHistory({ data, loading }: { data: SubhubInventoryData
                   <th className="px-4 py-3 text-left font-semibold">Item code</th>
                   <th className="px-4 py-3 text-center font-semibold">Type</th>
                   <th className="px-4 py-3 text-left font-semibold">Reason</th>
-                  <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">Rejected units</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">Quantity change</th>
                 </tr>
               </thead>
               <tbody>
@@ -574,9 +574,11 @@ function QualityManagementHistory({ data, loading }: { data: SubhubInventoryData
                     <td className="tabular whitespace-nowrap px-4 py-4 text-center text-sm text-muted-foreground">{formatQualityDateTime(log.date)}</td>
                     <td className="px-4 py-4 font-medium">{log.product}</td>
                     <td className="tabular whitespace-nowrap px-4 py-4 text-sm text-muted-foreground">{log.code}</td>
-                    <td className="whitespace-nowrap px-4 py-4 text-center text-sm">{qualityCategoryLabel(log.category)}</td>
-                    <td className="px-4 py-4">{log.issue}</td>
-                    <td className="tabular px-4 py-4 text-center font-semibold text-destructive">-{num(log.quantity)}</td>
+                    <td className="whitespace-nowrap px-4 py-4 text-center text-sm">{log.category ? qualityCategoryLabel(log.category) : "Unknown"}</td>
+                    <td className="px-4 py-4">{log.reason}</td>
+                    <td className={`tabular px-4 py-4 text-center font-semibold ${log.change < 0 ? "text-destructive" : "text-success"}`}>
+                      {log.change > 0 ? `+${num(log.change)}` : num(log.change)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
