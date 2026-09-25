@@ -265,10 +265,10 @@ function RequestItemsHistoryPage() {
 function RequestStatus({ status }: { status: ProcurementItemRequest["status"] }) {
   const style =
     status === "Approved"
-      ? "bg-success text-success-foreground"
+      ? "bg-green-700 text-white"
       : status === "Declined"
-        ? "bg-destructive text-destructive-foreground"
-        : "bg-warning text-warning-foreground";
+        ? "bg-red-700 text-white"
+        : "bg-[#8b6f00] text-white";
 
   return (
     <span className={`rounded-full px-2.5 py-1 text-sm font-semibold ${style}`}>{status}</span>

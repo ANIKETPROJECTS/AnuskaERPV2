@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   Truck,
   Users,
-  LogOut,
   Database,
   UserCog,
   UserRoundCog,
@@ -19,6 +18,7 @@ import { logoutFn } from "@/auth";
 import { canAccess, useAuth } from "@/components/auth/AuthContext";
 import factoryIcon from "../../../attached_assets/factory_1790353346567.png";
 import { NotificationBell } from "./HeaderTools";
+import { SignOutButton } from "./SignOutButton";
 import { SidebarDateTime } from "./SidebarDateTime";
 
 const nav = [
@@ -32,7 +32,12 @@ const nav = [
   { to: "/production", label: "Production & Workforce", icon: Users, permission: "production" },
   { to: "/admin/users", label: "User Management", icon: UserCog, permission: "user-management" },
   { to: "/hr", label: "HR & Attendance", icon: UserRoundCog, permission: "hr" },
-  { to: "/quality-management", label: "Quality Management", icon: ShieldAlert, permission: "quality-management" },
+  {
+    to: "/quality-management",
+    label: "Quality Management",
+    icon: ShieldAlert,
+    permission: "quality-management",
+  },
 ] as const;
 
 export function Shell({
@@ -50,12 +55,13 @@ export function Shell({
   const router = useRouter();
   const { user } = useAuth();
   const visibleNav = nav.filter((item) => canAccess(user, item.permission));
-  const initials = user?.name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase() || "FA";
+  const initials =
+    user?.name
+      .split(" ")
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "FA";
 
   async function signOut() {
     await logoutFn({ data: { panel: user?.panel === "procurement" ? "procurement" : "admin" } });
@@ -68,7 +74,11 @@ export function Shell({
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
         <div className="flex items-center gap-3 border-b border-sidebar-border px-4 py-4">
           <div className="flex min-w-0 items-center gap-3">
-            <img src={factoryIcon} alt="Gadsons" className="size-10 shrink-0 rounded-md bg-white p-1 object-contain" />
+            <img
+              src={factoryIcon}
+              alt="Gadsons"
+              className="size-10 shrink-0 rounded-md bg-white p-1 object-contain"
+            />
             <div className="min-w-0 leading-tight">
               <p className="text-base font-semibold">Gadsons</p>
               <p className="truncate text-sm text-muted-foreground">Water Purifier Parts ERP</p>
@@ -77,15 +87,23 @@ export function Shell({
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Modules</p>
+          <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Modules
+          </p>
           {visibleNav.map((item) => {
-            const destination = user?.panel === "procurement" && item.permission === "procurement" ? "/procurement-management" : item.to;
-            const active = destination === "/" ? pathname === "/" : pathname.startsWith(destination);
+            const destination =
+              user?.panel === "procurement" && item.permission === "procurement"
+                ? "/procurement-management"
+                : item.to;
+            const active =
+              destination === "/" ? pathname === "/" : pathname.startsWith(destination);
             return (
               <Link
                 key={item.to}
                 to={destination}
-                search={item.permission === "procurement" ? { panel: user?.panel ?? "admin" } : undefined}
+                search={
+                  item.permission === "procurement" ? { panel: user?.panel ?? "admin" } : undefined
+                }
                 className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-base leading-snug transition-colors ${
                   active
                     ? "bg-sidebar-accent font-medium text-sidebar-primary"
@@ -111,15 +129,10 @@ export function Shell({
                 {user?.role === "master_admin" ? "Master Admin" : user?.role} · Secure session
               </p>
             </div>
-            <button
-              type="button"
-              aria-label="Sign out"
-              title="Sign out"
-              onClick={signOut}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
-            >
-              <LogOut className="size-5" />
-            </button>
+            <SignOutButton
+              panel={user?.panel === "procurement" ? "Procurement" : "Admin"}
+              onConfirm={signOut}
+            />
           </div>
         </div>
       </aside>
@@ -138,8 +151,16 @@ export function Shell({
             {visibleNav.map((item) => (
               <Link
                 key={item.to}
-                to={user?.panel === "procurement" && item.permission === "procurement" ? "/procurement-management" : item.to}
-                search={item.permission === "procurement" && user?.panel !== "procurement" ? { panel: user?.panel ?? "admin" } : undefined}
+                to={
+                  user?.panel === "procurement" && item.permission === "procurement"
+                    ? "/procurement-management"
+                    : item.to
+                }
+                search={
+                  item.permission === "procurement" && user?.panel !== "procurement"
+                    ? { panel: user?.panel ?? "admin" }
+                    : undefined
+                }
                 className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted-foreground"
                 activeProps={{ className: "bg-secondary text-foreground font-medium" }}
               >

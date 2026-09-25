@@ -4,7 +4,6 @@ import {
   ClipboardList,
   Database,
   Layers,
-  LogOut,
   PackageOpen,
   ShoppingCart,
   UserRoundCog,
@@ -13,6 +12,7 @@ import type { ReactNode } from "react";
 import { logoutFn } from "@/auth";
 import { canAccess, useAuth } from "@/components/auth/AuthContext";
 import factoryIcon from "../../../attached_assets/factory_1790353346567.png";
+import { SignOutButton } from "./SignOutButton";
 import { SidebarDateTime } from "./SidebarDateTime";
 
 const subhubNav = [
@@ -121,15 +121,7 @@ export function SubHubShell({
             <div className="min-w-0 flex-1 leading-tight">
               <p className="truncate text-base font-medium">{user?.name}</p>
             </div>
-            <button
-              type="button"
-              aria-label="Sign out"
-              title="Sign out"
-              onClick={signOut}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
-            >
-              <LogOut className="size-5" />
-            </button>
+            <SignOutButton panel="SubHub" onConfirm={signOut} />
           </div>
         </div>
       </aside>
