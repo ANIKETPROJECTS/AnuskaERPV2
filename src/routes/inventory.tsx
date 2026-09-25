@@ -316,7 +316,7 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
                         <p className="tabular text-sm text-muted-foreground">{item.code}</p>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-center">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-sm font-medium ${item.category === "Float" ? "bg-primary/10 text-primary" : "bg-secondary text-secondary-foreground"}`}>
+                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-base font-semibold text-white ${item.category === "Float" ? "bg-blue-600" : "bg-emerald-600"}`}>
                           {item.category === "Float" ? "Final product" : "Raw material"}
                         </span>
                       </td>
