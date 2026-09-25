@@ -62,19 +62,18 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
 
   return (
     <SubHubShell
-      headerTitle="Inventory"
       actions={
-        <nav aria-label="Inventory modules" className="ml-auto flex min-w-0 items-center justify-end gap-x-2 overflow-x-auto">
-          <Link to="/inventory/raw-materials" aria-current={view === "raw-materials" ? "page" : undefined} className={`inline-flex min-h-9 shrink-0 items-center whitespace-nowrap border-b-2 px-0.5 text-base transition-colors ${view === "raw-materials" ? "border-primary font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:text-foreground"}`}>
+        <nav aria-label="Inventory modules" className="flex w-full min-w-0 flex-1 items-stretch divide-x divide-border overflow-x-auto">
+          <Link to="/inventory/raw-materials" aria-current={view === "raw-materials" ? "page" : undefined} className={`inline-flex min-h-10 min-w-[170px] flex-1 items-center justify-center whitespace-nowrap border-b-2 px-1 text-center text-sm transition-colors xl:text-base ${view === "raw-materials" ? "border-primary bg-primary/5 font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"}`}>
             Raw Materials Inventory
           </Link>
-          <Link to="/inventory/final-products" aria-current={view === "final-products" ? "page" : undefined} className={`inline-flex min-h-9 shrink-0 items-center whitespace-nowrap border-b-2 px-0.5 text-base transition-colors ${view === "final-products" ? "border-primary font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:text-foreground"}`}>
+          <Link to="/inventory/final-products" aria-current={view === "final-products" ? "page" : undefined} className={`inline-flex min-h-10 min-w-[170px] flex-1 items-center justify-center whitespace-nowrap border-b-2 px-1 text-center text-sm transition-colors xl:text-base ${view === "final-products" ? "border-primary bg-primary/5 font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"}`}>
             Final Product Inventory
           </Link>
-          <Link to="/inventory/quality" aria-current={view === "quality" ? "page" : undefined} className={`inline-flex min-h-9 shrink-0 items-center whitespace-nowrap border-b-2 px-0.5 text-base transition-colors ${view === "quality" ? "border-primary font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:text-foreground"}`}>
+          <Link to="/inventory/quality" aria-current={view === "quality" ? "page" : undefined} className={`inline-flex min-h-10 min-w-[170px] flex-1 items-center justify-center whitespace-nowrap border-b-2 px-1 text-center text-sm transition-colors xl:text-base ${view === "quality" ? "border-primary bg-primary/5 font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"}`}>
             Quality Management
           </Link>
-          <Link to="/inventory/quality-history" aria-current={view === "quality-history" ? "page" : undefined} className={`inline-flex min-h-9 shrink-0 items-center whitespace-nowrap border-b-2 px-0.5 text-base transition-colors ${view === "quality-history" ? "border-primary font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:text-foreground"}`}>
+          <Link to="/inventory/quality-history" aria-current={view === "quality-history" ? "page" : undefined} className={`inline-flex min-h-10 min-w-[170px] flex-1 items-center justify-center whitespace-nowrap border-b-2 px-1 text-center text-sm transition-colors xl:text-base ${view === "quality-history" ? "border-primary bg-primary/5 font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"}`}>
             Quality Management History
           </Link>
         </nav>
@@ -410,15 +409,51 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
   );
 }
 
+function formatQualityDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Kolkata",
+    timeZoneName: "short",
+  }).format(date);
+}
+
 function QualityManagementHistory({ data, loading }: { data: SubhubInventoryData; loading: boolean }) {
-  if (loading) return <p className="py-8 text-center text-sm text-muted-foreground">Loading quality history…</p>;
+  if (loading) return <p className="py-8 text-center text-base text-muted-foreground">Loading quality history…</p>;
   if (data.qualityLogs.length === 0) {
-    return <div className="py-10 text-center"><ShieldAlert className="mx-auto size-8 text-muted-foreground" /><p className="mt-3 font-medium">No quality issues recorded</p><p className="mt-1 text-sm text-muted-foreground">Saved quality adjustments will appear here.</p></div>;
+    return <div className="py-10 text-center"><ShieldAlert className="mx-auto size-8 text-muted-foreground" /><p className="mt-3 text-base font-medium">No quality issues recorded</p><p className="mt-1 text-base text-muted-foreground">Saved quality adjustments will appear here.</p></div>;
   }
   return <div className="w-full overflow-x-auto">
-    <table className="w-full min-w-[820px] text-sm">
-      <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">Item</th><th className="px-5 py-3 font-medium">Issue</th><th className="px-5 py-3 text-right font-medium">Rejected</th><th className="px-5 py-3 text-right font-medium">Balance</th><th className="px-5 py-3 font-medium">Notes</th></tr></thead>
-      <tbody>{data.qualityLogs.map((log) => <tr key={log.id} className="border-b border-border/70 last:border-0"><td className="tabular whitespace-nowrap px-5 py-3 text-xs text-muted-foreground">{log.date.slice(0, 16).replace("T", " ")}</td><td className="px-5 py-3"><p className="font-medium">{log.product}</p><p className="tabular text-xs text-muted-foreground">{log.code} · {log.category}</p></td><td className="px-5 py-3"><Tag tone="bad">{log.issue}</Tag></td><td className="tabular px-5 py-3 text-right font-semibold text-destructive">-{num(log.quantity)}</td><td className="tabular px-5 py-3 text-right">{num(log.afterQuantity)}</td><td className="max-w-xs truncate px-5 py-3 text-muted-foreground">{log.notes || "—"}</td></tr>)}</tbody>
+    <table className="w-full min-w-[980px] text-base">
+      <thead className="border-b border-border bg-muted/30 text-center text-sm uppercase tracking-wide text-muted-foreground">
+        <tr>
+          <th className="px-4 py-3 font-semibold">Date &amp; time</th>
+          <th className="px-4 py-3 text-left font-semibold">Item</th>
+          <th className="px-4 py-3 font-semibold">Issue</th>
+          <th className="px-4 py-3 font-semibold">Rejected units</th>
+          <th className="px-4 py-3 text-left font-semibold">Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.qualityLogs.map((log) => (
+          <tr key={log.id} className="border-b border-border/70 last:border-0">
+            <td className="tabular whitespace-nowrap px-4 py-4 text-center text-sm text-muted-foreground">{formatQualityDateTime(log.date)}</td>
+            <td className="px-4 py-4">
+              <p className="font-medium">{log.product}</p>
+              <p className="tabular text-sm text-muted-foreground">{log.code} · {log.category}</p>
+            </td>
+            <td className="px-4 py-4 text-center"><Tag tone="bad">{log.issue}</Tag></td>
+            <td className="tabular px-4 py-4 text-center font-semibold text-destructive">-{num(log.quantity)}</td>
+            <td className="max-w-sm px-4 py-4 text-muted-foreground">{log.notes || "—"}</td>
+          </tr>
+        ))}
+      </tbody>
     </table>
   </div>;
 }
