@@ -172,12 +172,12 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
       .sort((a, b) => {
         if (sortBy === "orderDate-asc") return a.orderDate.localeCompare(b.orderDate);
         if (sortBy === "delivery-asc") return a.expectedDelivery.localeCompare(b.expectedDelivery);
-        if (sortBy === "amount-desc") return b.totalAmount - a.totalAmount;
+        if (sortBy === "amount-desc" && panel !== "subhub") return b.totalAmount - a.totalAmount;
         if (sortBy === "quantity-desc") return b.quantity - a.quantity;
         if (sortBy === "vendor-asc") return a.vendorName.localeCompare(b.vendorName);
         return b.orderDate.localeCompare(a.orderDate);
       });
-  }, [data.orders, fromDate, orderDate, query, sortBy, statusFilter, subhubFilter, toDate, vendorFilter]);
+  }, [data.orders, fromDate, orderDate, panel, query, sortBy, statusFilter, subhubFilter, toDate, vendorFilter]);
 
   useEffect(() => {
     setOrderPage(1);
@@ -197,7 +197,7 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
 
   const selectedVendor = data.vendors.find((vendor) => vendor.id === selectedVendorId);
   const selectedVendorOrders = selectedVendorId ? data.orders.filter((order) => order.vendorId === selectedVendorId) : [];
-  const hasFilters = Boolean(query || vendorFilter !== "all" || subhubFilter !== "all" || statusFilter !== "all" || sortBy !== "orderDate-desc" || orderDate || fromDate || toDate);
+  const hasFilters = Boolean(query || vendorFilter !== "all" || subhubFilter !== "all" || statusFilter !== "all" || (sortBy !== "orderDate-desc" && !(panel === "subhub" && sortBy === "amount-desc")) || orderDate || fromDate || toDate);
 
   function clearFilters() {
     setQuery("");
@@ -498,7 +498,7 @@ function OrderFilters({
         <SelectFilter label="Vendor" value={vendorFilter} onChange={setVendorFilter}><option value="all">All vendors</option>{vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</SelectFilter>
         {subhubs.length ? <SelectFilter label="SubHub" value={subhubFilter} onChange={setSubhubFilter}><option value="all">All SubHubs</option>{subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.name}</option>)}</SelectFilter> : null}
         <SelectFilter label="Status" value={statusFilter} onChange={(value) => setStatusFilter(value as ProcurementStatus | "all")}><option value="all">All statuses</option>{PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</SelectFilter>
-         <SelectFilter label="Sort" value={sortBy} onChange={(value) => setSortBy(value as SortKey)}><option value="orderDate-desc">Newest order date</option><option value="orderDate-asc">Oldest order date</option><option value="delivery-asc">Expected delivery</option>{panel !== "subhub" ? <option value="amount-desc">Highest amount</option> : null}<option value="quantity-desc">Highest quantity</option><option value="vendor-asc">Vendor A–Z</option></SelectFilter>
+         <SelectFilter label="Sort" value={panel === "subhub" && sortBy === "amount-desc" ? "orderDate-desc" : sortBy} onChange={(value) => setSortBy(value as SortKey)}><option value="orderDate-desc">Newest order date</option><option value="orderDate-asc">Oldest order date</option><option value="delivery-asc">Expected delivery</option>{panel !== "subhub" ? <option value="amount-desc">Highest amount</option> : null}<option value="quantity-desc">Highest quantity</option><option value="vendor-asc">Vendor A–Z</option></SelectFilter>
         <DateFilter label="Exact order date" value={orderDate} onChange={setOrderDate} />
         <DateFilter label="From" value={fromDate} onChange={setFromDate} />
         <DateFilter label="To" value={toDate} onChange={setToDate} />

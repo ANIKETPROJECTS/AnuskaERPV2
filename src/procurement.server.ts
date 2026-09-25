@@ -272,10 +272,13 @@ function toVendor(document: VendorDocument): ProcurementVendor {
   };
 }
 
-function toOrder(document: ProcurementOrderDocument): ProcurementOrder {
-  const items = document.items?.length
+function toOrder(document: ProcurementOrderDocument, redactFinancials = false): ProcurementOrder {
+  const sourceItems = document.items?.length
     ? document.items
     : [{ materialCode: document.materialCode, materialName: document.materialName, quantity: document.quantity, unitPrice: document.unitPrice, totalAmount: document.totalAmount }];
+  const items = redactFinancials
+    ? sourceItems.map((item) => ({ ...item, unitPrice: 0, totalAmount: 0 }))
+    : sourceItems;
   return {
     id: document._id,
     orderNumber: document.orderNumber,
@@ -287,8 +290,8 @@ function toOrder(document: ProcurementOrderDocument): ProcurementOrder {
     materialName: document.materialName,
     items,
     quantity: items.reduce((sum, item) => sum + item.quantity, 0),
-    unitPrice: document.unitPrice,
-    totalAmount: document.totalAmount,
+    unitPrice: redactFinancials ? 0 : document.unitPrice,
+    totalAmount: redactFinancials ? 0 : document.totalAmount,
     orderDate: dateOnly(document.orderDate),
     expectedDelivery: dateOnly(document.expectedDelivery),
     notes: document.notes,
@@ -484,7 +487,7 @@ export async function getProcurementData(requestedPanel?: Panel): Promise<
       .sort({ createdAt: -1 })
       .toArray();
     const vendors = panel === "subhub" ? [] : vendorDocuments.map(toVendor);
-    const orders = orderDocuments.map(toOrder);
+    const orders = orderDocuments.map((order) => toOrder(order, panel === "subhub"));
     const completedOrders = orders.filter((order) => order.status === "Delivery done");
     const pendingOrders = orders.length - completedOrders.length;
     const deliveredOnTime = completedOrders.filter((order) => {
@@ -514,15 +517,15 @@ export async function getProcurementData(requestedPanel?: Panel): Promise<
         vendors,
         orders,
         subhubs: subhubDocuments.map((subhub) => ({ id: subhub._id, name: subhub.subhubName ? `${subhub.subhubName} · ${subhub.name}` : subhub.name })),
-        vendorPerformance: calculatePerformance(orders),
-        subhubSummary: [...subhubMap.values()].sort((a, b) => b.spend - a.spend),
+        vendorPerformance: panel === "subhub" ? [] : calculatePerformance(orders),
+        subhubSummary: panel === "subhub" ? [] : [...subhubMap.values()].sort((a, b) => b.spend - a.spend),
         materialNeeds: panel === "subhub" ? [] : await calculateHubMaterialNeeds(db, subhubDocuments as UserDocument[], orderDocuments),
         itemRequests: itemRequestDocuments.map(toItemRequest),
         summary: {
           vendorCount: vendors.filter((vendor) => vendor.status === "active").length,
           openOrders: pendingOrders,
           unitsOnOrder: orders.filter((order) => order.status !== "Delivery done").reduce((sum, order) => sum + order.quantity, 0),
-          committedSpend: orders.filter((order) => order.status !== "Delivery done").reduce((sum, order) => sum + order.totalAmount, 0),
+          committedSpend: panel === "subhub" ? 0 : orders.filter((order) => order.status !== "Delivery done").reduce((sum, order) => sum + order.totalAmount, 0),
           completedOrders: completedOrders.length,
           pendingOrders,
           onTimeRate: completedOrders.length ? Math.round((deliveredOnTime / completedOrders.length) * 100) : null,
@@ -872,7 +875,7 @@ export async function getProcurementOrder(id: string, panel: Panel): Promise<
     const order = await db.collection<ProcurementOrderDocument>("procurement_orders").findOne(
       panel === "subhub" ? { _id: id, subhubUserId: user._id } : { _id: id },
     );
-    return order ? { ok: true, order: toOrder(order) } : { ok: false, message: "Procurement order not found." };
+    return order ? { ok: true, order: toOrder(order, panel === "subhub") } : { ok: false, message: "Procurement order not found." };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : "Procurement order could not be loaded." };
   }
