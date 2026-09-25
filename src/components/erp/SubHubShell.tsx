@@ -16,10 +16,10 @@ import { SignOutButton } from "./SignOutButton";
 import { SidebarDateTime } from "./SidebarDateTime";
 
 const subhubNav = [
-  { to: "/inventory", label: "Inventory and quality", permission: "inventory", icon: PackageOpen },
+  { to: "/inventory", label: "Inventory and Quality", permission: "inventory", icon: PackageOpen },
   {
     to: "/subhub/production",
-    label: "Hub production",
+    label: "Hub Production",
     permission: "hub-manager",
     icon: ClipboardCheck,
   },
