@@ -1,5 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { AlertTriangle, Check, ClipboardCheck, Minus, Plus, RefreshCw, Save, Settings2 } from "lucide-react";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { AlertTriangle, ArrowRight, Check, ClipboardCheck, FileBarChart, Minus, Plus, RefreshCw, Save, Settings2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { getManagerProductionDataFn, previewProductionBatchAllocationFn, saveDailyProductionFn, setHubCapacityFn } from "@/production";
@@ -29,6 +29,13 @@ function today() {
 }
 
 function HubManagerProduction() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  return pathname.replace(/\/+$/, "") === "/subhub/production"
+    ? <DailyProductionManager />
+    : <Outlet />;
+}
+
+function DailyProductionManager() {
   const { user } = useAuth();
   const [data, setData] = useState(emptyData);
   const [selectedDate, setSelectedDate] = useState(today());
@@ -181,6 +188,46 @@ function HubManagerProduction() {
     setSaving(false);
   }
 
+  const assignedOrdersSection = (
+    <div className="rounded-xl border border-border bg-white shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4">
+        <div>
+          <h2 className="font-semibold">Assigned orders for {selectedDate}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Enter the finished quantity for each target. Material usage is calculated from the BOM recipe and consumed automatically when you save.</p>
+        </div>
+        <button type="button" disabled={loading} onClick={() => void load()} className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm disabled:opacity-50"><RefreshCw className="size-4" /> Refresh assignments</button>
+      </div>
+      {loading ? (
+        <p className="p-8 text-center text-sm text-muted-foreground">Loading assignments…</p>
+      ) : data.orders.length === 0 ? (
+        <div className="p-10 text-center">
+          <ClipboardCheck className="mx-auto size-8 text-muted-foreground" />
+          <p className="mt-3 font-medium">No orders assigned to this SubHub</p>
+          <p className="mt-1 text-sm text-muted-foreground">The Master Admin will assign production targets here when work is ready.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr><th className="px-5 py-3 font-medium">Order / product</th><th className="px-5 py-3 text-right font-medium">Target</th><th className="px-5 py-3 text-center font-medium">Produced on date</th><th className="px-5 py-3 text-right font-medium">Total to date</th><th className="px-5 py-3 text-right font-medium">Status</th></tr>
+            </thead>
+            <tbody>
+              {data.orders.map((order) => (
+                <ProductionRow
+                  key={order.id}
+                  order={order}
+                  quantity={quantities[order.id] ?? 0}
+                  selectedDate={selectedDate}
+                  onChange={(value) => updateQuantity(order.id, value)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <SubHubShell>
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-white px-6 py-5">
@@ -200,6 +247,7 @@ function HubManagerProduction() {
 
       <section className="space-y-6 p-6">
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+        {assignedOrdersSection}
         <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -244,45 +292,6 @@ function HubManagerProduction() {
         </div>
         {demoMode ? <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning"><strong>Demo data:</strong> No live orders are available yet. This sample order is only for testing the screens.</div> : null}
 
-        <div className="flex justify-end">
-          <button type="button" onClick={() => void load()} className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><RefreshCw className="size-4" /> Refresh assignments</button>
-        </div>
-
-        <div className="rounded-xl border border-border bg-white shadow-sm">
-          <div className="border-b border-border px-5 py-4">
-            <h2 className="font-semibold">Assigned orders for {selectedDate}</h2>
-             <p className="mt-1 text-sm text-muted-foreground">Enter the finished quantity for each target. Material usage is calculated from the BOM recipe and consumed automatically when you save.</p>
-          </div>
-          {loading ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">Loading assignments…</p>
-          ) : data.orders.length === 0 ? (
-            <div className="p-10 text-center">
-              <ClipboardCheck className="mx-auto size-8 text-muted-foreground" />
-              <p className="mt-3 font-medium">No orders assigned to this SubHub</p>
-              <p className="mt-1 text-sm text-muted-foreground">The Master Admin will assign production targets here when work is ready.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-sm">
-                <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr><th className="px-5 py-3 font-medium">Order / product</th><th className="px-5 py-3 text-right font-medium">Target</th><th className="px-5 py-3 text-center font-medium">Produced on date</th><th className="px-5 py-3 text-right font-medium">Total to date</th><th className="px-5 py-3 text-right font-medium">Status</th></tr>
-                </thead>
-                  <tbody>
-                    {data.orders.map((order) => (
-                      <ProductionRow
-                        key={order.id}
-                        order={order}
-                        quantity={quantities[order.id] ?? 0}
-                        selectedDate={selectedDate}
-                        onChange={(value) => updateQuantity(order.id, value)}
-                      />
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
         {data.orders.length ? (
           <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
             <label className="block text-sm font-medium">Day-end notes <span className="font-normal text-muted-foreground">(optional)</span>
@@ -295,7 +304,21 @@ function HubManagerProduction() {
           </div>
         ) : null}
 
-        <ReportsHistory reports={data.reports} orders={data.orders} />
+        <Link
+          to="/subhub/reports"
+          className="group flex flex-col gap-4 rounded-xl border border-border bg-white p-5 shadow-sm transition-colors hover:border-primary/40 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><FileBarChart className="size-5" /></span>
+            <div>
+              <h2 className="font-semibold">Saved day reports</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Search, sort, and filter your saved production reports.</p>
+            </div>
+          </div>
+          <span className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground group-hover:bg-primary/90">
+            View reports <ArrowRight className="size-4" />
+          </span>
+        </Link>
       </section>
     </SubHubShell>
   );
@@ -319,13 +342,12 @@ function ProductionRow({
         <a href={`/subhub/production/orders/${encodeURIComponent(order.id)}`} className="mt-1 block font-medium text-primary hover:underline">{order.variantName}</a>
         <p className="tabular text-xs text-muted-foreground">{order.orderNumber} · {order.variantCode}</p>
         <p className="mt-1 text-xs text-muted-foreground">Due {order.dueDate}</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <a href={`/subhub/production/orders/${encodeURIComponent(order.id)}`} className="inline-flex items-center rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted">Order details</a>
+        <div className="mt-3 flex gap-2">
           <Link
             to="/subhub/production/allocation/$orderId"
             params={{ orderId: order.id }}
             search={{ date: selectedDate, quantity }}
-            className="inline-flex items-center rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted"
+            className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted"
           >
             Material allocation
           </Link>
@@ -348,16 +370,6 @@ function isManualValid(preview: ProductionAllocationPreview | undefined, rows: P
 
 function allocationStorageKey(orderId: string, date: string) {
   return `subhub:production-allocation:${orderId}:${date}`;
-}
-
-function ReportsHistory({ reports, orders }: { reports: ManagerProductionData["reports"]; orders: ProductionOrder[] }) {
-  const orderNames = new Map(orders.map((order) => [order.id, order]));
-  return (
-    <div className="rounded-xl border border-border bg-white shadow-sm">
-      <div className="border-b border-border px-5 py-4"><h2 className="font-semibold">Saved day reports</h2><p className="mt-1 text-sm text-muted-foreground">Reports are stored inside this SubHub workspace.</p></div>
-      {reports.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">No day reports saved yet.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">Order</th><th className="px-5 py-3 text-right font-medium">Produced</th><th className="px-5 py-3 font-medium">Notes</th><th className="px-5 py-3 text-right font-medium">Updated</th></tr></thead><tbody>{reports.slice(0, 30).map((report) => <tr key={report.id} className="border-b border-border/70 last:border-0"><td className="tabular px-5 py-3">{report.date}</td><td className="px-5 py-3">{orderNames.get(report.orderId)?.variantName ?? "Archived order"}</td><td className="tabular px-5 py-3 text-right font-semibold">{num(report.quantity)}</td><td className="max-w-xs truncate px-5 py-3 text-muted-foreground">{report.notes || "—"}</td><td className="tabular px-5 py-3 text-right text-xs text-muted-foreground">{report.updatedAt.slice(0, 10)}</td></tr>)}</tbody></table></div>}
-    </div>
-  );
 }
 
 function Stat({ label, value, helper, tone }: { label: string; value: string; helper: string; tone: string }) {
