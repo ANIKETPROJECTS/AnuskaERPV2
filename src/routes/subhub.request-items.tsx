@@ -126,15 +126,15 @@ function RequestItemsPage() {
           </p>
         ) : null}
 
-        <section className="panel overflow-hidden">
-          <header className="border-b border-border px-5 py-4">
+        <section className="min-w-0">
+          <header className="border-b border-border py-4">
             <h2 className="text-lg font-semibold">Request an item</h2>
             <p className="mt-1 text-base text-muted-foreground">
               Choose a suggested item or enter another one. Procurement Management will review it.
             </p>
           </header>
 
-          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-border px-5 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-border py-3">
             <h3 className="text-base font-semibold">My item requests</h3>
             <div className="flex flex-wrap gap-x-5 gap-y-1 text-base">
               <span>
@@ -152,7 +152,7 @@ function RequestItemsPage() {
           <form
             id="subhub-item-request-form"
             onSubmit={(event) => void submit(event)}
-            className="space-y-5 p-5 sm:p-6"
+            className="space-y-5 py-5"
           >
             <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
               <label className="block text-base font-medium">
