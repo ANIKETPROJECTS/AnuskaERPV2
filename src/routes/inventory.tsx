@@ -64,16 +64,16 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
     <SubHubShell
       actions={
         <nav aria-label="Inventory modules" className="flex w-full min-w-0 flex-1 items-stretch divide-x divide-border overflow-x-auto">
-          <Link to="/inventory/raw-materials" aria-current={view === "raw-materials" ? "page" : undefined} className={`inline-flex min-h-10 min-w-[170px] flex-1 items-center justify-center whitespace-nowrap border-b-2 px-1 text-center text-sm transition-colors xl:text-base ${view === "raw-materials" ? "border-primary bg-primary/5 font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"}`}>
+          <Link to="/inventory/raw-materials" aria-current={view === "raw-materials" ? "page" : undefined} className={`inline-flex min-h-10 min-w-[170px] flex-1 items-center justify-center whitespace-nowrap px-1 text-center text-sm transition-colors xl:text-base ${view === "raw-materials" ? "font-semibold text-primary" : "font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"}`}>
             Raw Materials Inventory
           </Link>
-          <Link to="/inventory/final-products" aria-current={view === "final-products" ? "page" : undefined} className={`inline-flex min-h-10 min-w-[170px] flex-1 items-center justify-center whitespace-nowrap border-b-2 px-1 text-center text-sm transition-colors xl:text-base ${view === "final-products" ? "border-primary bg-primary/5 font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"}`}>
+          <Link to="/inventory/final-products" aria-current={view === "final-products" ? "page" : undefined} className={`inline-flex min-h-10 min-w-[170px] flex-1 items-center justify-center whitespace-nowrap px-1 text-center text-sm transition-colors xl:text-base ${view === "final-products" ? "font-semibold text-primary" : "font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"}`}>
             Final Product Inventory
           </Link>
-          <Link to="/inventory/quality" aria-current={view === "quality" ? "page" : undefined} className={`inline-flex min-h-10 min-w-[170px] flex-1 items-center justify-center whitespace-nowrap border-b-2 px-1 text-center text-sm transition-colors xl:text-base ${view === "quality" ? "border-primary bg-primary/5 font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"}`}>
+          <Link to="/inventory/quality" aria-current={view === "quality" ? "page" : undefined} className={`inline-flex min-h-10 min-w-[170px] flex-1 items-center justify-center whitespace-nowrap px-1 text-center text-sm transition-colors xl:text-base ${view === "quality" ? "font-semibold text-primary" : "font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"}`}>
             Quality Management
           </Link>
-          <Link to="/inventory/quality-history" aria-current={view === "quality-history" ? "page" : undefined} className={`inline-flex min-h-10 min-w-[170px] flex-1 items-center justify-center whitespace-nowrap border-b-2 px-1 text-center text-sm transition-colors xl:text-base ${view === "quality-history" ? "border-primary bg-primary/5 font-semibold text-primary" : "border-transparent font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"}`}>
+          <Link to="/inventory/quality-history" aria-current={view === "quality-history" ? "page" : undefined} className={`inline-flex min-h-10 min-w-[170px] flex-1 items-center justify-center whitespace-nowrap px-1 text-center text-sm transition-colors xl:text-base ${view === "quality-history" ? "font-semibold text-primary" : "font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"}`}>
             Quality Management History
           </Link>
         </nav>
@@ -420,42 +420,180 @@ function formatQualityDateTime(value: string) {
     minute: "2-digit",
     hour12: true,
     timeZone: "Asia/Kolkata",
-    timeZoneName: "short",
   }).format(date);
 }
 
+function qualityDateKey(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((entry) => entry.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function qualityCategoryLabel(category: string) {
+  return category === "Float" || category === "Molded" ? "Final Product" : "Raw Material";
+}
+
 function QualityManagementHistory({ data, loading }: { data: SubhubInventoryData; loading: boolean }) {
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("all");
+  const [reason, setReason] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 25;
+  const reasons = useMemo(() => [...new Set(data.qualityLogs.map((log) => log.issue))].sort(), [data.qualityLogs]);
+  const filteredLogs = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return data.qualityLogs
+      .filter((log) => category === "all" || qualityCategoryLabel(log.category) === category)
+      .filter((log) => reason === "all" || log.issue === reason)
+      .filter((log) => {
+        const dateKey = qualityDateKey(log.date);
+        return (!dateFrom || dateKey >= dateFrom) && (!dateTo || dateKey <= dateTo);
+      })
+      .filter((log) => !normalizedQuery || `${log.product} ${log.code} ${log.issue}`.toLowerCase().includes(normalizedQuery))
+      .sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime());
+  }, [data.qualityLogs, query, category, reason, dateFrom, dateTo]);
+  const visibleLogs = filteredLogs.slice((page - 1) * pageSize, page * pageSize);
+  const hasFilters = Boolean(query || category !== "all" || reason !== "all" || dateFrom || dateTo);
+  useEffect(() => setPage(1), [query, category, reason, dateFrom, dateTo]);
+
   if (loading) return <p className="py-8 text-center text-base text-muted-foreground">Loading quality history…</p>;
-  if (data.qualityLogs.length === 0) {
-    return <div className="py-10 text-center"><ShieldAlert className="mx-auto size-8 text-muted-foreground" /><p className="mt-3 text-base font-medium">No quality issues recorded</p><p className="mt-1 text-base text-muted-foreground">Saved quality adjustments will appear here.</p></div>;
-  }
-  return <div className="w-full overflow-x-auto">
-    <table className="w-full min-w-[980px] text-base">
-      <thead className="border-b border-border bg-muted/30 text-center text-sm uppercase tracking-wide text-muted-foreground">
-        <tr>
-          <th className="px-4 py-3 font-semibold">Date &amp; time</th>
-          <th className="px-4 py-3 text-left font-semibold">Item</th>
-          <th className="px-4 py-3 font-semibold">Issue</th>
-          <th className="px-4 py-3 font-semibold">Rejected units</th>
-          <th className="px-4 py-3 text-left font-semibold">Notes</th>
-        </tr>
-      </thead>
-      <tbody>
-        {data.qualityLogs.map((log) => (
-          <tr key={log.id} className="border-b border-border/70 last:border-0">
-            <td className="tabular whitespace-nowrap px-4 py-4 text-center text-sm text-muted-foreground">{formatQualityDateTime(log.date)}</td>
-            <td className="px-4 py-4">
-              <p className="font-medium">{log.product}</p>
-              <p className="tabular text-sm text-muted-foreground">{log.code} · {log.category}</p>
-            </td>
-            <td className="px-4 py-4 text-center"><Tag tone="bad">{log.issue}</Tag></td>
-            <td className="tabular px-4 py-4 text-center font-semibold text-destructive">-{num(log.quantity)}</td>
-            <td className="max-w-sm px-4 py-4 text-muted-foreground">{log.notes || "—"}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>;
+  return (
+    <div className="w-full space-y-4 pt-4">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="min-w-[220px] flex-1 text-sm font-medium text-muted-foreground">
+          Search
+          <span className="relative mt-1 block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
+            <input
+              aria-label="Search quality history"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Item name, code or reason"
+              className="h-10 w-full rounded-md border border-input pl-9 pr-3 text-base font-normal text-foreground outline-none focus:border-primary"
+            />
+          </span>
+        </label>
+        <label className="w-full text-sm font-medium text-muted-foreground sm:w-44">
+          Item type
+          <select
+            aria-label="Filter quality history by item type"
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+            className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-base font-normal text-foreground outline-none focus:border-primary"
+          >
+            <option value="all">All item types</option>
+            <option value="Raw Material">Raw material</option>
+            <option value="Final Product">Final product</option>
+          </select>
+        </label>
+        <label className="w-full text-sm font-medium text-muted-foreground sm:w-44">
+          Reason
+          <select
+            aria-label="Filter quality history by reason"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-base font-normal text-foreground outline-none focus:border-primary"
+          >
+            <option value="all">All reasons</option>
+            {reasons.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+        <label className="w-full text-sm font-medium text-muted-foreground sm:w-40">
+          From date
+          <input
+            aria-label="Filter quality history from date"
+            type="date"
+            value={dateFrom}
+            onChange={(event) => setDateFrom(event.target.value)}
+            className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-base font-normal text-foreground outline-none focus:border-primary"
+          />
+        </label>
+        <label className="w-full text-sm font-medium text-muted-foreground sm:w-40">
+          To date
+          <input
+            aria-label="Filter quality history to date"
+            type="date"
+            value={dateTo}
+            onChange={(event) => setDateTo(event.target.value)}
+            className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-base font-normal text-foreground outline-none focus:border-primary"
+          />
+        </label>
+        {hasFilters ? (
+          <button
+            type="button"
+            onClick={() => {
+              setQuery("");
+              setCategory("all");
+              setReason("all");
+              setDateFrom("");
+              setDateTo("");
+            }}
+            className="h-10 rounded-md border border-input bg-white px-3 text-sm font-medium text-foreground hover:bg-muted/40"
+          >
+            Clear filters
+          </button>
+        ) : null}
+      </div>
+
+      {data.qualityLogs.length === 0 ? (
+        <div className="py-10 text-center">
+          <ShieldAlert className="mx-auto size-8 text-muted-foreground" />
+          <p className="mt-3 text-base font-medium">No quality issues recorded</p>
+          <p className="mt-1 text-base text-muted-foreground">Saved quality adjustments will appear here.</p>
+        </div>
+      ) : filteredLogs.length === 0 ? (
+        <p className="border-y border-dashed border-border p-8 text-center text-base text-muted-foreground">
+          No quality history matches the selected filters.
+        </p>
+      ) : (
+        <>
+          <div className="w-full overflow-x-auto">
+            <table className="w-full min-w-[1040px] text-base">
+              <thead className="border-b border-border text-sm uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">Date &amp; time</th>
+                  <th className="px-4 py-3 text-left font-semibold">Item name</th>
+                  <th className="px-4 py-3 text-left font-semibold">Item code</th>
+                  <th className="px-4 py-3 text-center font-semibold">Type</th>
+                  <th className="px-4 py-3 text-left font-semibold">Reason</th>
+                  <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">Rejected units</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleLogs.map((log) => (
+                  <tr key={log.id} className="border-b border-border/70 last:border-0">
+                    <td className="tabular whitespace-nowrap px-4 py-4 text-center text-sm text-muted-foreground">{formatQualityDateTime(log.date)}</td>
+                    <td className="px-4 py-4 font-medium">{log.product}</td>
+                    <td className="tabular whitespace-nowrap px-4 py-4 text-sm text-muted-foreground">{log.code}</td>
+                    <td className="whitespace-nowrap px-4 py-4 text-center text-sm">{qualityCategoryLabel(log.category)}</td>
+                    <td className="px-4 py-4">{log.issue}</td>
+                    <td className="tabular px-4 py-4 text-center font-semibold text-destructive">-{num(log.quantity)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <TablePagination
+            total={filteredLogs.length}
+            page={page}
+            pageSize={pageSize}
+            showPageSizeSelect={false}
+            onPageChange={setPage}
+            onPageSizeChange={() => undefined}
+          />
+        </>
+      )}
+    </div>
+  );
 }
 
 function InventoryTable({ inventoryType, items, loading }: { inventoryType: InventoryItem["category"]; items: InventoryItem[]; loading: boolean }) {
