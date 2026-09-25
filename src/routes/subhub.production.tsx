@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { AlertTriangle, ArrowRight, Check, ClipboardCheck, FileBarChart, Minus, Plus, RefreshCw, Save, Settings2 } from "lucide-react";
+import { AlertTriangle, Check, ClipboardCheck, Minus, Plus, RefreshCw, Save, Settings2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { getManagerProductionDataFn, previewProductionBatchAllocationFn, saveDailyProductionFn, setHubCapacityFn } from "@/production";
@@ -291,22 +291,6 @@ function DailyProductionManager() {
           <Stat label="Completion" value={`${completion}%`} helper="against assigned target" tone={completion >= 100 ? "text-success" : "text-warning"} />
         </div>
         {demoMode ? <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning"><strong>Demo data:</strong> No live orders are available yet. This sample order is only for testing the screens.</div> : null}
-
-        <Link
-          to="/subhub/reports"
-          className="group flex flex-col gap-4 rounded-xl border border-border bg-white p-5 shadow-sm transition-colors hover:border-primary/40 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div className="flex items-start gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"><FileBarChart className="size-5" /></span>
-            <div>
-              <h2 className="font-semibold">Saved day reports</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Search, sort, and filter your saved production reports.</p>
-            </div>
-          </div>
-          <span className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground group-hover:bg-primary/90">
-            View reports <ArrowRight className="size-4" />
-          </span>
-        </Link>
 
         {data.orders.length ? (
           <div className="rounded-xl border border-border bg-white p-5 shadow-sm">

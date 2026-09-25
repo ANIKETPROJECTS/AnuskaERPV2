@@ -1,5 +1,5 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { Boxes, ClipboardCheck, ClipboardList, Database, FileBarChart, Layers, LogOut, PackageOpen, PanelLeftClose, PanelLeftOpen, ShoppingCart, UserRoundCog } from "lucide-react";
+import { Boxes, ClipboardCheck, ClipboardList, Database, Layers, LogOut, PackageOpen, PanelLeftClose, PanelLeftOpen, ShoppingCart, UserRoundCog } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { logoutFn } from "@/auth";
@@ -9,7 +9,6 @@ import { NotificationBell } from "./HeaderTools";
 const subhubNav = [
   { to: "/inventory", label: "Inventory Management", permission: "inventory", icon: PackageOpen },
   { to: "/subhub/production", label: "Hub Manager", permission: "hub-manager", icon: ClipboardCheck },
-  { to: "/subhub/reports", label: "Hub Reports", permission: "hub-reports", icon: FileBarChart },
   { to: "/subhub/request-items", label: "Request items", permission: "item-requests", icon: ClipboardList },
   { to: "/subhub/hr", label: "HR & Attendance", permission: "hr", icon: UserRoundCog },
   { to: "/procurement", label: "Procurement", permission: "procurement", icon: ShoppingCart },

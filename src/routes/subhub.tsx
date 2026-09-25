@@ -23,7 +23,6 @@ function SubHub() {
   const defaultRoutes = [
     { permission: "inventory", to: "/inventory" },
     { permission: "hub-manager", to: "/subhub/production" },
-    { permission: "hub-reports", to: "/subhub/reports" },
     { permission: "item-requests", to: "/subhub/request-items" },
     { permission: "hr", to: "/subhub/hr" },
     { permission: "procurement", to: "/procurement" },
