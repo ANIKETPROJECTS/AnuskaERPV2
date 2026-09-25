@@ -17,6 +17,7 @@ export const Route = createFileRoute("/inventory")({
 
 const emptyData: SubhubInventoryData = { items: [], movements: [], qualityLogs: [], qualitySummary: { records: 0, rejectedUnits: 0 }, batches: [], batchMovements: [], consistencyWarnings: [] };
 const qualityReasonOptions = [
+  { value: "", label: "Select reason" },
   { value: "custom", label: "Custom reason" },
   { value: "quantity-increase", label: "Quantity increase" },
   { value: "quantity-decrease", label: "Quantity decrease" },
@@ -146,7 +147,7 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
       });
   }, [data.items, query, categoryFilter, sortKey, sortDirection]);
   const updateChange = (code: string, field: "quantity" | "reason", value: string) => {
-    setChanges((current) => ({ ...current, [code]: { quantity: current[code]?.quantity ?? "", reason: current[code]?.reason ?? "", reasonOption: current[code]?.reasonOption ?? "custom", [field]: value } }));
+    setChanges((current) => ({ ...current, [code]: { quantity: current[code]?.quantity ?? "", reason: current[code]?.reason ?? "", reasonOption: current[code]?.reasonOption ?? "", [field]: value } }));
     setMessage("");
     setError("");
   };
@@ -154,15 +155,17 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
     setChanges((current) => {
       const existing = current[code];
       const nextCount = value.trim() === "" ? Number.NaN : Number(value);
-      const reasonOption = Number.isInteger(nextCount) && nextCount !== currentQuantity
-        ? nextCount > currentQuantity ? "quantity-increase" : "quantity-decrease"
-        : existing?.reasonOption ?? "custom";
+      const reasonOption = value.trim() === ""
+        ? ""
+        : Number.isInteger(nextCount) && nextCount !== currentQuantity
+          ? nextCount > currentQuantity ? "quantity-increase" : "quantity-decrease"
+          : Number.isInteger(nextCount) && nextCount === currentQuantity ? "" : existing?.reasonOption ?? "";
       const selected = qualityReasonOptions.find((option) => option.value === reasonOption);
       return {
         ...current,
         [code]: {
           quantity: value,
-          reason: reasonOption === "custom" ? existing?.reason ?? "" : selected?.label ?? "",
+          reason: reasonOption === "custom" ? existing?.reason ?? "" : reasonOption ? selected?.label ?? "" : "",
           reasonOption,
         },
       };
@@ -176,7 +179,7 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
       ...current,
       [code]: {
         quantity: current[code]?.quantity ?? "",
-        reason: reasonOption === "custom" ? "" : selected?.label ?? "",
+        reason: reasonOption === "custom" || !reasonOption ? "" : selected?.label ?? "",
         reasonOption,
       },
     }));
@@ -274,7 +277,7 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
               <tr><th className="px-4 py-3 font-medium">Item</th><th className="px-4 py-3 font-medium">Type</th><th className="px-4 py-3 text-right font-medium">Current stock</th><th className="w-44 px-4 py-3 font-medium">Updated count</th><th className="min-w-[280px] px-4 py-3 font-medium">Reason</th><th className="w-24 px-4 py-3 text-right font-medium">Status</th></tr>
             </thead>
             <tbody>{filteredItems.map((item) => {
-              const draft = changes[item.code] ?? { quantity: "", reason: "", reasonOption: "custom" };
+              const draft = changes[item.code] ?? { quantity: "", reason: "", reasonOption: "" };
               const quantity = Number(draft.quantity);
               const hasChange = draft.quantity.trim() !== "" && Number.isInteger(quantity) && quantity >= 0 && quantity !== item.quantity;
               return <tr key={item.code} className={`border-t border-border/70 ${hasChange ? "bg-primary/[0.035]" : ""}`}>
