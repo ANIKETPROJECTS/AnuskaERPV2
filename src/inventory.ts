@@ -4,8 +4,7 @@ import { adjustSubhubInventory, adjustSubhubInventoryBatch, getBatchDetail, getB
 
 const adjustmentSchema = z.object({
   code: z.string().min(1),
-  action: z.enum(["add", "remove"]),
-  quantity: z.number().int().positive(),
+  targetQuantity: z.number().int().nonnegative(),
   reason: z.string().min(2).max(120),
   notes: z.string().max(500),
   batchId: z.string().min(1).optional(),

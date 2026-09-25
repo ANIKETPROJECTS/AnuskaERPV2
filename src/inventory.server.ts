@@ -1383,8 +1383,7 @@ export async function getSubhubInventory(view: InventoryDataView = "inventory"):
 
 export type AdjustInventoryInput = {
   code: string;
-  action: "add" | "remove";
-  quantity: number;
+  targetQuantity: number;
   reason: string;
   notes: string;
   batchId?: string | undefined;
@@ -1398,8 +1397,9 @@ export async function adjustSubhubInventoryBatch(inputs: AdjustInventoryInput[])
   const user = await getCurrentUserRecord("subhub");
   if (user?.panel !== "subhub" || user.role !== "subhub") return { ok: false, message: "Only SubHub Managers can adjust workspace inventory." };
   if (!inputs.length) return { ok: false, message: "Add at least one stock adjustment before saving." };
-  if (inputs.some((input) => !Number.isInteger(input.quantity) || input.quantity < 1)) return { ok: false, message: "Every quantity must be a whole number greater than zero." };
+  if (inputs.some((input) => !Number.isInteger(input.targetQuantity) || input.targetQuantity < 0)) return { ok: false, message: "Every updated count must be a whole number of zero or more." };
   if (inputs.some((input) => input.reason.trim().length < 2)) return { ok: false, message: "Enter a reason for every stock adjustment." };
+  if (new Set(inputs.map((input) => input.code)).size !== inputs.length) return { ok: false, message: "Submit only one updated count for each inventory item." };
 
   const workspaceDb = await getMongoDb(user.databaseName);
   const operations = inputs.map(() => `adjustment:${randomUUID().replace(/-/g, "")}`);
@@ -1409,47 +1409,52 @@ export async function adjustSubhubInventoryBatch(inputs: AdjustInventoryInput[])
     const session = client.startSession();
     try {
       await session.withTransaction(async () => {
-        const codes = [...new Set(inputs.map((input) => input.code))];
+        const codes = inputs.map((input) => input.code);
         const existingItems = await workspaceDb.collection<InventoryItemDocument>("inventory_items")
           .find({ _id: { $in: codes } }, { session }).toArray();
         const existingByCode = new Map(existingItems.map((item) => [item._id, item]));
-        const requestedRemovals = new Map<string, number>();
-        for (const input of inputs) {
-          if (input.action === "remove") requestedRemovals.set(input.code, (requestedRemovals.get(input.code) ?? 0) + input.quantity);
-        }
-        for (const code of codes) {
-          const existing = existingByCode.get(code);
-          if (!existing && !masterPart(code)) throw new Error(`Select a valid inventory item: ${code}.`);
-          const removal = requestedRemovals.get(code) ?? 0;
-          if (removal > (existing?.quantity ?? 0)) {
-            throw new Error(`Only ${existing?.quantity?.toLocaleString("en-IN") ?? "0"} units are available for ${code}.`);
+        const changes = inputs.map((input, index) => {
+          const existing = existingByCode.get(input.code);
+          if (!existing && !masterPart(input.code)) throw new Error(`Select a valid inventory item: ${input.code}.`);
+          return {
+            input,
+            existing,
+            delta: input.targetQuantity - (existing?.quantity ?? 0),
+            reference: operations[index]!,
+          };
+        });
+        for (const { input, existing, delta } of changes) {
+          if (delta < 0 && -delta > (existing?.quantity ?? 0)) {
+            throw new Error(`Only ${existing?.quantity?.toLocaleString("en-IN") ?? "0"} units are available for ${input.code}.`);
           }
         }
-        for (const [index, input] of inputs.entries()) {
-          const existing = existingByCode.get(input.code);
+        for (const { input, existing, delta, reference } of changes) {
+          if (delta === 0) continue;
           const part = masterPart(input.code);
-          const reference = operations[index]!;
-          if (input.action === "remove") {
+          const reason = input.reason.trim() === "Quantity increase" || input.reason.trim() === "Quantity decrease"
+            ? delta > 0 ? "Quantity increase" : "Quantity decrease"
+            : input.reason.trim();
+          if (delta < 0) {
             await allocateBatches({
-              db: workspaceDb, code: input.code, quantity: input.quantity,
+              db: workspaceDb, code: input.code, quantity: -delta,
               ...(input.batchId ? { batchId: input.batchId } : {}),
-              type: "OUT", actor: user._id, reason: input.reason.trim(), reference, session,
+              type: "OUT", actor: user._id, reason, reference, session,
             });
           }
           await applyInventoryDelta({
             db: workspaceDb, code: input.code, product: existing?.name || part?.name || input.code,
             category: normalizeInventoryCategory(existing?.category), price: existing?.price ?? part?.rate ?? 0,
-            change: input.action === "add" ? input.quantity : -input.quantity,
-            reason: input.reason.trim(), notes: input.notes.trim(), updatedBy: user._id,
+            change: delta,
+            reason, notes: input.notes.trim(), updatedBy: user._id,
             sourceType: "manual", sourceId: reference, session,
             movementId: createHash("sha256").update(`${reference}:aggregate`).digest("hex"),
           });
-          if (input.action === "add") {
+          if (delta > 0) {
             await applySourcedBatch({
               db: workspaceDb, sourceId: reference, sourceType: "manual", code: input.code,
               product: existing?.name || part?.name || input.code,
-              category: normalizeInventoryCategory(existing?.category), desiredQuantity: input.quantity,
-              actor: user._id, reason: input.reason.trim(), metadata: { notes: input.notes.trim() },
+              category: normalizeInventoryCategory(existing?.category), desiredQuantity: delta,
+              actor: user._id, reason, metadata: { notes: input.notes.trim() },
               session, eventKey: `${reference}:batch`,
             });
           }

@@ -18,6 +18,8 @@ export const Route = createFileRoute("/inventory")({
 const emptyData: SubhubInventoryData = { items: [], movements: [], qualityLogs: [], qualitySummary: { records: 0, rejectedUnits: 0 }, batches: [], batchMovements: [], consistencyWarnings: [] };
 const qualityReasonOptions = [
   { value: "custom", label: "Custom reason" },
+  { value: "quantity-increase", label: "Quantity increase" },
+  { value: "quantity-decrease", label: "Quantity decrease" },
   { value: "faulty", label: "Faulty / failed inspection" },
   { value: "damaged", label: "Damaged in handling" },
   { value: "rejected", label: "Rejected during quality check" },
@@ -148,6 +150,26 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
     setMessage("");
     setError("");
   };
+  const updateQuantity = (code: string, value: string, currentQuantity: number) => {
+    setChanges((current) => {
+      const existing = current[code];
+      const nextCount = value.trim() === "" ? Number.NaN : Number(value);
+      const reasonOption = Number.isInteger(nextCount) && nextCount !== currentQuantity
+        ? nextCount > currentQuantity ? "quantity-increase" : "quantity-decrease"
+        : existing?.reasonOption ?? "custom";
+      const selected = qualityReasonOptions.find((option) => option.value === reasonOption);
+      return {
+        ...current,
+        [code]: {
+          quantity: value,
+          reason: reasonOption === "custom" ? existing?.reason ?? "" : selected?.label ?? "",
+          reasonOption,
+        },
+      };
+    });
+    setMessage("");
+    setError("");
+  };
   const updateReasonOption = (code: string, reasonOption: string) => {
     const selected = qualityReasonOptions.find((option) => option.value === reasonOption);
     setChanges((current) => ({
@@ -173,10 +195,15 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
     setError("");
     setMessage("");
     const adjustments = data.items
-      .map((item) => ({ item, draft: changes[item.code], quantity: Number(changes[item.code]?.quantity) }))
-      .filter(({ draft, quantity }) => draft && draft.quantity.trim() !== "" && quantity !== 0);
+      .map((item) => ({ item, draft: changes[item.code], targetQuantity: Number(changes[item.code]?.quantity) }))
+      .filter(({ item, draft, targetQuantity }) => draft && draft.quantity.trim() !== "" && targetQuantity !== item.quantity);
     if (!adjustments.length) {
-      setError("Enter a quantity change for at least one item. Use a positive number to add or a negative number to reduce.");
+      setError("Enter an updated count different from current stock for at least one item.");
+      return;
+    }
+    const invalidQuantity = adjustments.find(({ targetQuantity }) => !Number.isInteger(targetQuantity) || targetQuantity < 0);
+    if (invalidQuantity) {
+      setError("Every updated count must be a whole number of zero or more.");
       return;
     }
     const invalidReason = adjustments.find(({ draft }) => !draft?.reason.trim() || draft.reason.trim().length < 2);
@@ -184,23 +211,12 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
       setError("Enter a reason for every quantity change.");
       return;
     }
-    const invalidQuantity = adjustments.find(({ quantity }) => !Number.isInteger(quantity));
-    if (invalidQuantity) {
-      setError("Every quantity change must be a whole number. Use positive numbers to add and negative numbers to reduce.");
-      return;
-    }
-    const overdrawn = adjustments.find(({ item, quantity }) => quantity < 0 && Math.abs(quantity) > item.quantity);
-    if (overdrawn) {
-      setError(`${overdrawn.item.name} only has ${num(overdrawn.item.quantity)} ${overdrawn.item.unit} available.`);
-      return;
-    }
     setSaving(true);
     const result = await adjustSubhubInventoryBatchFn({
       data: {
-        adjustments: adjustments.map(({ item, draft, quantity }) => ({
+        adjustments: adjustments.map(({ item, draft, targetQuantity }) => ({
           code: item.code,
-          action: quantity > 0 ? "add" as const : "remove" as const,
-          quantity: Math.abs(quantity),
+          targetQuantity,
           reason: draft!.reason.trim(),
           notes: "Quality management adjustment",
         })),
@@ -209,7 +225,7 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
     if (!result.ok) {
       setError(result.message);
     } else {
-      setMessage(`${adjustments.length} quality adjustment${adjustments.length === 1 ? "" : "s"} saved.`);
+      setMessage(`${adjustments.length} inventory count update${adjustments.length === 1 ? "" : "s"} saved.`);
       setChanges({});
       await onSaved();
     }
@@ -217,10 +233,10 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
   }
 
   return <div className="space-y-6">
-    <Panel title="Quick quality adjustments" description="Filter raw materials or final products, search by name or code, then enter a positive number to add stock or a negative number to reduce it.">
+    <Panel title="Quick quality adjustments" description="Filter raw materials or final products, then enter the updated total count. The reason is selected automatically based on whether stock increases or decreases.">
       <div className="p-5">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/15 bg-primary/5 px-4 py-3 text-sm">
-          <p><span className="font-medium">Fast entry:</span> use <span className="tabular font-semibold text-success">+</span> to add and <span className="tabular font-semibold text-destructive">−</span> to reduce.</p>
+          <p><span className="font-medium">Fast entry:</span> enter the new total count. For example, if current stock is 10, enter 20 to set the total to 20.</p>
           <p className="text-xs text-muted-foreground">{filteredItems.length} of {data.items.length} inventory item{data.items.length === 1 ? "" : "s"} shown</p>
         </div>
         <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -255,17 +271,17 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
         {loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading inventory items…</p> : data.items.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">No raw materials or final products are available.</p> : filteredItems.length === 0 ? <p className="rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No inventory items match the current filter or search.</p> : <div className="overflow-x-auto rounded-md border border-border">
           <table className="w-full min-w-[860px] text-sm">
             <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <tr><th className="px-4 py-3 font-medium">Item</th><th className="px-4 py-3 font-medium">Type</th><th className="px-4 py-3 text-right font-medium">Current stock</th><th className="w-44 px-4 py-3 font-medium">Change <span className="font-normal normal-case tracking-normal">(＋ add / − reduce)</span></th><th className="min-w-[280px] px-4 py-3 font-medium">Reason</th><th className="w-24 px-4 py-3 text-right font-medium">Status</th></tr>
+              <tr><th className="px-4 py-3 font-medium">Item</th><th className="px-4 py-3 font-medium">Type</th><th className="px-4 py-3 text-right font-medium">Current stock</th><th className="w-44 px-4 py-3 font-medium">Updated count</th><th className="min-w-[280px] px-4 py-3 font-medium">Reason</th><th className="w-24 px-4 py-3 text-right font-medium">Status</th></tr>
             </thead>
             <tbody>{filteredItems.map((item) => {
               const draft = changes[item.code] ?? { quantity: "", reason: "", reasonOption: "custom" };
               const quantity = Number(draft.quantity);
-              const hasChange = draft.quantity.trim() !== "" && Number.isInteger(quantity) && quantity !== 0;
+              const hasChange = draft.quantity.trim() !== "" && Number.isInteger(quantity) && quantity >= 0 && quantity !== item.quantity;
               return <tr key={item.code} className={`border-t border-border/70 ${hasChange ? "bg-primary/[0.035]" : ""}`}>
                 <td className="whitespace-nowrap px-4 py-2.5"><p className="font-medium">{item.name}</p><p className="tabular text-xs text-muted-foreground">{item.code}</p></td>
                 <td className="whitespace-nowrap px-4 py-2.5"><Tag tone={item.category === "Float" ? "info" : "neutral"}>{item.category === "Float" ? "Final product" : "Raw material"}</Tag></td>
                 <td className="tabular whitespace-nowrap px-4 py-2.5 text-right font-semibold">{num(item.quantity)} <span className="text-xs font-normal text-muted-foreground">{item.unit}</span></td>
-                <td className="px-4 py-2.5"><input aria-label={`Quantity change for ${item.name}`} type="number" step="1" value={draft.quantity} onChange={(event) => updateChange(item.code, "quantity", event.target.value)} placeholder="0" className={`tabular h-9 w-full rounded-md border px-3 text-sm outline-none focus:border-primary ${quantity < 0 ? "border-destructive/40" : quantity > 0 ? "border-success/40" : "border-input"}`} /></td>
+                <td className="px-4 py-2.5"><input aria-label={`Updated count for ${item.name}`} type="number" min="0" step="1" value={draft.quantity} onChange={(event) => updateQuantity(item.code, event.target.value, item.quantity)} placeholder="New total" className={`tabular h-9 w-full rounded-md border px-3 text-sm outline-none focus:border-primary ${draft.quantity.trim() !== "" && quantity < item.quantity ? "border-destructive/40" : hasChange && quantity > item.quantity ? "border-success/40" : "border-input"}`} /></td>
                  <td className="px-4 py-2.5">
                    <select aria-label={`Reason type for ${item.name}`} value={draft.reasonOption} onChange={(event) => updateReasonOption(item.code, event.target.value)} className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm outline-none focus:border-primary">
                      {qualityReasonOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -278,7 +294,7 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
           </table>
         </div>}
         {error ? <p role="alert" className="mt-4 rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
-        <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4">{message ? <span className="inline-flex items-center gap-1.5 text-sm text-success"><Check className="size-4" /> {message}</span> : null}<button type="button" disabled={saving || loading} onClick={() => void save()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><ShieldAlert className="size-4" /> {saving ? "Saving…" : "Save quality adjustments"}</button></div>
+        <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4">{message ? <span className="inline-flex items-center gap-1.5 text-sm text-success"><Check className="size-4" /> {message}</span> : null}<button type="button" disabled={saving || loading} onClick={() => void save()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><ShieldAlert className="size-4" /> {saving ? "Saving…" : "Save updated counts"}</button></div>
       </div>
     </Panel>
     <Panel title="Quality management history" description="Every quality deduction recorded in this SubHub workspace.">
