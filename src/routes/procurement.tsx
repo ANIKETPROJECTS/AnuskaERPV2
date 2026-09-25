@@ -127,7 +127,7 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [orderPage, setOrderPage] = useState(1);
-  const [orderPageSize, setOrderPageSize] = useState(10);
+  const [orderPageSize, setOrderPageSize] = useState(panel === "subhub" ? 25 : 10);
   const [selectedVendorId, setSelectedVendorId] = useState("");
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [vendorFormMode, setVendorFormMode] = useState<"create" | "edit" | null>(null);
@@ -172,6 +172,7 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
         return matchesQuery && matchesVendor && matchesSubhub && matchesStatus && matchesOrderDate && matchesFrom && matchesTo;
       })
       .sort((a, b) => {
+        if (panel === "subhub") return b.orderDate.localeCompare(a.orderDate);
         if (sortBy === "orderDate-asc") return a.orderDate.localeCompare(b.orderDate);
         if (sortBy === "delivery-asc") return a.expectedDelivery.localeCompare(b.expectedDelivery);
         if (sortBy === "amount-desc" && panel !== "subhub") return b.totalAmount - a.totalAmount;
@@ -339,7 +340,7 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
             clearFilters={clearFilters}
           />
           <section>
-            <SectionHeading title="Procurement orders" description={`${filteredOrders.length} of ${data.orders.length} orders · all order records are stored in MongoDB`} />
+            {panel !== "subhub" ? <SectionHeading title="Procurement orders" description={`${filteredOrders.length} of ${data.orders.length} orders · all order records are stored in MongoDB`} /> : null}
             {loading ? <Loading /> : <OrderTable orders={paginatedOrders} total={filteredOrders.length} page={orderPage} pageSize={orderPageSize} onPageChange={setOrderPage} onPageSizeChange={setOrderPageSize} isAdmin={canManageProcurement} panel={panel} onStatusChange={(order, status) => void updateOrderStatus(order, status)} />}
           </section>
           {canManageProcurement ? <AdminReports data={data} /> : null}
@@ -564,8 +565,8 @@ function OrderFilters({
         <label className="min-w-[230px] flex-1 text-base font-medium">Search<span className="relative mt-1 block"><Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="PO, vendor, material, SubHub…" className="h-12 w-full rounded-md border border-input bg-background pl-10 pr-3 text-base font-normal outline-none focus:border-primary" /></span></label>
         {panel !== "subhub" ? <SelectFilter label="Vendor" value={vendorFilter} onChange={setVendorFilter}><option value="all">All vendors</option>{vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</SelectFilter> : null}
         {subhubs.length ? <SelectFilter label="SubHub" value={subhubFilter} onChange={setSubhubFilter}><option value="all">All SubHubs</option>{subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.name}</option>)}</SelectFilter> : null}
-        <SelectFilter label="Status" value={statusFilter} onChange={(value) => setStatusFilter(value as ProcurementStatus | "all")}><option value="all">All statuses</option>{PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</SelectFilter>
-         <SelectFilter label="Sort" value={panel === "subhub" && sortBy === "amount-desc" ? "orderDate-desc" : sortBy} onChange={(value) => setSortBy(value as SortKey)}><option value="orderDate-desc">Newest order date</option><option value="orderDate-asc">Oldest order date</option><option value="delivery-asc">Expected delivery</option>{panel !== "subhub" ? <option value="amount-desc">Highest amount</option> : null}<option value="quantity-desc">Highest quantity</option><option value="vendor-asc">Vendor A–Z</option></SelectFilter>
+        {panel !== "subhub" ? <SelectFilter label="Status" value={statusFilter} onChange={(value) => setStatusFilter(value as ProcurementStatus | "all")}><option value="all">All statuses</option>{PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</SelectFilter> : null}
+        {panel !== "subhub" ? <SelectFilter label="Sort" value={sortBy} onChange={(value) => setSortBy(value as SortKey)}><option value="orderDate-desc">Newest order date</option><option value="orderDate-asc">Oldest order date</option><option value="delivery-asc">Expected delivery</option><option value="amount-desc">Highest amount</option><option value="quantity-desc">Highest quantity</option><option value="vendor-asc">Vendor A–Z</option></SelectFilter> : null}
         <DateFilter label="Exact order date" value={orderDate} onChange={setOrderDate} />
         {panel !== "subhub" ? <DateFilter label="From" value={fromDate} onChange={setFromDate} /> : null}
         {panel !== "subhub" ? <DateFilter label="To" value={toDate} onChange={setToDate} /> : null}
@@ -584,17 +585,76 @@ function DateFilter({ label, value, onChange }: { label: string; value: string; 
 }
 
 function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeChange, isAdmin, panel, onStatusChange }: { orders: ProcurementOrder[]; total: number; page: number; pageSize: number; onPageChange: (page: number) => void; onPageSizeChange: (pageSize: number) => void; isAdmin: boolean; panel: "admin" | "subhub" | "procurement"; onStatusChange: (order: ProcurementOrder, status: ProcurementStatus) => void }) {
-  return orders.length ? (
+  if (!orders.length) {
+    return <EmptyState icon={<ShoppingCart className="size-7" />} title="No procurement orders found" description="Create an order or change the current search and filters." />;
+  }
+
+  return (
     <>
       <div className="overflow-x-auto border-y border-border">
         <table className={`w-full text-base ${panel === "subhub" ? "min-w-[820px]" : "min-w-[980px]"}`}>
-          <thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3 font-semibold">Order</th>{isAdmin ? <th className="px-4 py-3 font-semibold">SubHub</th> : null}<th className="px-4 py-3 font-semibold">Vendor</th><th className="px-4 py-3 font-semibold">Materials</th><th className="px-4 py-3 text-right font-semibold">Qty</th>{panel !== "subhub" ? <th className="px-4 py-3 text-right font-semibold">Amount</th> : null}<th className="px-4 py-3 font-semibold">Ordered</th><th className="px-4 py-3 font-semibold">Expected</th><th className="px-4 py-3 font-semibold">Status</th>{isAdmin ? <th className="px-4 py-3 text-right font-semibold">Action</th> : null}</tr></thead>
-          <tbody>{orders.map((order) => <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40"><td className="px-4 py-4"><Link to="/po/$id" params={{ id: order.id }} search={{ panel }} className="font-semibold text-primary hover:underline">{order.orderNumber}</Link><p className="mt-1 text-sm text-muted-foreground">{order.notes || "No notes"}</p></td>{isAdmin ? <td className="px-4 py-4">{order.subhubName}</td> : null}<td className="px-4 py-4 font-semibold">{order.vendorName}</td><td className="px-4 py-4">{order.items.map((item) => <p key={`${item.materialCode}:${item.materialName}`} className="font-semibold">{item.materialName} <span className="tabular text-sm font-normal text-muted-foreground">{item.materialCode}</span></p>)}</td><td className="tabular px-4 py-4 text-right">{num(order.quantity)}</td>{panel !== "subhub" ? <td className="tabular px-4 py-4 text-right">{inr(order.totalAmount)}</td> : null}<td className="tabular whitespace-nowrap px-4 py-4">{formatDate(order.orderDate)}</td><td className="tabular whitespace-nowrap px-4 py-4">{formatDate(order.expectedDelivery)}</td><td className="px-4 py-4"><Tag size="md" tone={statusTone(order.status)}>{order.status}</Tag></td>{isAdmin ? <td className="px-4 py-4 text-right"><select aria-label={`Change status for ${order.orderNumber}`} value={order.status} onChange={(event) => onStatusChange(order, event.target.value as ProcurementStatus)} className="h-11 min-w-36 rounded-md border border-input bg-background px-2 text-base font-medium outline-none focus:border-primary">{PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></td> : null}</tr>)}</tbody>
+          <thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground">
+            <tr>
+              <th className="px-4 py-3 font-semibold">Order</th>
+              {isAdmin ? <th className="px-4 py-3 font-semibold">SubHub</th> : null}
+              <th className="px-4 py-3 font-semibold">Vendor</th>
+              <th className="px-4 py-3 font-semibold">Materials</th>
+              <th className="px-4 py-3 text-right font-semibold">Qty</th>
+              {panel !== "subhub" ? <th className="px-4 py-3 text-right font-semibold">Amount</th> : null}
+              <th className="px-4 py-3 font-semibold">Ordered</th>
+              <th className="px-4 py-3 font-semibold">Expected</th>
+              <th className="px-4 py-3 font-semibold">Status</th>
+              {isAdmin ? <th className="px-4 py-3 text-right font-semibold">Action</th> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((order) => {
+              const note = order.notes.trim();
+              const hideSeedNote = panel === "subhub" && note === "Seeded open purchase order.";
+              return (
+                <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
+                  <td className="px-4 py-4">
+                    <Link to="/po/$id" params={{ id: order.id }} search={{ panel }} className="font-semibold text-primary hover:underline">{order.orderNumber}</Link>
+                    {!hideSeedNote && (note || panel !== "subhub") ? <p className="mt-1 text-sm text-muted-foreground">{note || "No notes"}</p> : null}
+                  </td>
+                  {isAdmin ? <td className="px-4 py-4">{order.subhubName}</td> : null}
+                  <td className="px-4 py-4 font-semibold">{order.vendorName}</td>
+                  <td className="px-4 py-4">
+                    {order.items.map((item) => (
+                      <p key={`${item.materialCode}:${item.materialName}`} className="font-semibold">
+                        {item.materialName} <span className="tabular text-sm font-normal text-muted-foreground">{item.materialCode}</span>
+                      </p>
+                    ))}
+                  </td>
+                  <td className="tabular px-4 py-4 text-right">{num(order.quantity)}</td>
+                  {panel !== "subhub" ? <td className="tabular px-4 py-4 text-right">{inr(order.totalAmount)}</td> : null}
+                  <td className="tabular whitespace-nowrap px-4 py-4">{formatDate(order.orderDate)}</td>
+                  <td className="tabular whitespace-nowrap px-4 py-4">{formatDate(order.expectedDelivery)}</td>
+                  <td className="px-4 py-4"><Tag size="md" tone={statusTone(order.status)}>{order.status}</Tag></td>
+                  {isAdmin ? (
+                    <td className="px-4 py-4 text-right">
+                      <select aria-label={`Change status for ${order.orderNumber}`} value={order.status} onChange={(event) => onStatusChange(order, event.target.value as ProcurementStatus)} className="h-11 min-w-36 rounded-md border border-input bg-background px-2 text-base font-medium outline-none focus:border-primary">
+                        {PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                      </select>
+                    </td>
+                  ) : null}
+                </tr>
+              );
+            })}
+          </tbody>
         </table>
       </div>
-      <TablePagination total={total} page={page} pageSize={pageSize} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} size="md" />
+      <TablePagination
+        total={total}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
+        showPageSizeSelect={panel !== "subhub"}
+        size="md"
+      />
     </>
-  ) : <EmptyState icon={<ShoppingCart className="size-7" />} title="No procurement orders found" description="Create an order or change the current search and filters." />;
+  );
 }
 
 function VendorTable({ vendors, data, isAdmin, onSelect, selectedVendorId, onEdit, onRemove }: { vendors: ProcurementVendor[]; data: ProcurementData; isAdmin: boolean; onSelect: (id: string) => void; selectedVendorId: string; onEdit: (vendor: ProcurementVendor) => void; onRemove: (vendor: ProcurementVendor) => void }) {
