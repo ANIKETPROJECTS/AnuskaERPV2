@@ -50,6 +50,9 @@ function DailyProductionManager() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [capacityInput, setCapacityInput] = useState("");
   const [notes, setNotes] = useState("");
+  const [hasUnsavedWork, setHasUnsavedWork] = useState(false);
+  const hasUnsavedWorkRef = useRef(false);
+  const loadInFlightRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingCapacity, setSavingCapacity] = useState(false);
@@ -64,8 +67,15 @@ function DailyProductionManager() {
   const [manualModes, setManualModes] = useState<Record<string, boolean>>({});
   const [manualRows, setManualRows] = useState<Record<string, ProductionManualAllocation[]>>({});
 
-  async function load() {
-    setLoading(true);
+  function updateUnsavedWork(value: boolean) {
+    hasUnsavedWorkRef.current = value;
+    setHasUnsavedWork(value);
+  }
+
+  const load = useCallback(async (showLoading = true) => {
+    if (loadInFlightRef.current) return;
+    loadInFlightRef.current = true;
+    if (showLoading) setLoading(true);
     try {
       const result = await getManagerProductionDataFn();
       if (result.ok) {
@@ -80,13 +90,27 @@ function DailyProductionManager() {
       setData(emptyData);
       setError("Work could not be loaded. Check your connection and try again.");
     } finally {
-      setLoading(false);
+      loadInFlightRef.current = false;
+      if (showLoading) setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+    const refreshWhenActive = () => {
+      if (document.visibilityState === "visible" && !hasUnsavedWorkRef.current) {
+        void load(false);
+      }
+    };
+    window.addEventListener("focus", refreshWhenActive);
+    document.addEventListener("visibilitychange", refreshWhenActive);
+    const interval = window.setInterval(refreshWhenActive, 30_000);
+    return () => {
+      window.removeEventListener("focus", refreshWhenActive);
+      document.removeEventListener("visibilitychange", refreshWhenActive);
+      window.clearInterval(interval);
+    };
+  }, [load]);
 
   const reportsForDate = useMemo(
     () => data.reports.filter((report) => report.date === selectedDate),
@@ -233,6 +257,7 @@ function DailyProductionManager() {
 
   function updateQuantity(orderId: string, value: number) {
     setSaved(false);
+    updateUnsavedWork(true);
     setError("");
     const quantity = Math.max(0, Number.isFinite(value) ? Math.floor(value) : 0);
     setQuantities((current) => ({ ...current, [orderId]: quantity }));
@@ -275,7 +300,8 @@ function DailyProductionManager() {
         setError(failed.message);
       } else {
         setSaved(true);
-        await load();
+        updateUnsavedWork(false);
+        await load(false);
       }
     } catch {
       setError("Production could not be saved. Check your connection and try again.");
@@ -294,9 +320,20 @@ function DailyProductionManager() {
           </p>
         </div>
         {data.orders.length ? (
-          <p className="rounded-full bg-secondary px-3 py-1 text-sm font-medium">
-            {data.orders.length} {data.orders.length === 1 ? "order" : "orders"}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="rounded-full bg-secondary px-3 py-1 text-sm font-medium">
+              {data.orders.length} {data.orders.length === 1 ? "order" : "orders"}
+            </p>
+            <button
+              type="button"
+              onClick={() => void load(false)}
+              disabled={loading || hasUnsavedWork}
+              title={hasUnsavedWork ? "Save today’s work before refreshing targets." : "Refresh assigned targets"}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-input bg-white px-3 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
+            </button>
+          </div>
         ) : null}
       </div>
       {loading ? (
@@ -430,6 +467,7 @@ function DailyProductionManager() {
                 onChange={(event) => {
                   setNotes(event.target.value);
                   setSaved(false);
+                  updateUnsavedWork(true);
                 }}
                 rows={2}
                 placeholder="Report a delay, material shortage, or machine problem."

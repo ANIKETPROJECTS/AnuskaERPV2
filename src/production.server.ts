@@ -760,6 +760,10 @@ export async function createProductionOrders(input: {
   const savedOrders = await db.collection<ProductionOrderDocument>("production_orders")
     .find({ _id: { $in: orders.map((order) => order._id) } })
     .toArray();
+  const savedOrdersById = new Map(savedOrders.map((order) => [order._id, order]));
+  const orderedSavedOrders = orders
+    .map((order) => savedOrdersById.get(order._id))
+    .filter((order): order is ProductionOrderDocument => order !== undefined);
   const users = await allSubhubUsers();
   const reportsByUser = await Promise.all(users.map(async (user) => ({
     userId: user._id,
@@ -767,7 +771,7 @@ export async function createProductionOrders(input: {
   })));
   return {
     ok: true,
-    orders: savedOrders.map((order) => summarizeOrder(
+    orders: orderedSavedOrders.map((order) => summarizeOrder(
       order,
       reportsByUser.find((item) => item.userId === order.subhubUserId)?.reports ?? [],
     )),

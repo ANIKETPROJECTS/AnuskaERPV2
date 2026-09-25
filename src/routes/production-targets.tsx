@@ -163,7 +163,13 @@ function ProductionTargets() {
       },
     });
     if (result.ok) {
-      setSuccess(`${result.orders.length} production target${result.orders.length === 1 ? "" : "s"} assigned successfully.`);
+      const movedOrders = result.orders.filter((order, index) => (
+        order.subhubUserId !== assignments[index]?.subhubUserId
+      ));
+      const movedNotice = movedOrders.length
+        ? ` Automatically moved to stay within capacity: ${movedOrders.map((order) => `${order.orderNumber} → ${order.subhubName}`).join(", ")}.`
+        : "";
+      setSuccess(`${result.orders.length} production target${result.orders.length === 1 ? "" : "s"} assigned successfully.${movedNotice}`);
       nextId.current += 1;
       setAssignments([emptyAssignment(nextId.current)]);
     } else {
