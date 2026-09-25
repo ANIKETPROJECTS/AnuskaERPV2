@@ -71,7 +71,7 @@ function PurchaseDetail() {
     <div className="space-y-6 text-base">
       <section
         aria-label="Order summary"
-        className={`grid gap-x-8 border-y border-border ${isSubHub ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"}`}
+        className={`grid gap-x-8 border-y border-border ${isSubHub ? "-mx-6 grid-cols-1 px-6 sm:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"}`}
       >
         {summaryMetrics.map((metric) => (
           <div key={metric.label} className="py-4">
@@ -112,7 +112,10 @@ function PurchaseDetail() {
           </dl>
         </section>
         <section>
-          <DetailSectionHeading title="Materials in this order" description={`${order.items.length} line${order.items.length === 1 ? "" : "s"} · total quantity ${order.quantity.toLocaleString("en-IN")}`} />
+          <DetailSectionHeading
+            title="Materials in this order"
+            description={isSubHub ? undefined : `${order.items.length} line${order.items.length === 1 ? "" : "s"} · total quantity ${order.quantity.toLocaleString("en-IN")}`}
+          />
           <div className="divide-y divide-border border-b border-border">
             {order.items.map((item) => <div key={`${item.materialCode}:${item.materialName}`} className="flex items-center gap-4 px-2 py-4 text-base"><div className="min-w-0 flex-1"><p className="truncate font-semibold">{item.materialName}</p><p className="text-sm text-muted-foreground">{item.materialCode}</p></div><div className="text-right"><p className="tabular font-semibold">{item.quantity.toLocaleString("en-IN")} units</p>{!isSubHub ? <p className="tabular text-sm text-muted-foreground">₹{item.totalAmount.toLocaleString("en-IN")}</p> : null}</div></div>)}
           </div>

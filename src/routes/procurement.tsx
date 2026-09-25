@@ -571,7 +571,7 @@ function OrderFilters({
   hasFilters: boolean; clearFilters: () => void;
 }) {
   return (
-    <div className="border-y border-border">
+    <div className={panel === "subhub" ? "border-b border-border" : "border-y border-border"}>
       {panel !== "subhub" ? <div className="flex items-center gap-3 py-3"><Filter className="size-5 shrink-0 text-primary" /><div><h2 className="text-lg font-semibold">Search and filter orders</h2><p className="mt-1 text-base text-muted-foreground">Use an exact date or a date range; filters can be combined.</p></div></div> : null}
       <div className={`filter-toolbar flex flex-wrap items-end gap-3 py-4 ${panel === "subhub" ? "" : "border-t border-border"}`}>
         <label className="min-w-[230px] flex-1 text-base font-medium">Search<span className="relative mt-1 block"><Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="PO, vendor, material, SubHub…" className="h-12 w-full rounded-md border border-input bg-background pl-10 pr-3 text-base font-normal outline-none focus:border-primary" /></span></label>
