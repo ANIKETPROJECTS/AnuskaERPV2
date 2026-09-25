@@ -186,6 +186,11 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
     setOrderPage(1);
   }, [fromDate, orderDate, query, sortBy, statusFilter, subhubFilter, toDate, vendorFilter]);
 
+  useEffect(() => {
+    setOrderPageSize(panel === "subhub" ? 25 : 10);
+    setOrderPage(1);
+  }, [panel]);
+
   const paginatedOrders = useMemo(() => {
     const pageCount = Math.max(1, Math.ceil(filteredOrders.length / orderPageSize));
     const currentPage = Math.min(orderPage, pageCount);
