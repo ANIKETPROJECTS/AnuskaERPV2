@@ -477,14 +477,24 @@ function QualityManagementHistory({ data, loading, onReplaced }: { data: SubhubI
     setReplacingDemoData(true);
     setDemoError("");
     setDemoMessage("");
-    const result = await replaceSubhubQualityHistoryWithDemoDataFn();
-    if (!result.ok) {
-      setDemoError(result.message);
-    } else {
-      setDemoMessage(`Replaced the saved history with ${result.count} demo rows.`);
-      await onReplaced();
+    try {
+      const result = await replaceSubhubQualityHistoryWithDemoDataFn();
+      if (!result.ok) {
+        setDemoError(result.message);
+      } else {
+        setQuery("");
+        setCategory("all");
+        setReason("all");
+        setDateFrom("");
+        setDateTo("");
+        setDemoMessage(`Replaced the saved history with ${result.count} demo rows.`);
+        await onReplaced();
+      }
+    } catch {
+      setDemoError("Could not replace the saved quality history. Please try again.");
+    } finally {
+      setReplacingDemoData(false);
     }
-    setReplacingDemoData(false);
   }
 
   if (loading) return <p className="py-8 text-center text-base text-muted-foreground">Loading quality history…</p>;
