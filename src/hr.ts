@@ -22,11 +22,14 @@ const managerReportSchema = z.object({
   endDate: z.string().optional(),
 });
 const headcountReportSchema = managerReportSchema.extend({
-  rangeType: z.enum(["month", "date", "week", "range"]),
+  rangeType: z.enum(["all", "month", "date", "week", "range"]),
 });
 const managerHeadcountHistorySchema = z.object({
-  rangeType: z.enum(["date", "week"]),
-  date: z.string(),
+  rangeType: z.enum(["all", "date", "range", "month", "week"]),
+  date: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  month: z.string().optional(),
 });
 const adminEmployeeHistorySchema = employeeHistorySchema.extend({ subhubId: z.string().min(1) });
 const subhubDetailsSchema = z.object({ userId: z.string().min(1) });

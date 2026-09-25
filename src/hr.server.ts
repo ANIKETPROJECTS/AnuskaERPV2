@@ -942,21 +942,29 @@ export async function getAdminSubhubDetails(userId: string): Promise<
 }
 
 function adminReportBounds(input: {
-  rangeType: "month" | "date" | "week" | "range";
+  rangeType: "all" | "month" | "date" | "week" | "range";
   month?: string;
   date?: string;
   startDate?: string;
   endDate?: string;
 }): { ok: true; startDate: string; endDate: string } | { ok: false; message: string } {
+  if (input.rangeType === "all") {
+    return { ok: true, startDate: "0001-01-01", endDate: todayInIndia() };
+  }
   if (input.rangeType === "month") {
     const month = normalizeMonth(input.month ?? "");
     if (!month) return { ok: false, message: "Choose a valid report month." };
+    if (month > todayInIndia().slice(0, 7)) {
+      return { ok: false, message: "Choose a month no later than the current month." };
+    }
     const bounds = monthBounds(month);
     return { ok: true, startDate: bounds.start, endDate: earlierDate(bounds.end, todayInIndia()) };
   }
   if (input.rangeType === "date") {
     const date = normalizeDate(input.date ?? "");
-    if (!date) return { ok: false, message: "Choose a valid attendance date." };
+    if (!date || date > todayInIndia()) {
+      return { ok: false, message: "Choose a valid attendance date no later than today." };
+    }
     return { ok: true, startDate: date, endDate: date };
   }
   if (input.rangeType === "week") {
@@ -971,6 +979,7 @@ function adminReportBounds(input: {
   const requestedEndDate = normalizeDate(input.endDate ?? "");
   if (!startDate || !requestedEndDate) return { ok: false, message: "Choose a valid start and end date." };
   if (startDate > requestedEndDate) return { ok: false, message: "The start date must be before the end date." };
+  if (startDate > todayInIndia()) return { ok: false, message: "Choose a start date no later than today." };
   return { ok: true, startDate, endDate: earlierDate(requestedEndDate, todayInIndia()) };
 }
 
@@ -1177,8 +1186,11 @@ export async function getManagerHeadcountData(): Promise<
 }
 
 export async function getManagerHeadcountHistory(input: {
-  rangeType: "date" | "week";
-  date: string;
+  rangeType: "all" | "date" | "range" | "month" | "week";
+  date?: string;
+  startDate?: string;
+  endDate?: string;
+  month?: string;
 }): Promise<
   { ok: true; data: ManagerHeadcountHistory } | { ok: false; data: ManagerHeadcountHistory; message: string }
 > {
@@ -1188,12 +1200,9 @@ export async function getManagerHeadcountHistory(input: {
     return { ok: false, data: emptyHistory, message: "Only SubHub Managers can view HR & Attendance history." };
   }
 
-  const date = normalizeDate(input.date);
-  if (!date || date > todayInIndia()) {
-    return { ok: false, data: emptyHistory, message: "Choose a valid date no later than today." };
-  }
-  const startDate = input.rangeType === "week" ? mondayOfWeek(date) : date;
-  const endDate = input.rangeType === "week" ? earlierDate(addDays(startDate, 6), todayInIndia()) : date;
+  const bounds = adminReportBounds(input);
+  if (!bounds.ok) return { ok: false, data: emptyHistory, message: bounds.message };
+  const { startDate, endDate } = bounds;
   const db = await getMongoDb(current.databaseName);
   await ensureHrIndexes(db);
   const [records, changes] = await Promise.all([
@@ -1289,7 +1298,7 @@ export async function saveManagerHeadcount(input: {
 }
 
 export async function getAdminHeadcountReport(input: {
-  rangeType: "month" | "date" | "week" | "range";
+  rangeType: "all" | "month" | "date" | "week" | "range";
   month?: string;
   date?: string;
   startDate?: string;
