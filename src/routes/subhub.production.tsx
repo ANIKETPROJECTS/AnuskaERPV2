@@ -338,11 +338,13 @@ function ProductionRow({
   return (
     <tr className="border-b border-border/70 last:border-0">
       <td className="px-5 py-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{order.productName}</p>
-        <a href={`/subhub/production/orders/${encodeURIComponent(order.id)}`} className="mt-1 block font-medium text-primary hover:underline">{order.variantName}</a>
-        <p className="tabular text-xs text-muted-foreground">{order.orderNumber} · {order.variantCode}</p>
-        <p className="mt-1 text-xs text-muted-foreground">Due {order.dueDate}</p>
-        <div className="mt-3 flex gap-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{order.productName}</p>
+            <a href={`/subhub/production/orders/${encodeURIComponent(order.id)}`} className="mt-1 block font-medium text-primary hover:underline">{order.variantName}</a>
+            <p className="tabular text-xs text-muted-foreground">{order.orderNumber} · {order.variantCode}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Due {order.dueDate}</p>
+          </div>
           <Link
             to="/subhub/production/allocation/$orderId"
             params={{ orderId: order.id }}
