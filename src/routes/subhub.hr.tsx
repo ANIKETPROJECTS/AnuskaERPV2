@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { ArrowRight, RefreshCw, Save } from "lucide-react";
+import { ArrowRight, Save } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { getManagerHeadcountDataFn, saveManagerHeadcountFn } from "@/hr";
@@ -53,12 +53,11 @@ function SubhubHrPage() {
   const [countInput, setCountInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const today = data.date || currentDate();
 
-  const load = useCallback(async (showNotice = false) => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -68,8 +67,6 @@ function SubhubHrPage() {
         return;
       }
       setData(result.data);
-      setCountInput(result.data.presentCount === null ? "" : String(result.data.presentCount));
-      if (showNotice) setNotice("Today’s count is up to date.");
     } catch {
       setError("Today’s count could not be loaded. Please try again.");
     } finally {
@@ -106,7 +103,8 @@ function SubhubHrPage() {
           ...current.recentRecords.filter((record) => record.date !== result.record.date),
         ],
       }));
-      setNotice("Today’s count was saved.");
+      setCountInput("");
+      setNotice("Today’s attendance was recorded.");
     } catch {
       setError("Today’s count could not be saved. Please try again.");
     } finally {
@@ -114,37 +112,16 @@ function SubhubHrPage() {
     }
   }
 
-  async function refresh() {
-    setRefreshing(true);
-    setNotice("");
-    try {
-      await load(true);
-    } finally {
-      setRefreshing(false);
-    }
-  }
-
   return (
     <SubHubShell
       headerTitle="HR & Attendance"
       actions={
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            to="/subhub/hr/history"
-            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-input bg-white px-4 text-base font-medium hover:bg-muted"
-          >
-            View history <ArrowRight className="size-4" aria-hidden="true" />
-          </Link>
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            disabled={loading || refreshing}
-            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-input bg-white px-4 text-base font-medium hover:bg-muted disabled:cursor-wait disabled:opacity-70"
-          >
-            <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
-            {refreshing ? "Refreshing…" : "Refresh"}
-          </button>
-        </div>
+        <Link
+          to="/subhub/hr/history"
+          className="inline-flex min-h-11 items-center gap-2 rounded-md border border-input bg-white px-4 text-base font-medium hover:bg-muted"
+        >
+          View history <ArrowRight className="size-4" aria-hidden="true" />
+        </Link>
       }
     >
       <section className="space-y-4 px-6 pb-6">
@@ -173,58 +150,54 @@ function SubhubHrPage() {
             </p>
           </header>
 
-          <form
-            onSubmit={(event) => void save(event)}
-            className="space-y-5 border-b border-border py-5"
-          >
-            <label className="block max-w-sm text-base font-medium">
-              People present today
-              <input
-                required
-                type="number"
-                min="1"
-                step="1"
-                inputMode="numeric"
-                value={countInput}
-                onChange={(event) => setCountInput(event.target.value.replace(/\D/g, ""))}
-                placeholder="e.g. 24"
-                className="mt-1.5 h-12 w-full rounded-md border border-input bg-white px-4 text-lg font-semibold tabular outline-none focus:border-primary"
-                aria-describedby="headcount-help"
-              />
-            </label>
-            <p id="headcount-help" className="text-base text-muted-foreground">
-              Enter one total number. You can update it if the count changes.
-            </p>
-            <button
-              type="submit"
-              disabled={loading || saving}
-              className="inline-flex min-h-12 items-center gap-2 rounded-md bg-primary px-5 text-base font-semibold text-primary-foreground disabled:opacity-50"
+          {data.presentCount === null ? (
+            <form
+              onSubmit={(event) => void save(event)}
+              className="space-y-5 border-b border-border py-5"
             >
-              <Save className="size-4" aria-hidden="true" />
-              {saving
-                ? "Saving…"
-                : data.presentCount === null
-                  ? "Save today’s count"
-                  : "Update today’s count"}
-            </button>
-          </form>
-
-          <div className="grid gap-4 border-b border-border py-4 sm:grid-cols-3">
-            <div>
-              <p className="text-sm text-muted-foreground">Date</p>
-              <p className="mt-1 text-base font-medium">{formatDate(today)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Saved count</p>
-              <p className="mt-1 text-base font-medium">
-                {data.presentCount === null ? "Not saved yet" : `${data.presentCount} people`}
+              <label className="block max-w-sm text-base font-medium">
+                People present today
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  step="1"
+                  inputMode="numeric"
+                  value={countInput}
+                  onChange={(event) => setCountInput(event.target.value.replace(/\D/g, ""))}
+                  placeholder="e.g. 24"
+                  disabled={loading || saving}
+                  className="mt-1.5 h-12 w-full rounded-md border border-input bg-white px-4 text-lg font-semibold tabular outline-none focus:border-primary disabled:opacity-60"
+                  aria-describedby="headcount-help"
+                />
+              </label>
+              <p id="headcount-help" className="text-base text-muted-foreground">
+                Enter today’s total once. It cannot be changed after it is recorded.
               </p>
+              <button
+                type="submit"
+                disabled={loading || saving}
+                className="inline-flex min-h-12 items-center gap-2 rounded-md bg-primary px-5 text-base font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                <Save className="size-4" aria-hidden="true" />
+                {saving ? "Recording…" : "Record today’s attendance"}
+              </button>
+            </form>
+          ) : (
+            <div className="border-b border-border py-5">
+              <h3 className="text-base font-semibold">Today’s attendance</h3>
+              <p className="mt-2 text-2xl font-semibold tabular">
+                {data.presentCount} people present
+              </p>
+              <p className="mt-1 text-base text-muted-foreground">
+                Registered by{" "}
+                {data.recentRecords.find((record) => record.date === today)?.recordedByName ||
+                  data.subhubManagerName ||
+                  "the SubHub manager"}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">{formatDate(today)}</p>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Manager</p>
-              <p className="mt-1 text-base font-medium">{data.subhubManagerName || "—"}</p>
-            </div>
-          </div>
+          )}
         </section>
       </section>
     </SubHubShell>

@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { ArrowRight, Download, RefreshCw, Search } from "lucide-react";
+import { ArrowRight, Download, Search } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { getAdminHeadcountReportFn } from "@/hr";
@@ -65,40 +65,34 @@ function AdminHrPage() {
   const [subhubFilter, setSubhubFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const today = currentDate();
 
-  const load = useCallback(
-    async (showRefresh = false) => {
-      if (showRefresh) setRefreshing(true);
-      setLoading(true);
-      setError("");
-      try {
-        const result = await getAdminHeadcountReportFn({
-          data:
-            view === "month"
-              ? { rangeType: "month", month }
-              : view === "range"
-                ? { rangeType: "range", startDate, endDate }
-                : { rangeType: view, date },
-        });
-        if (result.ok) {
-          setReport(result.data);
-        } else {
-          setReport(emptyReport);
-          setError(result.message);
-        }
-      } catch {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await getAdminHeadcountReportFn({
+        data:
+          view === "month"
+            ? { rangeType: "month", month }
+            : view === "range"
+              ? { rangeType: "range", startDate, endDate }
+              : { rangeType: view, date },
+      });
+      if (result.ok) {
+        setReport(result.data);
+      } else {
         setReport(emptyReport);
-        setError("The HR report could not be loaded. Please try again.");
-      } finally {
-        setLoading(false);
-        if (showRefresh) setRefreshing(false);
+        setError(result.message);
       }
-    },
-    [date, endDate, month, startDate, view],
-  );
+    } catch {
+      setReport(emptyReport);
+      setError("The HR report could not be loaded. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [date, endDate, month, startDate, view]);
 
   useEffect(() => {
     void load();
@@ -260,15 +254,6 @@ function AdminHrPage() {
                 />
               </label>
             ) : null}
-            <button
-              type="button"
-              onClick={() => void load(true)}
-              disabled={loading || refreshing}
-              className="inline-flex h-12 items-center gap-2 rounded-md border border-input bg-white px-4 text-base font-medium hover:bg-muted/40 disabled:opacity-50"
-            >
-              <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
-              {refreshing ? "Refreshing…" : "Refresh"}
-            </button>
             <button
               type="button"
               onClick={exportCsv}

@@ -1234,30 +1234,33 @@ export async function saveManagerHeadcount(input: {
   const session = client.startSession();
   const now = new Date();
   const id = `${date}`;
+  let alreadyRecorded = false;
   try {
     await session.withTransaction(async () => {
       const records = db.collection<HeadcountDocument>("hr_headcount");
       const existing = await records.findOne({ date }, { session });
-      await records.updateOne(
-        { date },
+      if (existing) {
+        alreadyRecorded = true;
+        return;
+      }
+      await records.insertOne(
         {
-          $set: {
-            date,
-            presentCount: input.presentCount,
-            recordedByUserId: current._id,
-            recordedByName: current.name,
-            updatedAt: now,
-          },
-          $setOnInsert: { _id: id, createdAt: now },
+          _id: id,
+          date,
+          presentCount: input.presentCount,
+          recordedByUserId: current._id,
+          recordedByName: current.name,
+          createdAt: now,
+          updatedAt: now,
         },
-        { upsert: true, session },
+        { session },
       );
       await db.collection<HeadcountChangeDocument>("hr_headcount_changes").insertOne(
         {
           _id: randomUUID(),
           date,
-          action: existing ? "Updated" : "Created",
-          previousPresentCount: existing?.presentCount ?? null,
+          action: "Created",
+          previousPresentCount: null,
           presentCount: input.presentCount,
           actorUserId: current._id,
           actorName: current.name,
@@ -1267,10 +1270,18 @@ export async function saveManagerHeadcount(input: {
       );
     });
   } catch (error) {
+    const code =
+      typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+    if (code === 11000) {
+      return { ok: false, message: "Today's count has already been recorded and cannot be changed." };
+    }
     console.error("[hr] Failed to save a headcount change and its audit record.", error);
     return { ok: false, message: "The headcount and its change log could not be saved. Please try again." };
   } finally {
     await session.endSession();
+  }
+  if (alreadyRecorded) {
+    return { ok: false, message: "Today's count has already been recorded and cannot be changed." };
   }
   const record = await db.collection<HeadcountDocument>("hr_headcount").findOne({ date });
   if (!record) return { ok: false, message: "Today's headcount could not be saved. Please try again." };
