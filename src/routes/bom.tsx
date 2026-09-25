@@ -147,55 +147,55 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
 
   const content = (
       <section className="space-y-6 p-6">
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-medium">Parent assemblies</p>
-              <p className="mt-1 text-xs text-muted-foreground">Search product names, product codes, companies, or variant codes.</p>
+              <h2 className="text-lg font-semibold">Parent assemblies</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Search product names, product codes, companies, or variant codes.</p>
             </div>
-            <label className="relative block w-full max-w-xs">
+            <label className="relative block w-full max-w-sm">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={productSearch}
                 onChange={(event) => setProductSearch(event.target.value)}
                 placeholder="Search BOM products"
                 aria-label="Search BOM products"
-                className="h-9 w-full rounded-md border border-input bg-card pl-9 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                className="h-11 w-full rounded-md border border-input bg-card pl-10 pr-3 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
             </label>
           </div>
-          <div className="filter-toolbar rounded-lg border border-border bg-card p-3">
-            <label className="text-xs font-medium">
+          <div className="filter-toolbar rounded-lg border border-border bg-card p-4">
+            <label className="text-sm font-medium">
               Sort by
-              <select value={sortBy} onChange={(event) => setSortBy(event.target.value as BomSort)} className="mt-1.5 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal">
+              <select value={sortBy} onChange={(event) => setSortBy(event.target.value as BomSort)} className="mt-1.5 h-11 rounded-md border border-input bg-white px-3 text-base font-normal">
                 <option value="name-asc">Name A–Z</option>
                 <option value="name-desc">Name Z–A</option>
               </select>
             </label>
-            <label className="text-xs font-medium">
+            <label className="text-sm font-medium">
               Filter variants
-              <select value={variantFilter} onChange={(event) => setVariantFilter(event.target.value as CountFilter)} className="mt-1.5 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal">
+              <select value={variantFilter} onChange={(event) => setVariantFilter(event.target.value as CountFilter)} className="mt-1.5 h-11 rounded-md border border-input bg-white px-3 text-base font-normal">
                 <option value="all">Any variant count</option>
                 <option value="none">No variants</option>
               </select>
             </label>
-            <label className="text-xs font-medium">
+            <label className="text-sm font-medium">
               Filter raw parts
-              <select value={rawPartsFilter} onChange={(event) => setRawPartsFilter(event.target.value as CountFilter)} className="mt-1.5 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal">
+              <select value={rawPartsFilter} onChange={(event) => setRawPartsFilter(event.target.value as CountFilter)} className="mt-1.5 h-11 rounded-md border border-input bg-white px-3 text-base font-normal">
                 <option value="all">Any raw-part count</option>
                 <option value="none">No raw parts</option>
               </select>
             </label>
-            <button type="button" onClick={clearCatalogFilters} className="h-9 rounded-md border border-input px-3 text-xs font-medium text-muted-foreground hover:bg-muted">
+            <button type="button" onClick={clearCatalogFilters} className="h-11 rounded-md border border-input px-4 text-sm font-medium text-muted-foreground hover:bg-muted">
               Clear filters
             </button>
-            <div className="ml-auto flex items-center gap-3">
+            <div className="ml-auto flex flex-wrap items-center gap-4">
               <div className="flex rounded-md border border-input bg-white p-1" aria-label="BOM layout">
                 <button
                   type="button"
                   onClick={() => setView("grid")}
                   aria-pressed={view === "grid"}
-                  className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium ${view === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium ${view === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
                 >
                   <LayoutGrid className="size-3.5" /> Grid
                 </button>
@@ -203,7 +203,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                   type="button"
                   onClick={() => setView("list")}
                   aria-pressed={view === "list"}
-                  className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium ${view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium ${view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
                 >
                   <List className="size-3.5" /> List
                 </button>
@@ -211,12 +211,12 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                   type="button"
                   onClick={() => setView("matrix")}
                   aria-pressed={view === "matrix"}
-                  className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium ${view === "matrix" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium ${view === "matrix" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
                 >
                   <Table2 className="size-3.5" /> Matrix
                 </button>
               </div>
-              <p className="text-xs text-muted-foreground">{filteredProducts.length} of {products.length} parent assemblies</p>
+              <p className="text-sm text-muted-foreground">{filteredProducts.length} of {products.length} parent assemblies</p>
             </div>
           </div>
         </div>
@@ -228,25 +228,25 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                   <img src={product.image} alt={`${product.name} component assembly`} className="h-full w-full object-contain" />
                 </div>
                 <div className="p-4">
-                  <p className="tabular text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{product.code}</p>
-                  <h2 className="mt-1 text-base font-semibold">{product.name}</h2>
-                  <p className="mt-1 min-h-10 text-xs leading-5 text-muted-foreground">{product.description}</p>
-                  <div className="mt-4 grid grid-cols-2 border-t border-border pt-3 text-xs">
+                  <p className="tabular text-sm font-medium uppercase tracking-wide text-muted-foreground">{product.code}</p>
+                  <h2 className="mt-1 text-lg font-semibold">{product.name}</h2>
+                  <p className="mt-1 min-h-12 text-sm leading-6 text-muted-foreground">{product.description}</p>
+                  <div className="mt-4 grid grid-cols-2 border-t border-border pt-3 text-sm">
                     <div>
-                      <p className="uppercase tracking-wide text-muted-foreground">Variants</p>
-                      <p className="mt-1 font-semibold">{product.variants.length}</p>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Variants</p>
+                      <p className="mt-1 text-base font-semibold">{product.variants.length}</p>
                     </div>
                     <div>
-                      <p className="uppercase tracking-wide text-muted-foreground">Raw parts</p>
-                      <p className="mt-1 font-semibold">{rawPartCount(product)}</p>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Raw parts</p>
+                      <p className="mt-1 text-base font-semibold">{rawPartCount(product)}</p>
                     </div>
                   </div>
                   {readOnly ? (
-                    <Link to="/subhub/bom/$code" params={{ code: product.code }} className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-primary hover:underline">
+                    <Link to="/subhub/bom/$code" params={{ code: product.code }} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">
                       Open structure <span aria-hidden="true">→</span>
                     </Link>
                   ) : (
-                    <Link to="/bom/$code" params={{ code: product.code }} className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-primary hover:underline">
+                    <Link to="/bom/$code" params={{ code: product.code }} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">
                       Open structure <span aria-hidden="true">→</span>
                     </Link>
                   )}
@@ -267,14 +267,14 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                         {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
                       </span>
                       <span className="min-w-0">
-                        <span className="tabular block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{product.code}</span>
+                        <span className="tabular block text-sm font-medium uppercase tracking-wide text-muted-foreground">{product.code}</span>
                         <span className="mt-1 block text-lg font-semibold">{product.name}</span>
-                        <span className="mt-1 block truncate text-xs text-muted-foreground">{product.description}</span>
+                        <span className="mt-1 block truncate text-sm text-muted-foreground">{product.description}</span>
                       </span>
                     </button>
-                    <div className="flex flex-wrap items-center gap-4 text-xs">
-                      <span><span className="uppercase tracking-wide text-muted-foreground">Variants</span> <strong className="ml-1">{product.variants.length}</strong></span>
-                      <span><span className="uppercase tracking-wide text-muted-foreground">Raw parts</span> <strong className="ml-1">{rawPartCount(product)}</strong></span>
+                    <div className="flex flex-wrap items-center gap-4 text-sm">
+                      <span><span className="text-muted-foreground">Variants</span> <strong className="ml-1">{product.variants.length}</strong></span>
+                      <span><span className="text-muted-foreground">Raw parts</span> <strong className="ml-1">{rawPartCount(product)}</strong></span>
                       <span className="font-medium text-primary">{expanded ? "Hide variants" : "View variants"}</span>
                       {readOnly ? (
                         <Link to="/subhub/bom/$code" params={{ code: product.code }} className="font-semibold text-primary hover:underline">Open structure →</Link>
@@ -286,7 +286,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                   {expanded ? (
                     <div className="border-t border-border bg-muted/10 px-4 py-4 sm:px-6">
                       <div className="space-y-3 border-l-2 border-primary/20 pl-4">
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Variants and required materials</p>
+                          <p className="text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">Variants and required materials</p>
                         {!product.variants.length ? (
                           <p className="rounded-md border border-dashed border-border bg-card px-4 py-5 text-sm text-muted-foreground">No variants have been added to this assembly.</p>
                         ) : (
@@ -299,21 +299,21 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                                     <ChevronRight className="size-4 transition-transform group-open:rotate-90" />
                                   </span>
                                   <span className="min-w-0 flex-1">
-                                    <span className="tabular block text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{variant.code}</span>
-                                    <span className="mt-1 block font-semibold">{variant.name}</span>
-                                    <span className="mt-1 block text-xs text-muted-foreground">{variant.company}</span>
+                                    <span className="tabular block text-xs font-medium uppercase tracking-wide text-muted-foreground">{variant.code}</span>
+                                    <span className="mt-1 block text-base font-semibold">{variant.name}</span>
+                                    <span className="mt-1 block text-sm text-muted-foreground">{variant.company}</span>
                                   </span>
-                                  <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">{requiredMaterials.length} required materials</span>
+                                  <span className="rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary">{requiredMaterials.length} required materials</span>
                                 </summary>
-                                <div className="mt-4 border-l-2 border-border pl-4">
-                                  <p className="text-xs font-medium text-muted-foreground">Required materials</p>
+                                <div className="mb-4 ml-4 border-l-2 border-border pl-4">
+                                  <p className="text-sm font-medium text-muted-foreground">Required materials</p>
                                   {requiredMaterials.length ? (
                                     <div className="mt-2 space-y-2">
                                       {requiredMaterials.map((material) => (
-                                        <div key={material.code} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/70 bg-muted/20 px-3 py-2 text-xs">
+                                        <div key={material.code} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/70 bg-muted/20 px-4 py-3 text-sm">
                                           <div className="min-w-0">
-                                            <p className="font-medium">{material.name}</p>
-                                            <p className="tabular mt-0.5 text-muted-foreground">{material.code} · {material.material}</p>
+                                            <p className="font-semibold">{material.name}</p>
+                                            <p className="tabular mt-0.5 text-sm text-muted-foreground">{material.code} · {material.material}</p>
                                           </div>
                                           <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
                                             <span>Qty <strong className="text-foreground">{material.quantity}</strong></span>
@@ -324,7 +324,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                                       ))}
                                     </div>
                                   ) : (
-                                    <p className="mt-2 text-xs text-muted-foreground">No required materials are defined for this variant.</p>
+                                    <p className="mt-2 text-sm text-muted-foreground">No required materials are defined for this variant.</p>
                                   )}
                                 </div>
                               </details>
@@ -341,7 +341,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
         ) : (
           <BomMatrix products={filteredProducts} title="All Float types BOM matrix" description="Compare every matching Float type and variant against its required raw materials." />
         )}
-        {!filteredProducts.length ? <p className="rounded-md border border-dashed border-border px-5 py-12 text-center text-sm text-muted-foreground">No BOM products match the current search and filters.</p> : null}
+        {!filteredProducts.length ? <p className="rounded-md border border-dashed border-border px-5 py-12 text-center text-base text-muted-foreground">No BOM products match the current search and filters.</p> : null}
       </section>
   );
 
@@ -357,7 +357,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
         <button
           type="button"
           onClick={openProductForm}
-          className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"
+          className="rule-header inline-flex min-h-11 items-center gap-2 rounded-md px-4 py-2 text-base font-medium"
         >
           <Plus className="size-4" /> Add product
         </button>
@@ -409,7 +409,7 @@ function ProductForm({
         </div>
 
         <div className="mt-6 space-y-4">
-          <label className="block text-sm font-medium">
+          <label className="block text-base font-medium">
             Product image
             <span className="mt-1.5 flex min-h-24 cursor-pointer items-center gap-3 rounded-md border border-dashed border-input bg-muted/20 px-3 py-3 text-sm font-normal hover:bg-muted/40">
               {form.image ? (
@@ -424,27 +424,27 @@ function ProductForm({
               <input type="file" accept="image/*" onChange={onImage} className="sr-only" />
             </span>
           </label>
-          <label className="block text-sm font-medium">
+          <label className="block text-base font-medium">
             Product name
             <input
               required
               value={form.name}
               onChange={(event) => onChange({ ...form, name: event.target.value })}
               placeholder="Pump"
-              className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary"
+              className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus:border-primary"
             />
           </label>
-          <label className="block text-sm font-medium">
+          <label className="block text-base font-medium">
             Product code
             <input
               required
               value={form.code}
               onChange={(event) => onChange({ ...form, code: event.target.value })}
               placeholder="P-PMP"
-              className="tabular mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary"
+              className="tabular mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus:border-primary"
             />
           </label>
-          <label className="block text-sm font-medium">
+          <label className="block text-base font-medium">
             Description
             <textarea
               required
@@ -452,17 +452,17 @@ function ProductForm({
               onChange={(event) => onChange({ ...form, description: event.target.value })}
               placeholder="Pump assembly definition"
               rows={3}
-              className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+              className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-base outline-none focus:border-primary"
             />
           </label>
           {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}
         </div>
 
         <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
-          <button type="button" onClick={onClose} className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted">
+          <button type="button" onClick={onClose} className="inline-flex min-h-11 items-center rounded-md border border-input px-4 py-2 text-base font-medium hover:bg-muted">
             Cancel
           </button>
-          <button type="submit" className="rule-header rounded-md px-4 py-2 text-sm font-medium">
+          <button type="submit" className="rule-header inline-flex min-h-11 items-center rounded-md px-4 py-2 text-base font-medium">
             Add product
           </button>
         </div>

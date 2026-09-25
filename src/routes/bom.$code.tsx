@@ -110,20 +110,20 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
   }
 
   const content = (
-      <div className="grid gap-5 p-6 xl:grid-cols-[270px_1fr]">
+      <div className="grid gap-6 p-6 xl:grid-cols-[300px_1fr]">
         <aside className="panel h-fit overflow-hidden">
-          <div className="border-b border-border p-4">
+          <div className="border-b border-border p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company BOM variants</p>
-                <p className="mt-1 text-xs text-muted-foreground">{product.variants.length} variants</p>
+                <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Company BOM variants</p>
+                <p className="mt-1 text-sm text-muted-foreground">{product.variants.length} variants</p>
               </div>
               {!readOnly ? (
                 <button
                   type="button"
                   onClick={openCreateVariant}
                   aria-label="Add variant"
-                  className="rounded-md border border-input p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="inline-flex size-10 items-center justify-center rounded-md border border-input text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   <Plus className="size-4" />
                 </button>
@@ -136,11 +136,11 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
                 onChange={(event) => setVariantSearch(event.target.value)}
                 placeholder="Search variants"
                 aria-label="Search variants"
-                className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"
+                className="h-11 w-full rounded-md border border-input bg-background pl-9 pr-3 text-base outline-none focus:border-primary"
               />
             </div>
           </div>
-          <div className="space-y-2 p-2">
+          <div className="space-y-2 p-3">
             {filteredVariants.map((variant) => (
               <div
                 key={variant.id}
@@ -149,9 +149,9 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
                 }`}
               >
                 <button type="button" onClick={() => setSelectedVariantId(variant.id)} className="w-full text-left">
-                  <p className="tabular text-[10px] font-medium uppercase text-muted-foreground">{variant.code}</p>
-                  <p className="mt-1 text-sm font-semibold">{variant.name}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{variant.company}</p>
+                  <p className="tabular text-xs font-medium uppercase text-muted-foreground">{variant.code}</p>
+                  <p className="mt-1 text-base font-semibold">{variant.name}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{variant.company}</p>
                 </button>
                 {!readOnly ? (
                   <div className="mt-3 flex justify-end gap-2 border-t border-border/70 pt-2">
@@ -162,7 +162,7 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
                         openEditVariant(variant);
                       }}
                       aria-label={`Edit ${variant.name}`}
-                      className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-input px-2.5 text-xs font-medium text-foreground hover:bg-muted"
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-input px-3 text-sm font-medium text-foreground hover:bg-muted"
                     >
                       <Pencil className="size-3.5" /> Edit
                     </button>
@@ -173,7 +173,7 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
                         setVariantToDelete(variant);
                       }}
                       aria-label={`Delete ${variant.name}`}
-                      className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-destructive/30 px-2.5 text-xs font-medium text-destructive hover:bg-destructive/10"
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-destructive/30 px-3 text-sm font-medium text-destructive hover:bg-destructive/10"
                     >
                       <Trash2 className="size-3.5" /> Delete
                     </button>
@@ -182,7 +182,7 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
               </div>
             ))}
             {filteredVariants.length === 0 ? (
-              <p className="px-3 py-8 text-center text-sm text-muted-foreground">No matching variants.</p>
+              <p className="px-3 py-8 text-center text-base text-muted-foreground">No matching variants.</p>
             ) : null}
           </div>
         </aside>
@@ -194,12 +194,12 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
             </p>
           ) : null}
           <div className="panel overflow-hidden">
-            <div className="flex flex-wrap items-center gap-4 border-b border-border px-5 py-4">
+            <div className="flex flex-wrap items-center gap-4 border-b border-border px-6 py-5">
               <img src={product.image} alt={`${product.name} assembly`} className="size-16 rounded-md border border-border bg-white object-contain p-1" />
               <div className="min-w-0 flex-1">
-                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{structureView === "matrix" ? "BOM matrix" : "Raw subparts"}</p>
-                 <h2 className="mt-1 text-lg font-semibold">{structureView === "matrix" ? `${product.name} variants` : selectedVariant?.name ?? "No variant selected"}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
+                 <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{structureView === "matrix" ? "BOM matrix" : "Raw subparts"}</p>
+                 <h2 className="mt-1 text-xl font-semibold">{structureView === "matrix" ? `${product.name} variants` : selectedVariant?.name ?? "No variant selected"}</h2>
+                <p className="mt-1 text-base text-muted-foreground">
                    {structureView === "matrix"
                      ? "Compare every variant against its required raw materials."
                      : selectedVariant
@@ -213,7 +213,7 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
                      type="button"
                      onClick={() => setStructureView("detail")}
                      aria-pressed={structureView === "detail"}
-                     className={`rounded px-2.5 py-1.5 text-xs font-medium ${structureView === "detail" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                      className={`min-h-9 rounded px-3 py-1.5 text-sm font-medium ${structureView === "detail" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
                    >
                      Detail
                    </button>
@@ -221,13 +221,13 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
                      type="button"
                      onClick={() => setStructureView("matrix")}
                      aria-pressed={structureView === "matrix"}
-                     className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium ${structureView === "matrix" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                      className={`inline-flex min-h-9 items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium ${structureView === "matrix" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
                    >
                      <Table2 className="size-3.5" /> Matrix
                    </button>
                  </div>
                  {!readOnly ? (
-                   <button type="button" onClick={openCreateVariant} className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium">
+                    <button type="button" onClick={openCreateVariant} className="rule-header inline-flex min-h-11 items-center gap-2 rounded-md px-4 py-2 text-base font-medium">
                      <Plus className="size-4" /> Add variant
                    </button>
                  ) : null}
@@ -238,7 +238,7 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
              ) : selectedVariant ? (
                 <PartsTable variant={selectedVariant} materials={materials} />
              ) : readOnly ? (
-               <p className="p-12 text-center text-sm text-muted-foreground">No variant selected.</p>
+                <p className="p-12 text-center text-base text-muted-foreground">No variant selected.</p>
              ) : (
                <EmptyVariantState onAdd={openCreateVariant} />
              )}
@@ -320,25 +320,26 @@ function PartsTable({ variant, materials }: { variant: BomVariant; materials: Ra
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[580px] text-sm">
-        <thead className="border-b border-border bg-muted/20 text-left text-xs uppercase tracking-wide text-muted-foreground">
+      <table className="w-full min-w-[650px] text-base">
+        <caption className="sr-only">Raw parts for {variant.name}</caption>
+        <thead className="border-b border-border bg-muted/20 text-left text-sm uppercase tracking-wide text-muted-foreground">
           <tr>
-            <th className="px-5 py-3 font-medium">Raw subpart</th>
-            <th className="px-5 py-3 font-medium">Material</th>
-            <th className="px-5 py-3 font-medium">Source</th>
-            <th className="px-5 py-3 text-right font-medium">Qty / parent</th>
+            <th scope="col" className="px-6 py-4 font-medium">Raw subpart</th>
+            <th scope="col" className="px-6 py-4 font-medium">Material</th>
+            <th scope="col" className="px-6 py-4 font-medium">Source</th>
+            <th scope="col" className="px-6 py-4 text-right font-medium">Qty / parent</th>
           </tr>
         </thead>
         <tbody>
           {parts.map(({ part, quantity }) => (
             <tr key={part.code} className="border-b border-border/70 last:border-0">
-              <td className="px-5 py-3">
-                <p className="font-medium">{part.name}</p>
-                <p className="tabular text-xs text-muted-foreground">{part.code}</p>
+              <td className="px-6 py-4">
+                <p className="font-semibold">{part.name}</p>
+                <p className="tabular mt-0.5 text-sm text-muted-foreground">{part.code}</p>
               </td>
-              <td className="px-5 py-3 text-muted-foreground">{part.material}</td>
-              <td className="px-5 py-3"><Tag tone={part.source === "Molded" ? "info" : "neutral"}>{part.source}</Tag></td>
-              <td className="tabular px-5 py-3 text-right font-semibold">×{quantity}</td>
+              <td className="px-6 py-4 text-muted-foreground">{part.material}</td>
+              <td className="px-6 py-4"><Tag tone={part.source === "Molded" ? "info" : "neutral"} size="md">{part.source}</Tag></td>
+              <td className="tabular px-6 py-4 text-right font-semibold">×{quantity}</td>
             </tr>
           ))}
         </tbody>
@@ -350,9 +351,9 @@ function PartsTable({ variant, materials }: { variant: BomVariant; materials: Ra
 function EmptyVariantState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="p-12 text-center">
-      <p className="font-medium">No BOM variant selected</p>
-      <p className="mt-1 text-sm text-muted-foreground">Add a variant and assign its raw parts and quantities.</p>
-      <button type="button" onClick={onAdd} className="mt-4 inline-flex items-center gap-2 rounded-md border border-input px-3 py-2 text-sm font-medium hover:bg-muted">
+      <p className="text-lg font-semibold">No BOM variant selected</p>
+      <p className="mt-1 text-base text-muted-foreground">Add a variant and assign its raw parts and quantities.</p>
+      <button type="button" onClick={onAdd} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md border border-input px-4 py-2 text-base font-medium hover:bg-muted">
         <Plus className="size-4" /> Create variant
       </button>
     </div>
@@ -431,29 +432,29 @@ function VariantForm({
         </div>
 
         <div className="mt-6 space-y-4">
-          <label className="block text-sm font-medium">
+          <label className="block text-base font-medium">
             Company
-            <input required value={form.company} onChange={(event) => setForm({ ...form, company: event.target.value })} placeholder="Eureka Forbes" className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" />
+            <input required value={form.company} onChange={(event) => setForm({ ...form, company: event.target.value })} placeholder="Eureka Forbes" className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus:border-primary" />
           </label>
-          <label className="block text-sm font-medium">
+          <label className="block text-base font-medium">
             Variant name
-            <input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Eureka Pro" className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" />
+            <input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Eureka Pro" className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus:border-primary" />
           </label>
-          <label className="block text-sm font-medium">
+          <label className="block text-base font-medium">
             Variant code
-            <input required value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} placeholder="FL-NEW" className="tabular mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" />
+            <input required value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} placeholder="FL-NEW" className="tabular mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus:border-primary" />
           </label>
           <div>
             <div className="flex items-end justify-between gap-3">
               <div>
-                <p className="text-sm font-medium">Raw parts and quantities <span className="text-destructive">*</span></p>
-                <p className="mt-1 text-xs text-muted-foreground">Select components and set how many are used per parent.</p>
+                <p className="text-base font-medium">Raw parts and quantities <span className="text-destructive">*</span></p>
+                <p className="mt-1 text-sm text-muted-foreground">Select components and set how many are used per parent.</p>
               </div>
-              <span className="text-xs text-muted-foreground">{Object.keys(form.parts).length} selected</span>
+              <span className="text-sm text-muted-foreground">{Object.keys(form.parts).length} selected</span>
             </div>
             <div className="relative mt-3">
               <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
-              <input value={partSearch} onChange={(event) => setPartSearch(event.target.value)} placeholder="Search raw parts" aria-label="Search raw parts" className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm outline-none focus:border-primary" />
+              <input value={partSearch} onChange={(event) => setPartSearch(event.target.value)} placeholder="Search raw parts" aria-label="Search raw parts" className="h-11 w-full rounded-md border border-input bg-background pl-9 pr-3 text-base outline-none focus:border-primary" />
             </div>
             <button
               type="button"
@@ -461,24 +462,24 @@ function VariantForm({
                 setError("");
                 setShowRawPartCreator(true);
               }}
-              className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-dashed border-primary/40 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/5"
+              className="mt-2 inline-flex min-h-10 items-center gap-1.5 rounded-md border border-dashed border-primary/40 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5"
             >
               <Plus className="size-3.5" /> Add a raw part not listed
             </button>
-            <div className="mt-2 max-h-64 overflow-y-auto rounded-md border border-border">
+            <div className="mt-3 max-h-72 overflow-y-auto rounded-md border border-border">
               {filteredParts.map((part) => {
                 const selected = Object.prototype.hasOwnProperty.call(form.parts, part.code);
                 return (
-                  <div key={part.code} className="flex items-center gap-3 border-b border-border/70 px-3 py-2.5 last:border-0">
+                  <div key={part.code} className="flex items-center gap-3 border-b border-border/70 px-4 py-3 last:border-0">
                     <input type="checkbox" checked={selected} onChange={() => togglePart(part.code)} className="size-4 accent-[var(--color-primary)]" />
                     <button type="button" onClick={() => togglePart(part.code)} className="min-w-0 flex-1 text-left">
-                      <p className="text-sm font-medium">{part.name}</p>
-                      <p className="tabular text-xs text-muted-foreground">{part.code} · {part.material}</p>
+                      <p className="text-base font-medium">{part.name}</p>
+                      <p className="tabular mt-0.5 text-sm text-muted-foreground">{part.code} · {part.material}</p>
                     </button>
                     {selected ? (
-                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <label className="flex items-center gap-2 text-sm text-muted-foreground">
                         Qty
-                        <input type="number" min={1} step={1} value={form.parts[part.code]} onChange={(event) => updateQuantity(part.code, event.target.value)} aria-label={`Quantity for ${part.name}`} className="h-8 w-16 rounded border border-input bg-background px-2 text-right text-sm text-foreground outline-none focus:border-primary" />
+                        <input type="number" min={1} step={1} value={form.parts[part.code]} onChange={(event) => updateQuantity(part.code, event.target.value)} aria-label={`Quantity for ${part.name}`} className="h-10 w-20 rounded border border-input bg-background px-2 text-right text-base text-foreground outline-none focus:border-primary" />
                       </label>
                     ) : null}
                   </div>
@@ -490,8 +491,8 @@ function VariantForm({
         </div>
 
         <div className="mt-auto flex justify-end gap-3 border-t border-border pt-5">
-          <button type="button" onClick={onClose} className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted">Cancel</button>
-          <button type="submit" className="rule-header inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium">
+          <button type="button" onClick={onClose} className="inline-flex min-h-11 items-center rounded-md border border-input px-4 py-2 text-base font-medium hover:bg-muted">Cancel</button>
+          <button type="submit" className="rule-header inline-flex min-h-11 items-center gap-2 rounded-md px-4 py-2 text-base font-medium">
             <Check className="size-4" /> {editing ? "Save variant" : "Create variant"}
           </button>
         </div>
@@ -561,16 +562,16 @@ function RawPartCreator({
           </button>
         </div>
         <div className="mt-6 space-y-3">
-          <label className="block text-sm font-medium">Raw-part code<input required value={code} onChange={(event) => setCode(event.target.value)} placeholder="GP006-050" className="tabular mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" /></label>
-          <label className="block text-sm font-medium">Name<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Float bracket" className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" /></label>
-          <label className="block text-sm font-medium">Material<input required value={material} onChange={(event) => setMaterial(event.target.value)} placeholder="Nylon 66" className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" /></label>
-          <label className="block text-sm font-medium">Description<textarea required value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Describe the raw part" rows={3} className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary" /></label>
-          <label className="block text-sm font-medium">Source<select value={source} onChange={(event) => setSource(event.target.value as NewRawMaterial["source"])} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary"><option value="Molded">Molded</option><option value="Purchased">Purchased</option><option value="Other">Other</option></select></label>
+          <label className="block text-base font-medium">Raw-part code<input required value={code} onChange={(event) => setCode(event.target.value)} placeholder="GP006-050" className="tabular mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus:border-primary" /></label>
+          <label className="block text-base font-medium">Name<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Float bracket" className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus:border-primary" /></label>
+          <label className="block text-base font-medium">Material<input required value={material} onChange={(event) => setMaterial(event.target.value)} placeholder="Nylon 66" className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus:border-primary" /></label>
+          <label className="block text-base font-medium">Description<textarea required value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Describe the raw part" rows={3} className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-base outline-none focus:border-primary" /></label>
+          <label className="block text-base font-medium">Source<select value={source} onChange={(event) => setSource(event.target.value as NewRawMaterial["source"])} className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus:border-primary"><option value="Molded">Molded</option><option value="Purchased">Purchased</option><option value="Other">Other</option></select></label>
           {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}
         </div>
         <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
-          <button type="button" onClick={onClose} className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted">Cancel</button>
-          <button type="button" onClick={save} className="rule-header inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium"><Plus className="size-4" /> Add and select</button>
+          <button type="button" onClick={onClose} className="inline-flex min-h-11 items-center rounded-md border border-input px-4 py-2 text-base font-medium hover:bg-muted">Cancel</button>
+          <button type="button" onClick={save} className="rule-header inline-flex min-h-11 items-center gap-2 rounded-md px-4 py-2 text-base font-medium"><Plus className="size-4" /> Add and select</button>
         </div>
       </div>
     </div>

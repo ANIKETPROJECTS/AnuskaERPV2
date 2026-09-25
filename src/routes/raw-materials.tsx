@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Database, Pencil, Plus, Search, Trash2, X } 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
-import { Panel } from "@/components/erp/bits";
+import { Tag } from "@/components/erp/bits";
 import { deleteRawMaterial, useRawMaterials, updateRawMaterial, addRawMaterial, type RawMaterial } from "@/lib/raw-material-store";
 type RawMaterialSort = "code-asc" | "code-desc" | "name-asc" | "name-desc" | "material-asc" | "source-asc";
 type SourceFilter = "all" | RawMaterial["source"];
@@ -214,18 +214,18 @@ function RawMaterialsContent({
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <p className="text-sm text-muted-foreground">{materials.length} raw materials</p>
-          <p className="mt-1 text-xs text-muted-foreground">{readOnly ? "View-only access for this SubHub." : "Master data is maintained in the Admin Panel."}</p>
+          <p className="text-lg font-semibold">{materials.length} raw materials</p>
+          <p className="mt-1 text-sm text-muted-foreground">{readOnly ? "View-only access for this SubHub." : "Master data is maintained in the Admin Panel."}</p>
         </div>
-        <label className="relative block w-full max-w-xs">
+        <label className="relative block w-full max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search raw materials" className="h-9 w-full rounded-md border border-input bg-card pl-9 pr-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
+          <input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search raw materials" aria-label="Search raw materials" className="h-11 w-full rounded-md border border-input bg-card pl-10 pr-3 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" />
         </label>
       </div>
-      <div className="filter-toolbar rounded-lg border border-border bg-card p-3">
-        <label className="text-xs font-medium">
+      <div className="filter-toolbar rounded-lg border border-border bg-card p-4">
+        <label className="text-sm font-medium">
           Sort by
-          <select value={sortBy} onChange={(event) => onSortChange(event.target.value as RawMaterialSort)} className="mt-1.5 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal">
+          <select value={sortBy} onChange={(event) => onSortChange(event.target.value as RawMaterialSort)} className="mt-1.5 h-11 rounded-md border border-input bg-white px-3 text-base font-normal">
             <option value="code-asc">Code A–Z</option>
             <option value="code-desc">Code Z–A</option>
             <option value="name-asc">Name A–Z</option>
@@ -234,93 +234,111 @@ function RawMaterialsContent({
             <option value="source-asc">Source</option>
           </select>
         </label>
-        <label className="text-xs font-medium">
+        <label className="text-sm font-medium">
           Filter source
-          <select value={sourceFilter} onChange={(event) => onSourceFilterChange(event.target.value as SourceFilter)} className="mt-1.5 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal">
+          <select value={sourceFilter} onChange={(event) => onSourceFilterChange(event.target.value as SourceFilter)} className="mt-1.5 h-11 rounded-md border border-input bg-white px-3 text-base font-normal">
             <option value="all">All sources</option>
             <option value="Molded">Molded</option>
             <option value="Purchased">Purchased</option>
             <option value="Other">Other</option>
           </select>
         </label>
-        <label className="text-xs font-medium">
+        <label className="text-sm font-medium">
           Filter material
-          <select value={materialFilter} onChange={(event) => onMaterialFilterChange(event.target.value)} className="mt-1.5 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal">
+          <select value={materialFilter} onChange={(event) => onMaterialFilterChange(event.target.value)} className="mt-1.5 h-11 rounded-md border border-input bg-white px-3 text-base font-normal">
             <option value="all">All materials</option>
             {materialOptions.map((option) => <option key={option} value={option}>{option}</option>)}
           </select>
         </label>
-        <button type="button" onClick={onClearFilters} className="h-9 rounded-md border border-input px-3 text-xs font-medium text-muted-foreground hover:bg-muted">Clear filters</button>
-        <label className="ml-auto text-xs font-medium">
-          Rows per page
-          <select value={pageSize} onChange={(event) => onPageSizeChange(event.target.value === "all" ? "all" : Number(event.target.value) as PageSize)} className="ml-2 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal">
-            <option value={10}>10</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-            <option value="all">All</option>
-          </select>
-        </label>
+        <button type="button" onClick={onClearFilters} className="h-11 rounded-md border border-input px-4 text-sm font-medium text-muted-foreground hover:bg-muted">Clear filters</button>
       </div>
-      <Panel title="Raw material catalog" description="Costing inputs and component records used by product structures">
+      <section className="panel overflow-hidden">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold">Raw material catalog</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Costing inputs and component records used by product structures</p>
+          </div>
+          <p className="text-sm text-muted-foreground">{totalFiltered} matching {totalFiltered === 1 ? "material" : "materials"}</p>
+        </header>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px] text-sm">
-            <thead className="border-b border-border bg-muted/20 text-left text-xs uppercase tracking-wide text-muted-foreground">
+          <table className="w-full min-w-[1160px] text-base">
+            <caption className="sr-only">Raw material catalog</caption>
+            <colgroup>
+              <col className="w-[12%]" />
+              <col className="w-[19%]" />
+              <col className="w-[28%]" />
+              <col className="w-[16%]" />
+              <col className="w-[11%]" />
+              {!readOnly ? <col className="w-[14%]" /> : null}
+            </colgroup>
+            <thead className="border-b border-border bg-muted/20 text-left text-sm uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-5 py-3 font-medium">Code</th>
-                <th className="px-5 py-3 font-medium">Name</th>
-                <th className="px-5 py-3 font-medium">Description</th>
-                <th className="px-5 py-3 font-medium">Material</th>
-                <th className="px-5 py-3 font-medium">Source</th>
-                {!readOnly ? <th className="px-5 py-3 text-right font-medium">Actions</th> : null}
+                <th scope="col" className="px-6 py-4 font-medium">Code</th>
+                <th scope="col" className="px-6 py-4 font-medium">Name</th>
+                <th scope="col" className="px-6 py-4 font-medium">Description</th>
+                <th scope="col" className="px-6 py-4 font-medium">Material</th>
+                <th scope="col" className="px-6 py-4 font-medium">Source</th>
+                {!readOnly ? <th scope="col" className="px-6 py-4 text-right font-medium">Actions</th> : null}
               </tr>
             </thead>
             <tbody>
               {filteredMaterials.map((item) => (
                 <tr key={item.code} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
-                  <td className="tabular px-5 py-4 font-medium">{item.code}</td>
-                  <td className="px-5 py-4 font-medium">{item.name}</td>
-                  <td className="px-5 py-4 text-muted-foreground">{item.description}</td>
-                  <td className="px-5 py-4 text-muted-foreground">{item.material}</td>
-                  <td className="px-5 py-4 text-muted-foreground">{item.source}</td>
+                  <th scope="row" className="tabular px-6 py-4 text-left text-sm font-semibold">{item.code}</th>
+                  <td className="px-6 py-4 font-semibold">{item.name}</td>
+                  <td className="px-6 py-4 text-sm leading-6 text-muted-foreground">{item.description}</td>
+                  <td className="px-6 py-4 text-sm text-muted-foreground">{item.material}</td>
+                  <td className="px-6 py-4"><Tag tone={item.source === "Molded" ? "info" : "neutral"} size="md">{item.source}</Tag></td>
                   {!readOnly ? (
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end gap-1">
-                        <button type="button" onClick={() => onEdit?.(item)} aria-label={`Edit ${item.name}`} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
-                        <Pencil className="size-3.5" />
+                    <td className="px-6 py-4">
+                      <div className="flex justify-end gap-2">
+                        <button type="button" onClick={() => onEdit?.(item)} aria-label={`Edit ${item.name}`} title={`Edit ${item.name}`} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md border border-input px-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
+                        <Pencil className="size-4" /> Edit
                         </button>
-                        <button type="button" onClick={() => onDelete?.(item)} aria-label={`Delete ${item.name}`} className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
-                        <Trash2 className="size-3.5" />
+                        <button type="button" onClick={() => onDelete?.(item)} aria-label={`Delete ${item.name}`} title={`Delete ${item.name}`} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md border border-input px-2 text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                        <Trash2 className="size-4" /> Delete
                         </button>
                       </div>
                     </td>
                   ) : null}
                 </tr>
               ))}
-              {!filteredMaterials.length ? <tr><td colSpan={readOnly ? 5 : 6} className="px-5 py-12 text-center text-sm text-muted-foreground">No raw materials found.</td></tr> : null}
+              {!filteredMaterials.length ? <tr><td colSpan={readOnly ? 5 : 6} className="px-6 py-14 text-center text-base text-muted-foreground">No raw materials found. Try changing your search or filters.</td></tr> : null}
             </tbody>
           </table>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3">
-          <p className="text-xs text-muted-foreground">
-            {totalFiltered === 0 ? "Showing 0 records" : `Showing ${(currentPage - 1) * (pageSize === "all" ? totalFiltered : pageSize) + 1}–${Math.min(currentPage * (pageSize === "all" ? totalFiltered : pageSize), totalFiltered)} of ${totalFiltered} matching records`}
+        <footer className="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-background px-6 py-4">
+          <p className="text-sm text-muted-foreground">
+            {totalFiltered === 0
+              ? "Showing 0 matching records"
+              : `Showing ${(currentPage - 1) * (pageSize === "all" ? totalFiltered : pageSize) + 1}–${Math.min(currentPage * (pageSize === "all" ? totalFiltered : pageSize), totalFiltered)} of ${totalFiltered} matching records`}
           </p>
-          {pageSize !== "all" && pageCount > 1 ? (
-            <div className="flex items-center gap-1">
-              <button type="button" onClick={() => onPageChange(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="inline-flex items-center gap-1 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50">
-                <ChevronLeft className="size-3.5" /> Previous
-              </button>
-              {Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => (
-                <button key={page} type="button" onClick={() => onPageChange(page)} aria-current={page === currentPage ? "page" : undefined} className={`min-w-8 rounded-md border px-2 py-1.5 text-xs font-medium ${page === currentPage ? "border-primary bg-primary text-primary-foreground" : "border-input hover:bg-muted"}`}>
-                  {page}
-                </button>
-              ))}
-              <button type="button" onClick={() => onPageChange(Math.min(pageCount, currentPage + 1))} disabled={currentPage === pageCount} className="inline-flex items-center gap-1 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50">
-                Next <ChevronRight className="size-3.5" />
-              </button>
-            </div>
-          ) : null}
-        </div>
-      </Panel>
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+              Rows per page
+              <select value={pageSize} onChange={(event) => onPageSizeChange(event.target.value === "all" ? "all" : Number(event.target.value) as PageSize)} className="h-11 rounded-md border border-input bg-background px-3 text-base text-foreground">
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value="all">All</option>
+              </select>
+            </label>
+            {pageSize !== "all" ? (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground">Page <strong className="text-foreground">{currentPage}</strong> of <strong className="text-foreground">{pageCount}</strong></span>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => onPageChange(Math.max(1, currentPage - 1))} disabled={currentPage === 1} aria-label="Previous page" className="inline-flex size-11 items-center justify-center rounded-md border border-input bg-background hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40">
+                    <ChevronLeft className="size-4" />
+                  </button>
+                  <button type="button" onClick={() => onPageChange(Math.min(pageCount, currentPage + 1))} disabled={currentPage === pageCount} aria-label="Next page" className="inline-flex size-11 items-center justify-center rounded-md border border-input bg-background hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40">
+                    <ChevronRight className="size-4" />
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </footer>
+      </section>
     </div>
   );
 }
@@ -349,21 +367,21 @@ function RawMaterialDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/20" role="dialog" aria-modal="true" aria-labelledby="raw-material-title">
-      <form onSubmit={submit} className="flex h-full w-full max-w-md flex-col border-l border-border bg-card p-6 shadow-xl">
+      <form onSubmit={submit} className="flex h-full w-full max-w-lg flex-col border-l border-border bg-card p-6 shadow-xl">
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 text-primary"><Database className="size-4" /><span className="text-xs font-semibold uppercase tracking-wide">Admin Panel</span></div>
-            <h2 id="raw-material-title" className="mt-2 text-lg font-semibold">{editing ? "Edit raw material" : "New raw material"}</h2>
+            <h2 id="raw-material-title" className="mt-2 text-xl font-semibold">{editing ? "Edit raw material" : "New raw material"}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{editing ? "Update this material in the shared raw-material catalog." : "Add a material to the shared raw-material catalog."}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-muted-foreground hover:bg-muted"><X className="size-5" /></button>
         </div>
-        <label className="mt-6 block text-sm font-medium">Code<input required value={code} onChange={(event) => setCode(event.target.value)} placeholder="GP006-050" className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 font-normal outline-none focus:border-primary" /></label>
-        <label className="mt-4 block text-sm font-medium">Name<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Raw part name" className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 font-normal outline-none focus:border-primary" /></label>
-        <label className="mt-4 block text-sm font-medium">Description<textarea required value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Describe the raw material or part" rows={4} className="mt-1 w-full resize-none rounded-md border border-input bg-background px-3 py-2 font-normal outline-none focus:border-primary" /></label>
-        <label className="mt-4 block text-sm font-medium">Material<input required value={material} onChange={(event) => setMaterial(event.target.value)} placeholder="Nylon 66" className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 font-normal outline-none focus:border-primary" /></label>
-        <label className="mt-4 block text-sm font-medium">Source<select value={source} onChange={(event) => setSource(event.target.value as RawMaterial["source"])} className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 font-normal outline-none focus:border-primary"><option value="Molded">Molded</option><option value="Purchased">Purchased</option><option value="Other">Other</option></select></label>
-        <div className="mt-auto flex justify-end gap-3 pt-8"><button type="button" onClick={onClose} className="rounded-md border border-input px-4 py-2 text-sm font-medium">Cancel</button><button type="submit" className="rule-header rounded-md px-4 py-2 text-sm font-medium">{editing ? "Save changes" : "Add raw material"}</button></div>
+        <label className="mt-6 block text-base font-medium">Code<input required value={code} onChange={(event) => setCode(event.target.value)} placeholder="GP006-050" className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal outline-none focus:border-primary" /></label>
+        <label className="mt-4 block text-base font-medium">Name<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Raw part name" className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal outline-none focus:border-primary" /></label>
+        <label className="mt-4 block text-base font-medium">Description<textarea required value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Describe the raw material or part" rows={4} className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-base font-normal outline-none focus:border-primary" /></label>
+        <label className="mt-4 block text-base font-medium">Material<input required value={material} onChange={(event) => setMaterial(event.target.value)} placeholder="Nylon 66" className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal outline-none focus:border-primary" /></label>
+        <label className="mt-4 block text-base font-medium">Source<select value={source} onChange={(event) => setSource(event.target.value as RawMaterial["source"])} className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal outline-none focus:border-primary"><option value="Molded">Molded</option><option value="Purchased">Purchased</option><option value="Other">Other</option></select></label>
+        <div className="mt-auto flex justify-end gap-3 pt-8"><button type="button" onClick={onClose} className="inline-flex min-h-11 items-center rounded-md border border-input px-4 py-2 text-base font-medium">Cancel</button><button type="submit" className="rule-header inline-flex min-h-11 items-center rounded-md px-4 py-2 text-base font-medium">{editing ? "Save changes" : "Add raw material"}</button></div>
       </form>
     </div>
   );
