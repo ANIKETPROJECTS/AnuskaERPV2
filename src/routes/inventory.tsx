@@ -119,6 +119,7 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "Raw Material" | "Float">("all");
+  const [stockFilter, setStockFilter] = useState<"all" | "available" | "low" | "empty">("all");
   const [page, setPage] = useState(1);
   const pageSize = 25;
   const filteredItems = useMemo(() => {
@@ -126,10 +127,21 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
     return [...data.items]
       .filter((item) => categoryFilter === "all" || item.category === categoryFilter)
       .filter((item) => !normalizedQuery || `${item.name} ${item.code}`.toLowerCase().includes(normalizedQuery))
+      .filter((item) => {
+        if (stockFilter === "available") return item.quantity >= 5;
+        if (stockFilter === "low") return item.quantity > 0 && item.quantity < 5;
+        if (stockFilter === "empty") return item.quantity <= 0;
+        return true;
+      })
       .sort((left, right) => `${left.name} ${left.code}`.localeCompare(`${right.name} ${right.code}`));
-  }, [data.items, query, categoryFilter]);
+  }, [data.items, query, categoryFilter, stockFilter]);
   const paginatedItems = useMemo(() => filteredItems.slice((page - 1) * pageSize, page * pageSize), [filteredItems, page, pageSize]);
-  useEffect(() => setPage(1), [query, categoryFilter]);
+  const pendingChangesCount = useMemo(() => data.items.reduce((count, item) => {
+    const draft = changes[item.code];
+    const quantity = Number(draft?.quantity);
+    return draft?.quantity.trim() && Number.isInteger(quantity) && quantity >= 0 && quantity !== item.quantity ? count + 1 : count;
+  }, 0), [data.items, changes]);
+  useEffect(() => setPage(1), [query, categoryFilter, stockFilter]);
   const updateChange = (code: string, field: "quantity" | "reason", value: string) => {
     setChanges((current) => ({ ...current, [code]: { quantity: current[code]?.quantity ?? "", reason: current[code]?.reason ?? "", reasonOption: current[code]?.reasonOption ?? "", [field]: value } }));
     setMessage("");
@@ -176,6 +188,8 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
       delete next[code];
       return next;
     });
+    setMessage("");
+    setError("");
   };
 
   async function save() {

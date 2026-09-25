@@ -47,8 +47,8 @@ export function SubHubShell({
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className={`flex shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200 ${sidebarCollapsed ? "w-[4.5rem]" : "w-64"}`}>
+    <div className="flex h-screen overflow-hidden bg-background">
+      <aside className={`flex h-full shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar transition-[width] duration-200 ${sidebarCollapsed ? "w-[4.5rem]" : "w-64"}`}>
         <div className={`flex h-[65px] shrink-0 items-center border-b border-sidebar-border ${sidebarCollapsed ? "justify-center px-3" : "justify-between gap-3 px-5"}`}>
           {!sidebarCollapsed ? (
             <div className="flex min-w-0 items-center gap-3">
@@ -112,7 +112,7 @@ export function SubHubShell({
           </div>
         </div>
       </aside>
-      <main className="min-w-0 flex-1">
+      <main className="h-screen min-w-0 flex-1 overflow-y-auto">
         <header className="sticky top-0 z-20 flex min-h-[57px] flex-wrap items-center justify-between gap-3 border-b border-border bg-background/85 px-6 py-3 backdrop-blur">
           {headerTitle ? <h1 className="min-w-0 text-lg font-semibold leading-tight">{headerTitle}</h1> : null}
           {actions}
