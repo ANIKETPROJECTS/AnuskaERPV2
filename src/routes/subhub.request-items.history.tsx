@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { AlertCircle, ArrowLeft, ClipboardList, Search } from "lucide-react";
+import { AlertCircle, ArrowLeft, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { TablePagination } from "@/components/erp/TablePagination";
@@ -58,15 +58,15 @@ function RequestItemsHistoryPage() {
       actions={
         <Link
           to="/subhub/request-items"
-          className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-white px-3 text-sm font-medium hover:bg-muted"
+          className="inline-flex min-h-11 items-center gap-2 rounded-md border border-input bg-white px-4 text-base font-medium hover:bg-muted"
         >
           <ArrowLeft className="size-4" aria-hidden="true" /> Back to Request items
         </Link>
       }
     >
-      <section className="space-y-4 p-4 sm:space-y-5 sm:p-6">
+      <section className="space-y-4 px-6 pb-6">
         <div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-base text-muted-foreground">
             All item requests submitted by this SubHub, including their review status and
             Procurement Management responses.
           </p>
@@ -75,7 +75,7 @@ function RequestItemsHistoryPage() {
         {!result.ok ? (
           <div
             role="alert"
-            className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-base text-destructive"
           >
             <span className="inline-flex items-start gap-2">
               <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -84,33 +84,40 @@ function RequestItemsHistoryPage() {
             <button
               type="button"
               onClick={() => void router.invalidate()}
-              className="min-h-10 rounded-md border border-destructive/25 px-3 font-medium hover:bg-destructive/5"
+              className="min-h-11 rounded-md border border-destructive/25 px-4 font-medium hover:bg-destructive/5"
             >
               Try again
             </button>
           </div>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Stat label="All requests" value={requests.length} tone="text-foreground" />
-          <Stat label="Pending" value={pendingCount} tone="text-warning" />
-          <Stat label="Approved" value={approvedCount} tone="text-success" />
-          <Stat label="Declined" value={declinedCount} tone="text-destructive" />
+        <div className="flex flex-wrap gap-x-6 gap-y-2 border-y border-border py-3 text-base">
+          <span>
+            <strong className="tabular">{num(requests.length)}</strong> all requests
+          </span>
+          <span className="text-warning">
+            <strong className="tabular">{num(pendingCount)}</strong> pending
+          </span>
+          <span className="text-success">
+            <strong className="tabular">{num(approvedCount)}</strong> approved
+          </span>
+          <span className="text-destructive">
+            <strong className="tabular">{num(declinedCount)}</strong> declined
+          </span>
         </div>
 
-        <section className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
-          <div className="flex items-center gap-2 border-b border-border px-4 py-4 sm:px-5">
-            <ClipboardList className="size-4 text-primary" aria-hidden="true" />
+        <section className="panel overflow-hidden">
+          <header className="border-b border-border px-5 py-4">
             <div>
-              <h2 className="font-semibold">My item requests</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <h2 className="text-lg font-semibold">My item requests</h2>
+              <p className="mt-1 text-base text-muted-foreground">
                 {num(filteredRequests.length)} of {num(requests.length)} requests
               </p>
             </div>
-          </div>
+          </header>
 
-          <div className="flex flex-wrap items-end gap-3 border-b border-border bg-muted/10 p-4">
-            <label className="min-w-[220px] flex-1 text-sm font-medium text-muted-foreground">
+          <div className="flex flex-wrap items-end gap-3 border-b border-border p-4">
+            <label className="min-w-[220px] flex-1 text-base font-medium text-muted-foreground">
               Search
               <span className="relative mt-1 block">
                 <Search
@@ -122,18 +129,18 @@ function RequestItemsHistoryPage() {
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Item, details, or response"
-                  className="h-10 w-full rounded-md border border-input bg-white pl-9 pr-3 text-sm font-normal text-foreground outline-none focus:border-primary"
+                  className="h-12 w-full rounded-md border border-input bg-white pl-9 pr-3 text-base font-normal text-foreground outline-none focus:border-primary"
                 />
               </span>
             </label>
 
-            <label className="w-full text-sm font-medium text-muted-foreground sm:w-40">
+            <label className="w-full text-base font-medium text-muted-foreground sm:w-40">
               Status
               <select
                 aria-label="Filter item request history by status"
                 value={status}
                 onChange={(event) => setStatus(event.target.value as RequestStatusFilter)}
-                className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-sm font-normal text-foreground outline-none focus:border-primary"
+                className="mt-1 h-12 w-full rounded-md border border-input bg-white px-3 text-base font-normal text-foreground outline-none focus:border-primary"
               >
                 <option value="all">All statuses</option>
                 <option value="Pending">Pending</option>
@@ -142,25 +149,25 @@ function RequestItemsHistoryPage() {
               </select>
             </label>
 
-            <label className="w-full text-sm font-medium text-muted-foreground sm:w-40">
+            <label className="w-full text-base font-medium text-muted-foreground sm:w-40">
               From date
               <input
                 aria-label="Filter item request history from date"
                 type="date"
                 value={dateFrom}
                 onChange={(event) => setDateFrom(event.target.value)}
-                className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-sm font-normal text-foreground outline-none focus:border-primary"
+                className="mt-1 h-12 w-full rounded-md border border-input bg-white px-3 text-base font-normal text-foreground outline-none focus:border-primary"
               />
             </label>
 
-            <label className="w-full text-sm font-medium text-muted-foreground sm:w-40">
+            <label className="w-full text-base font-medium text-muted-foreground sm:w-40">
               To date
               <input
                 aria-label="Filter item request history to date"
                 type="date"
                 value={dateTo}
                 onChange={(event) => setDateTo(event.target.value)}
-                className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-sm font-normal text-foreground outline-none focus:border-primary"
+                className="mt-1 h-12 w-full rounded-md border border-input bg-white px-3 text-base font-normal text-foreground outline-none focus:border-primary"
               />
             </label>
 
@@ -173,7 +180,7 @@ function RequestItemsHistoryPage() {
                   setDateFrom("");
                   setDateTo("");
                 }}
-                className="h-10 rounded-md border border-input bg-white px-3 text-sm font-medium text-foreground hover:bg-muted/40"
+                className="h-12 rounded-md border border-input bg-white px-4 text-base font-medium text-foreground hover:bg-muted/40"
               >
                 Clear filters
               </button>
@@ -182,27 +189,26 @@ function RequestItemsHistoryPage() {
 
           {requests.length === 0 ? (
             <div className="p-10 text-center">
-              <ClipboardList className="mx-auto size-8 text-muted-foreground" aria-hidden="true" />
-              <p className="mt-3 font-medium">No request history yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="text-lg font-semibold">No request history yet</p>
+              <p className="mt-2 text-base text-muted-foreground">
                 Requests you send will be stored here with their status and responses.
               </p>
               <Link
                 to="/subhub/request-items"
-                className="mt-4 inline-flex min-h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground"
+                className="mt-4 inline-flex min-h-12 items-center rounded-md bg-primary px-5 text-base font-medium text-primary-foreground"
               >
                 Submit an item request
               </Link>
             </div>
           ) : filteredRequests.length === 0 ? (
-            <p className="border-y border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+            <p className="border-y border-dashed border-border p-8 text-center text-base text-muted-foreground">
               No requests match the selected filters.
             </p>
           ) : (
             <>
               <div className="w-full overflow-x-auto">
-                <table className="w-full min-w-[1050px] text-sm">
-                  <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <table className="w-full min-w-[1120px] text-base">
+                  <thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground">
                     <tr>
                       <th className="whitespace-nowrap px-4 py-3 font-semibold">Date &amp; time</th>
                       <th className="whitespace-nowrap px-4 py-3 font-semibold">Last updated</th>
@@ -216,10 +222,10 @@ function RequestItemsHistoryPage() {
                   <tbody>
                     {visibleRequests.map((request) => (
                       <tr key={request.id} className="border-b border-border/70 last:border-0">
-                        <td className="tabular whitespace-nowrap px-4 py-4 text-xs text-muted-foreground">
+                        <td className="tabular whitespace-nowrap px-4 py-4 text-sm text-muted-foreground">
                           {formatRequestDateTime(request.createdAt)}
                         </td>
-                        <td className="tabular whitespace-nowrap px-4 py-4 text-xs text-muted-foreground">
+                        <td className="tabular whitespace-nowrap px-4 py-4 text-sm text-muted-foreground">
                           {request.updatedAt !== request.createdAt
                             ? formatRequestDateTime(request.updatedAt)
                             : "Not reviewed"}
@@ -268,16 +274,7 @@ function RequestStatus({ status }: { status: ProcurementItemRequest["status"] })
         : "bg-warning/10 text-warning";
 
   return (
-    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${style}`}>{status}</span>
-  );
-}
-
-function Stat({ label, value, tone }: { label: string; value: number; tone: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={`mt-2 text-2xl font-semibold ${tone}`}>{num(value)}</p>
-    </div>
+    <span className={`rounded-full px-2.5 py-1 text-sm font-semibold ${style}`}>{status}</span>
   );
 }
 
