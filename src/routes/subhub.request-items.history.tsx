@@ -92,9 +92,6 @@ function RequestItemsHistoryPage() {
                 All item requests submitted by this SubHub, including their review status and
                 Procurement Management responses.
               </p>
-              <p className="mt-1 text-base text-muted-foreground">
-                {num(filteredRequests.length)} of {num(requests.length)} requests
-              </p>
             </div>
             <div className="flex flex-wrap gap-x-5 gap-y-2 text-base">
               <span>
@@ -206,29 +203,33 @@ function RequestItemsHistoryPage() {
                 <table className="w-full min-w-[1120px] text-base">
                   <thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground">
                     <tr>
-                      <th className="whitespace-nowrap px-4 py-3 font-semibold">Date &amp; time</th>
-                      <th className="whitespace-nowrap px-4 py-3 font-semibold">Last updated</th>
-                      <th className="px-4 py-3 font-semibold">Item</th>
-                      <th className="px-4 py-3 text-right font-semibold">Quantity</th>
-                      <th className="px-4 py-3 font-semibold">Status</th>
-                      <th className="px-4 py-3 font-semibold">Request details</th>
-                      <th className="px-4 py-3 font-semibold">Procurement response</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">
+                        Date &amp; time
+                      </th>
+                      <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">
+                        Last updated
+                      </th>
+                      <th className="px-4 py-3 text-left font-semibold">Item</th>
+                      <th className="px-4 py-3 text-center font-semibold">Quantity</th>
+                      <th className="px-4 py-3 text-center font-semibold">Status</th>
+                      <th className="px-4 py-3 text-left font-semibold">Request details</th>
+                      <th className="px-4 py-3 text-left font-semibold">Procurement response</th>
                     </tr>
                   </thead>
                   <tbody>
                     {visibleRequests.map((request) => (
                       <tr key={request.id} className="border-b border-border/70 last:border-0">
-                        <td className="tabular whitespace-nowrap px-4 py-4 text-sm text-muted-foreground">
+                        <td className="tabular whitespace-nowrap px-4 py-4 text-center text-sm text-muted-foreground">
                           {formatRequestDateTime(request.createdAt)}
                         </td>
-                        <td className="tabular whitespace-nowrap px-4 py-4 text-sm text-muted-foreground">
+                        <td className="tabular whitespace-nowrap px-4 py-4 text-center text-sm text-muted-foreground">
                           {request.updatedAt !== request.createdAt
                             ? formatRequestDateTime(request.updatedAt)
                             : "Not reviewed"}
                         </td>
                         <td className="px-4 py-4 font-medium">{request.itemName}</td>
-                        <td className="tabular px-4 py-4 text-right">{num(request.quantity)}</td>
-                        <td className="px-4 py-4">
+                        <td className="tabular px-4 py-4 text-center">{num(request.quantity)}</td>
+                        <td className="px-4 py-4 text-center">
                           <RequestStatus status={request.status} />
                         </td>
                         <td className="max-w-64 whitespace-pre-wrap px-4 py-4 text-muted-foreground">
@@ -264,10 +265,10 @@ function RequestItemsHistoryPage() {
 function RequestStatus({ status }: { status: ProcurementItemRequest["status"] }) {
   const style =
     status === "Approved"
-      ? "bg-success/10 text-success"
+      ? "bg-success text-success-foreground"
       : status === "Declined"
-        ? "bg-destructive/10 text-destructive"
-        : "bg-warning/10 text-warning";
+        ? "bg-destructive text-destructive-foreground"
+        : "bg-warning text-warning-foreground";
 
   return (
     <span className={`rounded-full px-2.5 py-1 text-sm font-semibold ${style}`}>{status}</span>
