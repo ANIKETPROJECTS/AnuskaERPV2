@@ -234,49 +234,56 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
   }
 
   return (
-    <div className="w-full">
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <label className="relative min-w-[240px] flex-1">
-          <span className="sr-only">Search inventory</span>
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            aria-label="Search inventory"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Name or unique code"
-            className="h-10 w-full rounded-md border border-input pl-9 pr-3 text-base outline-none focus:border-primary"
-          />
+    <div className={`w-full pt-4 ${pendingChangesCount ? "pb-24" : ""}`}>
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <label className="min-w-[240px] flex-1 text-sm font-medium text-muted-foreground">
+          Search {categoryFilter === "Float" ? "final products" : categoryFilter === "Raw Material" ? "raw materials" : "raw materials & final products"}
+          <span className="relative mt-1 block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" />
+            <input
+              aria-label="Search inventory items"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Name or unique code"
+              className="h-10 w-full rounded-md border border-input pl-9 pr-3 text-base font-normal text-foreground outline-none focus:border-primary"
+            />
+          </span>
         </label>
-        <label className="w-full shrink-0 sm:w-64">
-          <span className="sr-only">Filter inventory type</span>
-          <select
-            aria-label="Filter inventory type"
-            value={categoryFilter}
-            onChange={(event) => setCategoryFilter(event.target.value as typeof categoryFilter)}
-            className="h-10 w-full rounded-md border border-input bg-white px-3 text-base text-foreground outline-none focus:border-primary"
-          >
-            <option value="all">Raw materials &amp; final products</option>
-            <option value="Raw Material">Raw materials only</option>
-            <option value="Float">Final products only</option>
-          </select>
+        <label className="w-full shrink-0 text-sm font-medium text-muted-foreground sm:w-56">
+          Item type
+          <span className="relative mt-1 block">
+            <select
+              aria-label="Filter by item type"
+              value={categoryFilter}
+              onChange={(event) => setCategoryFilter(event.target.value as typeof categoryFilter)}
+              className="h-10 w-full appearance-none rounded-md border border-input bg-white px-3 pr-9 text-base font-normal text-foreground outline-none focus:border-primary"
+            >
+              <option value="all">Raw materials &amp; final products</option>
+              <option value="Raw Material">Raw materials only</option>
+              <option value="Float">Final products only</option>
+            </select>
+            <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2" />
+          </span>
+        </label>
+        <label className="w-full shrink-0 text-sm font-medium text-muted-foreground sm:w-44">
+          Stock status
+          <span className="relative mt-1 block">
+            <select
+              aria-label="Filter by stock status"
+              value={stockFilter}
+              onChange={(event) => setStockFilter(event.target.value as typeof stockFilter)}
+              className="h-10 w-full appearance-none rounded-md border border-input bg-white px-3 pr-9 text-base font-normal text-foreground outline-none focus:border-primary"
+            >
+              <option value="all">All stock</option>
+              <option value="available">Available</option>
+              <option value="low">Low stock</option>
+              <option value="empty">No stock</option>
+            </select>
+            <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2" />
+          </span>
         </label>
       </div>
-
-      <div className="sticky top-[57px] z-10 -mx-6 mb-3 flex min-h-[58px] flex-wrap items-center justify-between gap-3 border-y border-border bg-background/95 px-6 py-2 shadow-sm backdrop-blur">
-        <div className="min-w-0 flex-1">
-          {error ? <p role="alert" className="text-sm font-medium text-destructive">{error}</p> : null}
-          {message && !error ? <p className="inline-flex items-center gap-1.5 text-sm font-medium text-success"><Check className="size-4" />{message}</p> : null}
-        </div>
-        <button
-          type="button"
-          disabled={saving || loading}
-          onClick={() => void save()}
-          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-base font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <ShieldAlert className="size-4" />
-          {saving ? "Saving…" : "Save updated counts"}
-        </button>
-      </div>
+      {message ? <p className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-success"><Check className="size-4" />{message}</p> : null}
 
       {loading ? (
         <p className="p-8 text-center text-base text-muted-foreground">Loading inventory items…</p>
@@ -288,11 +295,11 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
         <>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[960px] text-base">
-              <thead className="bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
+              <thead className="bg-muted/30 text-center text-sm uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Item</th>
+                  <th className="px-4 py-3 text-left font-semibold">Item</th>
                   <th className="px-4 py-3 font-semibold">Type</th>
-                  <th className="px-4 py-3 text-right font-semibold">Current stock</th>
+                  <th className="px-4 py-3 font-semibold">Current stock</th>
                   <th className="w-52 px-4 py-3 font-semibold">Updated count</th>
                   <th className="min-w-[280px] px-4 py-3 font-semibold">Reason</th>
                 </tr>
@@ -308,15 +315,15 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
                         <p className="font-medium">{item.name}</p>
                         <p className="tabular text-sm text-muted-foreground">{item.code}</p>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3 text-center">
                         <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-sm font-medium ${item.category === "Float" ? "bg-primary/10 text-primary" : "bg-secondary text-secondary-foreground"}`}>
                           {item.category === "Float" ? "Final product" : "Raw material"}
                         </span>
                       </td>
-                      <td className="tabular whitespace-nowrap px-4 py-3 text-right font-semibold">
+                      <td className="tabular whitespace-nowrap px-4 py-3 text-center font-semibold">
                         {num(item.quantity)} <span className="text-sm font-normal text-muted-foreground">{item.unit}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-center">
                         <div className="flex items-center gap-2">
                           <input
                             aria-label={`Updated count for ${item.name}`}
@@ -326,17 +333,17 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
                             value={draft.quantity}
                             onChange={(event) => updateQuantity(item.code, event.target.value.replace(/\D/g, ""), item.quantity)}
                             placeholder="New total"
-                            className={`tabular h-10 min-w-0 flex-1 rounded-md border px-3 text-base outline-none focus:border-primary ${draft.quantity.trim() !== "" && quantity < item.quantity ? "border-destructive/40" : hasChange && quantity > item.quantity ? "border-success/40" : "border-input"}`}
+                            className={`tabular h-10 min-w-0 flex-1 rounded-md border px-3 text-center text-base outline-none focus:border-primary ${draft.quantity.trim() !== "" && quantity < item.quantity ? "border-destructive/40" : hasChange && quantity > item.quantity ? "border-success/40" : "border-input"}`}
                           />
                           {hasChange ? <button type="button" onClick={() => clearChange(item.code)} className="shrink-0 text-sm font-medium text-primary hover:underline">Clear</button> : null}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-center">
                         <select
                           aria-label={`Reason type for ${item.name}`}
                           value={draft.reasonOption}
                           onChange={(event) => updateReasonOption(item.code, event.target.value)}
-                          className="h-10 w-full rounded-md border border-input bg-white px-3 text-base outline-none focus:border-primary"
+                          className="h-10 w-full rounded-md border border-input bg-white px-3 text-center text-base outline-none focus:border-primary"
                         >
                           {qualityReasonOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                         </select>
@@ -346,7 +353,7 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
                             value={draft.reason}
                             onChange={(event) => updateChange(item.code, "reason", event.target.value)}
                             placeholder={hasChange ? "Type the reason…" : "Enter only when changing"}
-                            className="mt-1.5 h-10 w-full rounded-md border border-input px-3 text-base outline-none focus:border-primary"
+                            className="mt-1.5 h-10 w-full rounded-md border border-input px-3 text-center text-base outline-none focus:border-primary"
                           />
                         ) : null}
                       </td>
@@ -366,6 +373,23 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
           />
         </>
       )}
+      {pendingChangesCount > 0 ? (
+        <div className="fixed bottom-4 right-4 z-30 flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-3 rounded-xl border border-border bg-background/95 px-4 py-3 shadow-xl backdrop-blur sm:right-6">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-foreground">{pendingChangesCount} unsaved change{pendingChangesCount === 1 ? "" : "s"}</p>
+            {error ? <p role="alert" className="mt-1 text-sm text-destructive">{error}</p> : null}
+          </div>
+          <button
+            type="button"
+            disabled={saving || loading}
+            onClick={() => void save()}
+            className="inline-flex shrink-0 items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-base font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <ShieldAlert className="size-4" />
+            {saving ? "Saving…" : "Save updates"}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -387,7 +411,7 @@ function InventoryTable({ inventoryType, items, loading }: { inventoryType: Inve
   const [query, setQuery] = useState("");
   const [stockFilter, setStockFilter] = useState<"all" | "available" | "low" | "empty">("all");
   const [page, setPage] = useState(1);
-  const pageSize = 5;
+  const pageSize = 25;
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
