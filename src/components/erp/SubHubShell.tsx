@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { logoutFn } from "@/auth";
 import { canAccess, useAuth } from "@/components/auth/AuthContext";
-import { NotificationBell } from "./HeaderTools";
 
 const subhubNav = [
   { to: "/inventory", label: "Inventory Management", permission: "inventory", icon: PackageOpen },
@@ -113,7 +112,6 @@ export function SubHubShell({
       </aside>
       <main className="min-w-0 flex-1">
         <header className="sticky top-0 z-20 flex flex-wrap items-center justify-end gap-3 border-b border-border bg-background/85 px-6 py-3 backdrop-blur">
-          <NotificationBell panel="subhub" />
           {actions}
         </header>
         {title ? (
