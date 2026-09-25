@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { z } from "zod";
+import type { Panel as ProcurementPanel } from "@/auth.server";
 import { useAuth } from "@/components/auth/AuthContext";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
 import { Shell } from "@/components/erp/Shell";
@@ -288,6 +289,7 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
       {tab === "orders" ? (
         <>
           <OrderFilters
+            panel={panel}
             query={query}
             setQuery={setQuery}
             vendorFilter={vendorFilter}
@@ -484,9 +486,10 @@ function ItemRequestsTable({ requests, panel, onUpdated }: { requests: Procureme
 }
 
 function OrderFilters({
-  query, setQuery, vendorFilter, setVendorFilter, subhubFilter, setSubhubFilter, statusFilter, setStatusFilter, sortBy, setSortBy,
+  panel, query, setQuery, vendorFilter, setVendorFilter, subhubFilter, setSubhubFilter, statusFilter, setStatusFilter, sortBy, setSortBy,
   orderDate, setOrderDate, fromDate, setFromDate, toDate, setToDate, vendors, subhubs, hasFilters, clearFilters,
 }: {
+  panel: ProcurementPanel;
   query: string; setQuery: (value: string) => void;
   vendorFilter: string; setVendorFilter: (value: string) => void;
   subhubFilter: string; setSubhubFilter: (value: string) => void;

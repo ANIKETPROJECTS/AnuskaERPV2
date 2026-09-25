@@ -1,0 +1,1140 @@
+react-dom_client.js?v=9bb4eb1c:14336 Download the React DevTools for a better development experience: https://react.dev/link/react-devtools
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7957:181)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+(anonymous) @ client:533
+client:533 ReferenceError: panel is not defined
+    at OrderFilters (procurement.tsx:509:1)
+    at Object.react_stack_bottom_frame (react-dom_client.js?v=9bb4eb1c:12866:12)
+    at renderWithHooks (react-dom_client.js?v=9bb4eb1c:4213:19)
+    at updateFunctionComponent (react-dom_client.js?v=9bb4eb1c:5569:16)
+    at beginWork (react-dom_client.js?v=9bb4eb1c:6140:20)
+    at runWithFiberInDEV (react-dom_client.js?v=9bb4eb1c:851:66)
+    at performUnitOfWork (react-dom_client.js?v=9bb4eb1c:8429:92)
+    at workLoopSync (react-dom_client.js?v=9bb4eb1c:8325:37)
+    at renderRootSync (react-dom_client.js?v=9bb4eb1c:8309:6)
+    at performWorkOnRoot (react-dom_client.js?v=9bb4eb1c:7994:27)
+
+The above error occurred in the <OrderFilters> component.
+
+React will try to recreate this component tree from scratch using the error boundary you provided, CatchBoundaryImpl.
+
+(anonymous) @ client:533
+client:533 Warning: Error in route match: __root__/
+(anonymous) @ client:533
