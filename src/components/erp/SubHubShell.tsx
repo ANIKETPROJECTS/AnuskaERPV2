@@ -16,25 +16,25 @@ import { SignOutButton } from "./SignOutButton";
 import { SidebarDateTime } from "./SidebarDateTime";
 
 const subhubNav = [
-  { to: "/inventory", label: "Inventory", permission: "inventory", icon: PackageOpen },
+  { to: "/inventory", label: "Inventory Management", permission: "inventory", icon: PackageOpen },
   {
     to: "/subhub/production",
-    label: "Production",
+    label: "Hub Manager",
     permission: "hub-manager",
     icon: ClipboardCheck,
   },
   {
     to: "/subhub/request-items",
-    label: "Requests",
+    label: "Request items",
     permission: "item-requests",
     icon: ClipboardList,
   },
-  { to: "/subhub/hr", label: "Staff", permission: "hr", icon: UserRoundCog },
-  { to: "/procurement", label: "Purchases", permission: "procurement", icon: ShoppingCart },
-  { to: "/subhub/bom", label: "Parts list", permission: "bom", icon: Layers },
+  { to: "/subhub/hr", label: "HR & Attendance", permission: "hr", icon: UserRoundCog },
+  { to: "/procurement", label: "Procurement", permission: "procurement", icon: ShoppingCart },
+  { to: "/subhub/bom", label: "Bill of Materials", permission: "bom", icon: Layers },
   {
     to: "/subhub/raw-materials",
-    label: "Materials",
+    label: "Raw Materials",
     permission: "raw-materials",
     icon: Database,
   },
