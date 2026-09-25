@@ -14,10 +14,8 @@ import {
   saveDailyProduction,
   searchWorkspace,
   setAdminHubCapacity,
-  setHubCapacity,
   updateProductionOrder,
   deleteProductionOrder,
-  previewProductionBatchAllocation,
 } from "./production.server";
 export type { OrderNotification, WorkspaceSearchResult, WorkspaceSearchScope } from "./production.server";
 
@@ -48,16 +46,6 @@ const reportSchema = z.object({
   date: z.string().min(10),
   quantity: z.number().int().min(0),
   notes: z.string().max(500),
-  manualAllocations: z.array(z.object({
-    itemCode: z.string().min(1),
-    batchId: z.string().min(1),
-    quantity: z.number().int().positive(),
-  })).max(200).optional(),
-});
-const allocationPreviewSchema = z.object({
-  orderId: z.string().min(1),
-  date: z.string().min(10),
-  quantity: z.number().int().min(0),
 });
 
 const capacitySchema = z.object({
@@ -107,8 +95,6 @@ export const getAdminHubDetailFn = createServerFn({ method: "POST" }).validator(
 export const createProductionOrderFn = createServerFn({ method: "POST" }).validator(orderSchema).handler(({ data }) => createProductionOrder(data));
 export const createProductionOrdersFn = createServerFn({ method: "POST" }).validator(batchOrderSchema).handler(({ data }) => createProductionOrders(data));
 export const saveDailyProductionFn = createServerFn({ method: "POST" }).validator(reportSchema).handler(({ data }) => saveDailyProduction(data));
-export const previewProductionBatchAllocationFn = createServerFn({ method: "POST" }).validator(allocationPreviewSchema).handler(({ data }) => previewProductionBatchAllocation(data));
-export const setHubCapacityFn = createServerFn({ method: "POST" }).validator(capacitySchema).handler(({ data }) => setHubCapacity(data));
 export const setAdminHubCapacityFn = createServerFn({ method: "POST" }).validator(capacitySchema).handler(({ data }) => setAdminHubCapacity(data));
 export const getProductionOrderActivityFn = createServerFn({ method: "POST" }).validator(activitySchema).handler(({ data }) => getProductionOrderActivity(data.orderId, data.panel));
 export const reassignProductionOrderFn = createServerFn({ method: "POST" }).validator(reassignSchema).handler(({ data }) => reassignProductionOrder(data));

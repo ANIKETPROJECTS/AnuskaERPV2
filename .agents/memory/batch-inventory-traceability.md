@@ -9,6 +9,12 @@ Batch inventory and aggregate item balances must be updated together inside Mong
 
 **How to apply:** Any new receipt, adjustment, defect, production, report edit, deletion, or source reconciliation must use deterministic event identities and one transaction. Do not allow material-affecting report changes after any derived batch has been consumed or rejected.
 
+Removing batch-selection controls from a manager screen must not silently rewrite an existing manual split when a report is saved with the same per-item production requirements. New reports and reports whose required quantities change may use the normal FIFO reconciliation path.
+
+**Why:** A UI simplification should not alter historical batch lineage on an otherwise unchanged report save.
+
+**How to apply:** Preserve a saved manual split only while it exactly satisfies the current BOM quantities; otherwise follow the established reconciliation and consumed-output safeguards.
+
 Batch codes use the item-name initials, creation date as `YYYYMMDD`, and a stable identity suffix so multiple batches for one item on the same date remain unique.
 
 **Why:** Operators need to recognize the item and batch date directly from the code, while source IDs still need collision-safe uniqueness.

@@ -576,6 +576,7 @@ type ProductionAllocationDocument = {
 export async function reconcileProductionBatchAllocation(input: {
   db: Db; reportId: string; reportDate: string; outputCode: string; outputName: string; quantity: number;
   requirements: Record<string, number>; actor: string; notes: string; manualAllocations?: ProductionManualAllocation[] | undefined;
+  preserveExistingManualAllocationsWhenUnchanged?: boolean | undefined;
   session?: ClientSession | undefined;
 }): Promise<boolean> {
   if (!input.session) await ensureLegacyBatches(input.db, input.actor);
@@ -585,7 +586,20 @@ export async function reconcileProductionBatchAllocation(input: {
   const desired = Object.entries(input.requirements).map(([itemCode, units]) => ({ itemCode, quantity: units * input.quantity })).filter((entry) => entry.quantity);
   desired.sort((a, b) => a.itemCode.localeCompare(b.itemCode));
   const desiredByCode = new Map(desired.map((row) => [row.itemCode, row.quantity]));
-  const manualAllocations = input.manualAllocations ?? [];
+  const savedManualAllocations = existing?.manualAllocations ?? [];
+  const savedManualAllocationsMatchDesired = Boolean(
+    existing?.allocationMode === "hybrid" &&
+    savedManualAllocations.length > 0 &&
+    savedManualAllocations.every((allocation) => desiredByCode.has(allocation.itemCode)) &&
+    [...desiredByCode.entries()].every(([itemCode, quantity]) => (
+      savedManualAllocations
+        .filter((allocation) => allocation.itemCode === itemCode)
+        .reduce((sum, allocation) => sum + allocation.quantity, 0) === quantity
+    )),
+  );
+  const manualAllocations = input.preserveExistingManualAllocationsWhenUnchanged && savedManualAllocationsMatchDesired
+    ? savedManualAllocations
+    : input.manualAllocations ?? [];
   const manualByCode = new Map<string, ProductionManualAllocation[]>();
   const seenBatches = new Set<string>();
   for (const allocation of manualAllocations) {

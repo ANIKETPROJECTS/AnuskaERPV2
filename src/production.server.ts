@@ -4,14 +4,12 @@ import { getControlPlaneDatabase, getCurrentUserRecord, type Panel, type UserDoc
 import { bomCatalog } from "./lib/bom-catalog";
 import { getMongoClient, getMongoDb } from "./mongodb.server";
 import {
-  getProductionBatchAllocationPreview,
   getProductionBatchAllocationState,
   ensureLegacyBatches,
   syncWorkspaceInventoryForUser,
   reconcileProductionBatchAllocation,
   getWorkspaceInventorySnapshot,
   type ProductionManualAllocation,
-  type ProductionAllocationPreview,
   type SubhubInventoryData,
 } from "./inventory.server";
 import { procurement, subparts } from "./lib/erp-data";
@@ -59,10 +57,6 @@ export type ManagerProductionData = {
   subhubName: string;
   orders: ProductionOrder[];
   reports: ProductionReport[];
-  capacityUnits: number | null;
-  openUnits: number;
-  availableUnits: number | null;
-  overloaded: boolean;
 };
 
 export type HubSummary = {
@@ -570,46 +564,6 @@ async function rebalanceProductionOrders(actorId: string): Promise<ProductionRea
   return reassignments;
 }
 
-export async function setHubCapacity(input: {
-  subhubUserId: string;
-  capacityUnits: number | null;
-}): Promise<
-  { ok: true; capacityUnits: number | null; reassignments: ProductionReassignment[] } |
-  { ok: false; message: string }
-> {
-  const current = await getCurrentUserRecord("subhub");
-  if (!isSubhub(current)) return { ok: false, message: "Only SubHub Managers can manage their hub capacity." };
-  if (
-    input.capacityUnits !== null &&
-    (!Number.isInteger(input.capacityUnits) || input.capacityUnits < 1)
-  ) {
-    return { ok: false, message: "Capacity must be a whole number greater than zero, or left blank for no limit." };
-  }
-
-  const db = await getControlPlaneDatabase();
-  if (input.subhubUserId !== current._id) return { ok: false, message: "You can only manage your own hub capacity." };
-  if (!current.subhubName) return { ok: false, message: "Your SubHub does not have a name yet." };
-
-  if (input.capacityUnits === null) {
-    await db.collection<HubCapacityDocument>("hub_capacities").deleteOne({ _id: input.subhubUserId });
-  } else {
-    await db.collection<HubCapacityDocument>("hub_capacities").updateOne(
-      { _id: input.subhubUserId },
-      {
-        $set: {
-          capacityUnits: input.capacityUnits,
-          updatedBy: current._id,
-          updatedAt: new Date(),
-        },
-      },
-      { upsert: true },
-    );
-  }
-
-  const reassignments = await rebalanceProductionOrders(current._id);
-  return { ok: true, capacityUnits: input.capacityUnits, reassignments };
-}
-
 export async function setAdminHubCapacity(input: {
   subhubUserId: string;
   capacityUnits: number | null;
@@ -1092,7 +1046,7 @@ export async function getManagerProductionData(): Promise<
   const current = await getCurrentUserRecord("subhub");
   if (!isSubhub(current)) return {
     ok: false,
-    data: { subhubName: "", orders: [], reports: [], capacityUnits: null, openUnits: 0, availableUnits: null, overloaded: false },
+    data: { subhubName: "", orders: [], reports: [] },
     message: "Only SubHub Managers can enter production.",
   };
   const db = await getControlPlaneDatabase();
@@ -1101,20 +1055,13 @@ export async function getManagerProductionData(): Promise<
     db.collection<ProductionOrderDocument>("production_orders").find({ subhubUserId: current._id }).sort({ dueDate: 1, createdAt: -1 }).toArray(),
     workspaceDb.collection<ProductionReportDocument>("production_reports").find().sort({ date: -1 }).toArray(),
   ]);
-  const capacity = await db.collection<HubCapacityDocument>("hub_capacities").findOne({ _id: current._id });
   const serializedOrders = orders.map((order) => summarizeOrder(order, reports));
-  const openUnits = serializedOrders.reduce((sum, order) => sum + order.remaining, 0);
-  const capacityUnits = capacity?.capacityUnits ?? null;
   return {
     ok: true,
     data: {
       subhubName: current.subhubName ?? "SubHub",
       orders: serializedOrders,
-      reports: await Promise.all(reports.map(async (report) => serializeReport(report, await getProductionBatchAllocationState(workspaceDb, report._id)))),
-      capacityUnits,
-      openUnits,
-      availableUnits: capacityUnits === null ? null : capacityUnits - openUnits,
-      overloaded: capacityUnits !== null && openUnits > capacityUnits,
+      reports: reports.map((report) => serializeReport(report)),
     },
   };
 }
@@ -1124,7 +1071,6 @@ export async function saveDailyProduction(input: {
   date: string;
   quantity: number;
   notes: string;
-  manualAllocations?: ProductionManualAllocation[] | undefined;
 }): Promise<{ ok: true; report: ProductionReport } | { ok: false; message: string }> {
   const current = await getCurrentUserRecord("subhub");
   if (!isSubhub(current)) return { ok: false, message: "Only SubHub Managers can enter production." };
@@ -1161,7 +1107,7 @@ export async function saveDailyProduction(input: {
       const changed = await reconcileProductionBatchAllocation({
         db: workspaceDb, reportId, reportDate: date, outputCode: `${product.code}-${variant.code}`,
         outputName: `${product.name} · ${variant.name}`, quantity: input.quantity, requirements: variant.parts,
-        actor: current._id, notes: input.notes.trim(), manualAllocations: input.manualAllocations, session,
+        actor: current._id, notes: input.notes.trim(), preserveExistingManualAllocationsWhenUnchanged: true, session,
       });
       const now = new Date();
       if (changed || !existingReport || existingReport.notes !== input.notes.trim()) {
@@ -1175,7 +1121,6 @@ export async function saveDailyProduction(input: {
         );
         const activitySignature = createHash("sha256").update(JSON.stringify({
           reportId, quantity: input.quantity, notes: input.notes.trim(),
-          manualAllocations: input.manualAllocations ?? [],
         })).digest("hex");
         await recordOrderActivity(controlDb, {
           id: `production_${activitySignature}`,
@@ -1198,30 +1143,7 @@ export async function saveDailyProduction(input: {
     await session.endSession();
   }
   if (!saved) return { ok: false, message: "Production transaction completed without a report state." };
-  return { ok: true, report: serializeReport(saved, await getProductionBatchAllocationState(workspaceDb, reportId)) };
-}
-
-export async function previewProductionBatchAllocation(input: {
-  orderId: string; date: string; quantity: number;
-}): Promise<{ ok: true; preview: ProductionAllocationPreview } | { ok: false; message: string }> {
-  const current = await getCurrentUserRecord("subhub");
-  if (!isSubhub(current)) return { ok: false, message: "Only SubHub Managers can preview production allocations." };
-  if (!Number.isInteger(input.quantity) || input.quantity < 0) return { ok: false, message: "Production must be a whole number of zero or more." };
-  const date = normalizeDate(input.date);
-  if (!date) return { ok: false, message: "Enter a valid production date." };
-  const controlDb = await getControlPlaneDatabase();
-  const order = await controlDb.collection<ProductionOrderDocument>("production_orders").findOne({ _id: input.orderId, subhubUserId: current._id });
-  if (!order) return { ok: false, message: "That production order is not assigned to this SubHub." };
-  const product = bomCatalog.find((candidate) => candidate.code === order.productCode);
-  const variant = product?.variants.find((candidate) => candidate.code === order.variantCode);
-  if (!variant) return { ok: false, message: "The assigned order no longer has a valid BOM variant." };
-  const workspaceDb = await getMongoDb(current.databaseName);
-  try {
-    await syncWorkspaceInventoryForUser(current, workspaceDb, `${order._id}_${date}`);
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Authoritative inventory sources could not be synchronized." };
-  }
-  return { ok: true, preview: await getProductionBatchAllocationPreview({ db: workspaceDb, reportId: `${order._id}_${date}`, requirements: variant.parts, quantity: input.quantity, actor: current._id }) };
+  return { ok: true, report: serializeReport(saved) };
 }
 
 export async function getProductionOrderActivity(orderId: string, panel: Panel): Promise<

@@ -1,4 +1,3 @@
-import type { ProductionAllocationPreview } from "@/inventory.server";
 import type { ManagerProductionData, ProductionOrder, ProductionOrderActivity, ProductionReport } from "@/production.server";
 
 export const demoOrder: ProductionOrder = {
@@ -34,27 +33,4 @@ export const demoProductionData: ManagerProductionData = {
   subhubName: "Demo Factory",
   orders: [demoOrder],
   reports: demoReports,
-  capacityUnits: 100,
-  openUnits: 36,
-  availableUnits: 64,
-  overloaded: false,
 };
-
-export function getDemoAllocationPreview(quantity: number): ProductionAllocationPreview {
-  const safeQuantity = Math.max(0, Math.floor(quantity));
-  return {
-    reportId: `${demoOrder.id}_2026-09-09`,
-    requirements: [
-      { itemCode: "RM-DEMO-ABS", itemName: "ABS Plastic Demo", requiredQuantity: safeQuantity * 2 },
-      { itemCode: "RM-DEMO-CAP", itemName: "Cover Cap Demo", requiredQuantity: safeQuantity },
-    ],
-    batches: [
-      { id: "demo-batch-abs", batchCode: "DEMO-ABS-001", itemCode: "RM-DEMO-ABS", itemName: "ABS Plastic Demo", availableQuantity: 240, reservedByCurrentReport: 0 },
-      { id: "demo-batch-cap", batchCode: "DEMO-CAP-001", itemCode: "RM-DEMO-CAP", itemName: "Cover Cap Demo", availableQuantity: 120, reservedByCurrentReport: 0 },
-    ],
-    currentAllocations: [],
-    allocationMode: "fifo",
-    manualAllocations: [],
-    sufficient: safeQuantity <= 120,
-  };
-}
