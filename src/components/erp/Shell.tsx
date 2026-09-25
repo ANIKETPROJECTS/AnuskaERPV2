@@ -65,7 +65,7 @@ export function Shell({
 
   return (
     <div className="flex min-h-screen">
-      <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
         <div className="flex items-center gap-3 border-b border-sidebar-border px-4 py-4">
           <div className="flex min-w-0 items-center gap-3">
             <img src={factoryIcon} alt="Gadsons" className="size-10 shrink-0 rounded-md bg-white p-1 object-contain" />

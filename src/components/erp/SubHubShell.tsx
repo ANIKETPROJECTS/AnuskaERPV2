@@ -48,8 +48,8 @@ export function SubHubShell({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="sticky top-0 flex h-screen w-64 shrink-0 self-start flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar lg:w-72">
-        <div className="flex h-[72px] shrink-0 items-center gap-3 border-b border-sidebar-border px-4">
+      <aside className="sticky top-0 flex h-screen w-64 shrink-0 self-start flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar">
+        <div className="flex h-[65px] shrink-0 items-center gap-3 border-b border-sidebar-border px-4">
           <div className="flex min-w-0 items-center gap-3">
             <img src={factoryIcon} alt="Gadsons" className="size-10 shrink-0 rounded-md bg-white p-1 object-contain" />
             <div className="min-w-0 leading-tight">
@@ -83,7 +83,6 @@ export function SubHubShell({
             <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary font-mono text-sm font-semibold">{initials}</div>
             <div className="min-w-0 flex-1 leading-tight">
               <p className="truncate text-base font-medium">{user?.name}</p>
-              <p className="text-sm capitalize text-muted-foreground">{user?.role} · Secure session</p>
             </div>
             <button
               type="button"
