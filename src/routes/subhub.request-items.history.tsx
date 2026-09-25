@@ -64,14 +64,7 @@ function RequestItemsHistoryPage() {
         </Link>
       }
     >
-      <section className="space-y-4 px-6 pb-6">
-        <div>
-          <p className="text-base text-muted-foreground">
-            All item requests submitted by this SubHub, including their review status and
-            Procurement Management responses.
-          </p>
-        </div>
-
+      <section className="px-6 pb-6">
         {!result.ok ? (
           <div
             role="alert"
@@ -91,32 +84,35 @@ function RequestItemsHistoryPage() {
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-x-6 gap-y-2 border-y border-border py-3 text-base">
-          <span>
-            <strong className="tabular">{num(requests.length)}</strong> all requests
-          </span>
-          <span className="text-warning">
-            <strong className="tabular">{num(pendingCount)}</strong> pending
-          </span>
-          <span className="text-success">
-            <strong className="tabular">{num(approvedCount)}</strong> approved
-          </span>
-          <span className="text-destructive">
-            <strong className="tabular">{num(declinedCount)}</strong> declined
-          </span>
-        </div>
-
-        <section className="panel overflow-hidden">
-          <header className="border-b border-border px-5 py-4">
-            <div>
+        <section className="min-w-0">
+          <header className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-border py-4">
+            <div className="min-w-0">
               <h2 className="text-lg font-semibold">My item requests</h2>
+              <p className="mt-1 text-base text-muted-foreground">
+                All item requests submitted by this SubHub, including their review status and
+                Procurement Management responses.
+              </p>
               <p className="mt-1 text-base text-muted-foreground">
                 {num(filteredRequests.length)} of {num(requests.length)} requests
               </p>
             </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-2 text-base">
+              <span>
+                <strong className="tabular">{num(requests.length)}</strong> all requests
+              </span>
+              <span className="text-warning">
+                <strong className="tabular">{num(pendingCount)}</strong> pending
+              </span>
+              <span className="text-success">
+                <strong className="tabular">{num(approvedCount)}</strong> approved
+              </span>
+              <span className="text-destructive">
+                <strong className="tabular">{num(declinedCount)}</strong> declined
+              </span>
+            </div>
           </header>
 
-          <div className="flex flex-wrap items-end gap-3 border-b border-border p-4">
+          <div className="flex flex-wrap items-end gap-3 border-b border-border py-4">
             <label className="min-w-[220px] flex-1 text-base font-medium text-muted-foreground">
               Search
               <span className="relative mt-1 block">
@@ -188,7 +184,7 @@ function RequestItemsHistoryPage() {
           </div>
 
           {requests.length === 0 ? (
-            <div className="p-10 text-center">
+            <div className="border-b border-border py-10 text-center">
               <p className="text-lg font-semibold">No request history yet</p>
               <p className="mt-2 text-base text-muted-foreground">
                 Requests you send will be stored here with their status and responses.
@@ -201,7 +197,7 @@ function RequestItemsHistoryPage() {
               </Link>
             </div>
           ) : filteredRequests.length === 0 ? (
-            <p className="border-y border-dashed border-border p-8 text-center text-base text-muted-foreground">
+            <p className="border-b border-dashed border-border py-8 text-center text-base text-muted-foreground">
               No requests match the selected filters.
             </p>
           ) : (
