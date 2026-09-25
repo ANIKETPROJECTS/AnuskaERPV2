@@ -1,16 +1,17 @@
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
-import { BarChart3, CalendarCheck, CalendarDays, Download, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { BarChart3, CalendarCheck, CalendarDays, Download, RefreshCw, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
+import { TablePagination } from "@/components/erp/TablePagination";
 import { getAdminHeadcountReportFn } from "@/hr";
-import type { AdminHeadcountReport, AdminHeadcountSummary } from "@/hr.server";
+import type { AdminHeadcountChangeLog, AdminHeadcountReport, AdminHeadcountSummary } from "@/hr.server";
 
 export const Route = createFileRoute("/hr")({
   head: () => ({ meta: [{ title: "HR & Attendance — Admin · Gadsons ERP" }] }),
   component: AdminHr,
 });
 
-type ReportView = "date" | "range" | "month";
+type ReportView = "date" | "week" | "range" | "month";
 
 const emptyReport: AdminHeadcountReport = {
   startDate: "",
@@ -18,6 +19,7 @@ const emptyReport: AdminHeadcountReport = {
   subhubs: [],
   summaries: [],
   entries: [],
+  changes: [],
 };
 
 function currentDate() {
@@ -39,6 +41,17 @@ function formatDate(value: string) {
     year: "numeric",
     timeZone: "UTC",
   }).format(new Date(`${value}T00:00:00.000Z`));
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date(value));
 }
 
 function csvCell(value: string | number) {
@@ -70,21 +83,23 @@ function AdminHrPage() {
   const [report, setReport] = useState<AdminHeadcountReport>(emptyReport);
   const [subhubFilter, setSubhubFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [changePage, setChangePage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const changePageSize = 25;
 
-  async function load(showRefresh = false) {
+  const load = useCallback(async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
     setLoading(true);
     setError("");
     try {
       const result = await getAdminHeadcountReportFn({
-        data: view === "date"
-          ? { rangeType: "date", date }
+        data: view === "month"
+          ? { rangeType: "month", month }
           : view === "range"
             ? { rangeType: "range", startDate, endDate }
-            : { rangeType: "month", month },
+            : { rangeType: view, date },
       });
       if (result.ok) setReport(result.data);
       else {
@@ -98,11 +113,15 @@ function AdminHrPage() {
       setLoading(false);
       if (showRefresh) setRefreshing(false);
     }
-  }
+  }, [date, endDate, month, startDate, view]);
 
   useEffect(() => {
     void load();
-  }, [date, endDate, month, startDate, view]);
+  }, [load]);
+
+  useEffect(() => {
+    setChangePage(1);
+  }, [date, endDate, month, search, startDate, subhubFilter, view]);
 
   const filteredSummaries = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -113,9 +132,20 @@ function AdminHrPage() {
   }, [report.summaries, search, subhubFilter]);
 
   const filteredEntries = useMemo(
-    () => report.entries.filter((entry) => subhubFilter === "all" || entry.subhubId === subhubFilter),
-    [report.entries, subhubFilter],
+    () => report.entries.filter((entry) =>
+      (subhubFilter === "all" || entry.subhubId === subhubFilter)
+      && (!search.trim() || `${entry.subhubName} ${entry.subhubManagerName}`.toLowerCase().includes(search.trim().toLowerCase())),
+    ),
+    [report.entries, search, subhubFilter],
   );
+
+  const filteredChanges = useMemo((): AdminHeadcountChangeLog[] => {
+    const query = search.trim().toLowerCase();
+    return report.changes.filter((change) =>
+      (subhubFilter === "all" || change.subhubId === subhubFilter)
+      && (!query || `${change.subhubName} ${change.subhubManagerName} ${change.actorName} ${change.action} ${change.presentCount}`.toLowerCase().includes(query)),
+    );
+  }, [report.changes, search, subhubFilter]);
 
   const totals = useMemo(() => ({
     totalPresent: report.entries.reduce((total, entry) => total + entry.presentCount, 0),
@@ -135,6 +165,10 @@ function AdminHrPage() {
   const periodLabel = report.startDate
     ? report.startDate === report.endDate ? formatDate(report.startDate) : `${formatDate(report.startDate)} – ${formatDate(report.endDate)}`
     : "selected period";
+  const visibleChanges = filteredChanges.slice(
+    (changePage - 1) * changePageSize,
+    changePage * changePageSize,
+  );
 
   return (
     <Shell title="HR & Attendance" subtitle="Review daily present headcount reported by every active SubHub.">
@@ -153,11 +187,12 @@ function AdminHrPage() {
                 Report view
                 <select value={view} onChange={(event) => setView(event.target.value as ReportView)} className="mt-1.5 block h-9 rounded-md border border-input bg-card px-3 text-sm font-normal">
                   <option value="date">Specific date</option>
+                  <option value="week">Week</option>
                   <option value="range">Date range</option>
                   <option value="month">Month</option>
                 </select>
               </label>
-              {view === "date" ? <label className="text-xs font-medium">Date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-1.5 block h-9 rounded-md border border-input bg-card px-3 text-sm font-normal" /></label> : null}
+              {view === "date" || view === "week" ? <label className="text-xs font-medium">{view === "week" ? "Calendar date" : "Date"}<input type="date" value={date} max={currentDate()} onChange={(event) => setDate(event.target.value)} className="mt-1.5 block h-9 rounded-md border border-input bg-card px-3 text-sm font-normal" /></label> : null}
               {view === "range" ? <><label className="text-xs font-medium">From<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="mt-1.5 block h-9 rounded-md border border-input bg-card px-3 text-sm font-normal" /></label><label className="text-xs font-medium">To<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="mt-1.5 block h-9 rounded-md border border-input bg-card px-3 text-sm font-normal" /></label></> : null}
               {view === "month" ? <label className="text-xs font-medium">Month<input type="month" value={month} onChange={(event) => setMonth(event.target.value)} className="mt-1.5 block h-9 rounded-md border border-input bg-card px-3 text-sm font-normal" /></label> : null}
               <button type="button" onClick={() => void load(true)} disabled={loading || refreshing} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-card px-3 text-sm disabled:opacity-50"><RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} /> Refresh</button>
@@ -165,7 +200,7 @@ function AdminHrPage() {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 border-b border-border px-5 py-4">
-            {([["date", "Daily"], ["range", "Date range"], ["month", "Monthly"]] as Array<[ReportView, string]>).map(([value, label]) => (
+            {([["date", "Daily"], ["week", "Weekly"], ["range", "Date range"], ["month", "Monthly"]] as Array<[ReportView, string]>).map(([value, label]) => (
               <button key={value} type="button" onClick={() => setView(value)} className={`rounded-md px-3 py-2 text-sm font-medium ${view === value ? "bg-primary text-primary-foreground" : "border border-input bg-card text-muted-foreground hover:bg-muted"}`}>{label}</button>
             ))}
           </div>
@@ -182,13 +217,22 @@ function AdminHrPage() {
 
         <section className="panel overflow-hidden">
           <div className="filter-toolbar border-b border-border bg-muted/10 px-5 py-4">
-            <label className="min-w-56 flex-1 text-xs font-medium">
-              Search SubHub or manager
-              <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name" className="mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-normal" />
+            <label className="min-w-56 flex-1 text-sm font-medium text-muted-foreground">
+              Search SubHub, manager, or person
+              <span className="relative mt-1 block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2" aria-hidden="true" />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search names or changes"
+                  className="h-12 w-full rounded-md border border-input bg-background pl-9 pr-3 text-base font-normal"
+                />
+              </span>
             </label>
-            <label className="text-xs font-medium">
+            <label className="text-sm font-medium text-muted-foreground">
               SubHub
-              <select value={subhubFilter} onChange={(event) => setSubhubFilter(event.target.value)} className="mt-1.5 h-9 min-w-52 rounded-md border border-input bg-background px-3 text-sm font-normal">
+              <select value={subhubFilter} onChange={(event) => setSubhubFilter(event.target.value)} className="mt-1 h-12 min-w-52 rounded-md border border-input bg-background px-3 text-base font-normal">
                 <option value="all">All active SubHubs</option>
                 {report.subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.name}</option>)}
               </select>
@@ -223,15 +267,90 @@ function AdminHrPage() {
             <Empty icon={<CalendarDays className="mx-auto size-8" />} title="No headcount recorded" detail="The report will populate when SubHub Managers save their daily count." />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead className="border-b border-border bg-muted/20 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">SubHub</th><th className="px-5 py-3 font-medium">SubHub manager</th><th className="px-5 py-3 text-right font-medium">People present</th></tr>
+              <table className="w-full min-w-[1100px] text-base">
+                <thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">Date</th>
+                    <th className="px-4 py-3 font-semibold">SubHub</th>
+                    <th className="px-4 py-3 font-semibold">SubHub manager</th>
+                    <th className="px-4 py-3 font-semibold">Recorded by</th>
+                    <th className="px-4 py-3 text-center font-semibold">People present</th>
+                    <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">Last updated</th>
+                  </tr>
                 </thead>
                 <tbody>
-                  {filteredEntries.map((entry) => <tr key={`${entry.subhubId}:${entry.date}`} className="border-b border-border/70 last:border-0"><td className="px-5 py-3 font-medium">{formatDate(entry.date)}</td><td className="px-5 py-3">{entry.subhubName}</td><td className="px-5 py-3 text-muted-foreground">{entry.subhubManagerName}</td><td className="tabular px-5 py-3 text-right font-semibold text-success">{entry.presentCount}</td></tr>)}
+                  {filteredEntries.map((entry) => (
+                    <tr key={`${entry.subhubId}:${entry.date}`} className="border-b border-border/70 last:border-0">
+                      <td className="tabular whitespace-nowrap px-4 py-4 text-center text-sm text-muted-foreground">{formatDate(entry.date)}</td>
+                      <td className="px-4 py-4 font-medium">{entry.subhubName}</td>
+                      <td className="px-4 py-4 text-muted-foreground">{entry.subhubManagerName}</td>
+                      <td className="px-4 py-4">{entry.recordedByName || "—"}</td>
+                      <td className="tabular px-4 py-4 text-center font-semibold text-success">{entry.presentCount}</td>
+                      <td className="tabular whitespace-nowrap px-4 py-4 text-center text-sm text-muted-foreground">{formatDateTime(entry.updatedAt)}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
+          )}
+        </section>
+
+        <section className="panel overflow-hidden">
+          <div className="border-b border-border px-5 py-4">
+            <h2 className="font-semibold">Headcount change log</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Every save is recorded with its previous and new count, the person who changed it, and the time. Existing daily entries remain available above; earlier revisions cannot be reconstructed.
+            </p>
+          </div>
+          {loading ? (
+            <p className="p-10 text-center text-base text-muted-foreground">Loading change log…</p>
+          ) : !filteredChanges.length ? (
+            <Empty
+              icon={<CalendarDays className="mx-auto size-8" />}
+              title="No change log entries"
+              detail="New saves will appear here. Existing saved counts remain available in Daily entries."
+            />
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1320px] text-base">
+                  <thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground">
+                    <tr>
+                      <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">Entry date</th>
+                      <th className="px-4 py-3 font-semibold">SubHub</th>
+                      <th className="px-4 py-3 font-semibold">SubHub manager</th>
+                      <th className="px-4 py-3 font-semibold">Change</th>
+                      <th className="px-4 py-3 text-center font-semibold">Previous count</th>
+                      <th className="px-4 py-3 text-center font-semibold">New count</th>
+                      <th className="px-4 py-3 font-semibold">Changed by</th>
+                      <th className="whitespace-nowrap px-4 py-3 text-center font-semibold">Logged at</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleChanges.map((change) => (
+                      <tr key={change.id} className="border-b border-border/70 last:border-0">
+                        <td className="tabular whitespace-nowrap px-4 py-4 text-center text-sm text-muted-foreground">{formatDate(change.date)}</td>
+                        <td className="px-4 py-4 font-medium">{change.subhubName}</td>
+                        <td className="px-4 py-4 text-muted-foreground">{change.subhubManagerName}</td>
+                        <td className="px-4 py-4">{change.action}</td>
+                        <td className="tabular px-4 py-4 text-center">{change.previousPresentCount ?? "—"}</td>
+                        <td className="tabular px-4 py-4 text-center font-semibold">{change.presentCount}</td>
+                        <td className="px-4 py-4">{change.actorName}</td>
+                        <td className="tabular whitespace-nowrap px-4 py-4 text-center text-sm text-muted-foreground">{formatDateTime(change.changedAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <TablePagination
+                total={filteredChanges.length}
+                page={changePage}
+                pageSize={changePageSize}
+                showPageSizeSelect={false}
+                onPageChange={setChangePage}
+                onPageSizeChange={() => undefined}
+              />
+            </>
           )}
         </section>
         <p className="text-xs text-muted-foreground">Reports are read-only in Admin. Daily headcount entries are managed inside each SubHub workspace.</p>

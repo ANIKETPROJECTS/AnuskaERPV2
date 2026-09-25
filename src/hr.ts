@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { assignEmployeeToShift, createEmployee, createShift, getAdminAttendanceReport, getAdminEmployeeAttendanceHistory, getAdminHeadcountReport, getAdminHrData, getAdminSubhubDetails, getEmployeeAttendanceHistory, getManagerAttendanceReport, getManagerHeadcountData, getManagerHrData, saveAttendance, saveManagerHeadcount, updateEmployee, updateShift } from "./hr.server";
+import { assignEmployeeToShift, createEmployee, createShift, getAdminAttendanceReport, getAdminEmployeeAttendanceHistory, getAdminHeadcountReport, getAdminHrData, getAdminSubhubDetails, getEmployeeAttendanceHistory, getManagerAttendanceReport, getManagerHeadcountData, getManagerHeadcountHistory, getManagerHrData, saveAttendance, saveManagerHeadcount, updateEmployee, updateShift } from "./hr.server";
 import { ATTENDANCE_STATUSES } from "./hr.server";
 
 const managerSchema = z.object({ month: z.string(), date: z.string().optional() });
@@ -21,11 +21,21 @@ const managerReportSchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
 });
+const headcountReportSchema = managerReportSchema.extend({
+  rangeType: z.enum(["month", "date", "week", "range"]),
+});
+const managerHeadcountHistorySchema = z.object({
+  rangeType: z.enum(["date", "week"]),
+  date: z.string(),
+});
 const adminEmployeeHistorySchema = employeeHistorySchema.extend({ subhubId: z.string().min(1) });
 const subhubDetailsSchema = z.object({ userId: z.string().min(1) });
 
-export const getManagerHrDataFn = createServerFn({ method: "GET" }).validator(managerSchema).handler(({ data }) => getManagerHrData(data.month) as any);
+export const getManagerHrDataFn = createServerFn({ method: "GET" }).validator(managerSchema).handler(({ data }) => getManagerHrData(data.month));
 export const getManagerHeadcountDataFn = createServerFn({ method: "GET" }).handler(() => getManagerHeadcountData());
+export const getManagerHeadcountHistoryFn = createServerFn({ method: "GET" })
+  .validator(managerHeadcountHistorySchema)
+  .handler(({ data }) => getManagerHeadcountHistory(data));
 export const saveManagerHeadcountFn = createServerFn({ method: "POST" }).validator(headcountSchema).handler(({ data }) => saveManagerHeadcount(data));
 export const getEmployeeAttendanceHistoryFn = createServerFn({ method: "GET" }).validator(employeeHistorySchema).handler(({ data }) =>
   getEmployeeAttendanceHistory({
@@ -33,8 +43,8 @@ export const getEmployeeAttendanceHistoryFn = createServerFn({ method: "GET" }).
     period: data.period,
     ...(data.month ? { month: data.month } : {}),
     ...(data.weekStart ? { weekStart: data.weekStart } : {}),
-            ...(data.startDate ? { startDate: data.startDate } : {}),
-            ...(data.endDate ? { endDate: data.endDate } : {}),
+    ...(data.startDate ? { startDate: data.startDate } : {}),
+    ...(data.endDate ? { endDate: data.endDate } : {}),
   }),
 );
 export const getManagerAttendanceReportFn = createServerFn({ method: "GET" }).validator(managerReportSchema).handler(({ data }) =>
@@ -57,7 +67,7 @@ export const getAdminAttendanceReportFn = createServerFn({ method: "GET" }).vali
     ...(data.endDate ? { endDate: data.endDate } : {}),
   }),
 );
-export const getAdminHeadcountReportFn = createServerFn({ method: "GET" }).validator(managerReportSchema).handler(({ data }) =>
+export const getAdminHeadcountReportFn = createServerFn({ method: "GET" }).validator(headcountReportSchema).handler(({ data }) =>
   getAdminHeadcountReport({
     rangeType: data.rangeType,
     ...(data.month ? { month: data.month } : {}),
@@ -92,7 +102,7 @@ export const assignEmployeeToShiftFn = createServerFn({ method: "POST" }).valida
 // while the task route uses the more granular attendance controls above.
 export const assignEmployeeShiftFn = createServerFn({ method: "POST" })
   .validator(z.object({ employeeId: z.string(), shiftId: z.string().nullable() }))
-  .handler(({ data }) => assignEmployeeToShift({ employeeId: data.employeeId, shiftId: data.shiftId ?? "", assigned: data.shiftId !== null }) as any);
+  .handler(({ data }) => assignEmployeeToShift({ employeeId: data.employeeId, shiftId: data.shiftId ?? "", assigned: data.shiftId !== null }));
 export const saveDailyAttendanceFn = createServerFn({ method: "POST" })
   .validator(z.object({ date: z.string(), entries: z.array(z.object({ employeeId: z.string(), status: z.enum(ATTENDANCE_STATUSES) })) }))
   .handler(async ({ data }) => {
@@ -100,4 +110,4 @@ export const saveDailyAttendanceFn = createServerFn({ method: "POST" })
     const failed = results.find((result) => !result.ok);
     return failed ?? { ok: true };
   });
-export const getAdminHrReportFn = createServerFn({ method: "GET" }).validator(monthSchema).handler(({ data }) => getAdminHrData(data.month) as any);
+export const getAdminHrReportFn = createServerFn({ method: "GET" }).validator(monthSchema).handler(({ data }) => getAdminHrData(data.month));

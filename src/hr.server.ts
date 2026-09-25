@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Db } from "mongodb";
 import { getControlPlaneDatabase, getCurrentUserRecord, type PublicUser, type UserDocument } from "./auth.server";
-import { getMongoDb } from "./mongodb.server";
+import { getMongoClient, getMongoDb } from "./mongodb.server";
 
 export const ATTENDANCE_STATUSES = ["Present", "Absent", "Late", "Half-day"] as const;
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
@@ -87,7 +87,19 @@ export type HeadcountRecord = {
   id: string;
   date: string;
   presentCount: number;
+  recordedByName: string;
   updatedAt: string;
+};
+
+export type HeadcountChangeLog = {
+  id: string;
+  date: string;
+  action: "Created" | "Updated";
+  previousPresentCount: number | null;
+  presentCount: number;
+  actorUserId: string;
+  actorName: string;
+  changedAt: string;
 };
 
 export type ManagerHeadcountData = {
@@ -96,6 +108,13 @@ export type ManagerHeadcountData = {
   date: string;
   presentCount: number | null;
   recentRecords: HeadcountRecord[];
+};
+
+export type ManagerHeadcountHistory = {
+  startDate: string;
+  endDate: string;
+  entries: HeadcountRecord[];
+  changes: HeadcountChangeLog[];
 };
 
 export type AdminHeadcountEntry = HeadcountRecord & {
@@ -113,12 +132,19 @@ export type AdminHeadcountSummary = {
   reportedDays: number;
 };
 
+export type AdminHeadcountChangeLog = HeadcountChangeLog & {
+  subhubId: string;
+  subhubName: string;
+  subhubManagerName: string;
+};
+
 export type AdminHeadcountReport = {
   startDate: string;
   endDate: string;
   subhubs: AdminHrSubhub[];
   summaries: AdminHeadcountSummary[];
   entries: AdminHeadcountEntry[];
+  changes: AdminHeadcountChangeLog[];
 };
 
 export type AdminSubhubDetails = {
@@ -199,6 +225,17 @@ type HeadcountDocument = {
   createdAt: Date;
 };
 
+type HeadcountChangeDocument = {
+  _id: string;
+  date: string;
+  action: "Created" | "Updated";
+  previousPresentCount: number | null;
+  presentCount: number;
+  actorUserId: string;
+  actorName: string;
+  changedAt: Date;
+};
+
 const indexesByDatabase = new Map<string, Promise<void>>();
 
 function normalizeName(value: string): string {
@@ -245,6 +282,11 @@ function addDays(value: string, days: number): string {
   const date = new Date(`${value}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+function mondayOfWeek(value: string): string {
+  const weekday = new Date(`${value}T00:00:00.000Z`).getUTCDay();
+  return addDays(value, -((weekday + 6) % 7));
 }
 
 function earlierDate(left: string, right: string): string {
@@ -298,6 +340,7 @@ async function ensureHrIndexes(db: Db): Promise<void> {
       db.collection<AttendanceDocument>("hr_attendance").createIndex({ employeeId: 1, date: 1 }, { unique: true }),
       db.collection<AttendanceDocument>("hr_attendance").createIndex({ date: 1 }),
       db.collection<HeadcountDocument>("hr_headcount").createIndex({ date: 1 }, { unique: true }),
+      db.collection<HeadcountChangeDocument>("hr_headcount_changes").createIndex({ date: 1, changedAt: -1 }),
     ]).then(() => undefined);
     indexesByDatabase.set(databaseName, promise);
   }
@@ -899,7 +942,7 @@ export async function getAdminSubhubDetails(userId: string): Promise<
 }
 
 function adminReportBounds(input: {
-  rangeType: "month" | "date" | "range";
+  rangeType: "month" | "date" | "week" | "range";
   month?: string;
   date?: string;
   startDate?: string;
@@ -915,6 +958,14 @@ function adminReportBounds(input: {
     const date = normalizeDate(input.date ?? "");
     if (!date) return { ok: false, message: "Choose a valid attendance date." };
     return { ok: true, startDate: date, endDate: date };
+  }
+  if (input.rangeType === "week") {
+    const date = normalizeDate(input.date ?? "");
+    if (!date || date > todayInIndia()) {
+      return { ok: false, message: "Choose a valid date no later than today." };
+    }
+    const startDate = mondayOfWeek(date);
+    return { ok: true, startDate, endDate: earlierDate(addDays(startDate, 6), todayInIndia()) };
   }
   const startDate = normalizeDate(input.startDate ?? "");
   const requestedEndDate = normalizeDate(input.endDate ?? "");
@@ -1065,7 +1116,7 @@ function emptyManagerHeadcountData(): ManagerHeadcountData {
 }
 
 function emptyAdminHeadcountReport(): AdminHeadcountReport {
-  return { startDate: "", endDate: "", subhubs: [], summaries: [], entries: [] };
+  return { startDate: "", endDate: "", subhubs: [], summaries: [], entries: [], changes: [] };
 }
 
 function serializeHeadcount(record: HeadcountDocument): HeadcountRecord {
@@ -1073,7 +1124,21 @@ function serializeHeadcount(record: HeadcountDocument): HeadcountRecord {
     id: record._id,
     date: record.date,
     presentCount: record.presentCount,
+    recordedByName: record.recordedByName ?? "—",
     updatedAt: record.updatedAt.toISOString(),
+  };
+}
+
+function serializeHeadcountChange(record: HeadcountChangeDocument): HeadcountChangeLog {
+  return {
+    id: record._id,
+    date: record.date,
+    action: record.action,
+    previousPresentCount: record.previousPresentCount,
+    presentCount: record.presentCount,
+    actorUserId: record.actorUserId,
+    actorName: record.actorName,
+    changedAt: record.changedAt.toISOString(),
   };
 }
 
@@ -1111,6 +1176,48 @@ export async function getManagerHeadcountData(): Promise<
   };
 }
 
+export async function getManagerHeadcountHistory(input: {
+  rangeType: "date" | "week";
+  date: string;
+}): Promise<
+  { ok: true; data: ManagerHeadcountHistory } | { ok: false; data: ManagerHeadcountHistory; message: string }
+> {
+  const emptyHistory: ManagerHeadcountHistory = { startDate: "", endDate: "", entries: [], changes: [] };
+  const current = await getCurrentUserRecord("subhub");
+  if (!isSubhub(current)) {
+    return { ok: false, data: emptyHistory, message: "Only SubHub Managers can view HR & Attendance history." };
+  }
+
+  const date = normalizeDate(input.date);
+  if (!date || date > todayInIndia()) {
+    return { ok: false, data: emptyHistory, message: "Choose a valid date no later than today." };
+  }
+  const startDate = input.rangeType === "week" ? mondayOfWeek(date) : date;
+  const endDate = input.rangeType === "week" ? earlierDate(addDays(startDate, 6), todayInIndia()) : date;
+  const db = await getMongoDb(current.databaseName);
+  await ensureHrIndexes(db);
+  const [records, changes] = await Promise.all([
+    db.collection<HeadcountDocument>("hr_headcount")
+      .find({ date: { $gte: startDate, $lte: endDate } })
+      .sort({ date: -1 })
+      .toArray(),
+    db.collection<HeadcountChangeDocument>("hr_headcount_changes")
+      .find({ date: { $gte: startDate, $lte: endDate } })
+      .sort({ date: -1, changedAt: -1 })
+      .toArray(),
+  ]);
+
+  return {
+    ok: true,
+    data: {
+      startDate,
+      endDate,
+      entries: records.map(serializeHeadcount),
+      changes: changes.map(serializeHeadcountChange),
+    },
+  };
+}
+
 export async function saveManagerHeadcount(input: {
   presentCount: number;
 }): Promise<{ ok: true; record: HeadcountRecord } | { ok: false; message: string }> {
@@ -1123,29 +1230,55 @@ export async function saveManagerHeadcount(input: {
   const date = todayInIndia();
   const db = await getMongoDb(current.databaseName);
   await ensureHrIndexes(db);
+  const client = await getMongoClient();
+  const session = client.startSession();
   const now = new Date();
   const id = `${date}`;
-  await db.collection<HeadcountDocument>("hr_headcount").updateOne(
-    { date },
-    {
-      $set: {
-        date,
-        presentCount: input.presentCount,
-        recordedByUserId: current._id,
-        recordedByName: current.name,
-        updatedAt: now,
-      },
-      $setOnInsert: { _id: id, createdAt: now },
-    },
-    { upsert: true },
-  );
+  try {
+    await session.withTransaction(async () => {
+      const records = db.collection<HeadcountDocument>("hr_headcount");
+      const existing = await records.findOne({ date }, { session });
+      await records.updateOne(
+        { date },
+        {
+          $set: {
+            date,
+            presentCount: input.presentCount,
+            recordedByUserId: current._id,
+            recordedByName: current.name,
+            updatedAt: now,
+          },
+          $setOnInsert: { _id: id, createdAt: now },
+        },
+        { upsert: true, session },
+      );
+      await db.collection<HeadcountChangeDocument>("hr_headcount_changes").insertOne(
+        {
+          _id: randomUUID(),
+          date,
+          action: existing ? "Updated" : "Created",
+          previousPresentCount: existing?.presentCount ?? null,
+          presentCount: input.presentCount,
+          actorUserId: current._id,
+          actorName: current.name,
+          changedAt: now,
+        },
+        { session },
+      );
+    });
+  } catch (error) {
+    console.error("[hr] Failed to save a headcount change and its audit record.", error);
+    return { ok: false, message: "The headcount and its change log could not be saved. Please try again." };
+  } finally {
+    await session.endSession();
+  }
   const record = await db.collection<HeadcountDocument>("hr_headcount").findOne({ date });
   if (!record) return { ok: false, message: "Today's headcount could not be saved. Please try again." };
   return { ok: true, record: serializeHeadcount(record) };
 }
 
 export async function getAdminHeadcountReport(input: {
-  rangeType: "month" | "date" | "range";
+  rangeType: "month" | "date" | "week" | "range";
   month?: string;
   date?: string;
   startDate?: string;
@@ -1168,11 +1301,17 @@ export async function getAdminHeadcountReport(input: {
   const workspaces = await Promise.all(users.map(async (user) => {
     const db = await getMongoDb(user.databaseName);
     await ensureHrIndexes(db);
-    const records = await db.collection<HeadcountDocument>("hr_headcount")
-      .find({ date: { $gte: bounds.startDate, $lte: bounds.endDate } })
-      .sort({ date: -1 })
-      .toArray();
-    return { user, records };
+    const [records, changes] = await Promise.all([
+      db.collection<HeadcountDocument>("hr_headcount")
+        .find({ date: { $gte: bounds.startDate, $lte: bounds.endDate } })
+        .sort({ date: -1 })
+        .toArray(),
+      db.collection<HeadcountChangeDocument>("hr_headcount_changes")
+        .find({ date: { $gte: bounds.startDate, $lte: bounds.endDate } })
+        .sort({ date: -1, changedAt: -1 })
+        .toArray(),
+    ]);
+    return { user, records, changes };
   }));
 
   const subhubs = users.map((user) => ({ id: user._id, name: user.subhubName ?? "SubHub", managerName: user.name }));
@@ -1194,9 +1333,17 @@ export async function getAdminHeadcountReport(input: {
       subhubManagerName: user.name,
     })),
   );
+  const changes = workspaces.flatMap(({ user, changes: workspaceChanges }) =>
+    workspaceChanges.map((change) => ({
+      ...serializeHeadcountChange(change),
+      subhubId: user._id,
+      subhubName: user.subhubName ?? "SubHub",
+      subhubManagerName: user.name,
+    })),
+  );
 
   return {
     ok: true,
-    data: { startDate: bounds.startDate, endDate: bounds.endDate, subhubs, summaries, entries },
+    data: { startDate: bounds.startDate, endDate: bounds.endDate, subhubs, summaries, entries, changes },
   };
 }

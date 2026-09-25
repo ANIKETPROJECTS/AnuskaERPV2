@@ -8,3 +8,4 @@
 - [Quality adjustment grid](quality-adjustment-grid.md) — accept target counts; derive signed, reasoned deltas atomically from current stock.
 - [Live hub detail](live-hub-detail.md) — resolve live hub pages by SubHub user ID, not legacy seeded hub codes.
 - [Inventory read performance](inventory-read-performance.md) — client pagination must use view-scoped server reads and avoid repeating workspace-wide reconciliation on navigation.
+- [HR headcount scope](hr-headcount-scope.md) — keep daily attendance to one total per SubHub; individual employee entry stays out of scope.
