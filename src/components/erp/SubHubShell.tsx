@@ -1,9 +1,10 @@
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
-import { Boxes, ClipboardCheck, ClipboardList, Database, Layers, LogOut, PackageOpen, PanelLeftClose, PanelLeftOpen, ShoppingCart, UserRoundCog } from "lucide-react";
+import { ClipboardCheck, ClipboardList, Database, Layers, LogOut, PackageOpen, ShoppingCart, UserRoundCog } from "lucide-react";
 import type { ReactNode } from "react";
-import { useState } from "react";
 import { logoutFn } from "@/auth";
 import { canAccess, useAuth } from "@/components/auth/AuthContext";
+import factoryIcon from "../../../attached_assets/factory_1790353346567.png";
+import { SidebarDateTime } from "./SidebarDateTime";
 
 const subhubNav = [
   { to: "/inventory", label: "Inventory Management", permission: "inventory", icon: PackageOpen },
@@ -31,7 +32,6 @@ export function SubHubShell({
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const router = useRouter();
   const { user } = useAuth();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const initials = user?.name
     .split(" ")
     .map((part) => part[0])
@@ -48,31 +48,18 @@ export function SubHubShell({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className={`sticky top-0 flex h-screen shrink-0 self-start flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar transition-[width] duration-200 ${sidebarCollapsed ? "w-[4.5rem]" : "w-64"}`}>
-        <div className={`flex h-[65px] shrink-0 items-center border-b border-sidebar-border ${sidebarCollapsed ? "justify-center px-3" : "justify-between gap-3 px-5"}`}>
-          {!sidebarCollapsed ? (
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="rule-header flex size-9 shrink-0 items-center justify-center rounded-md">
-                <Boxes className="size-4" />
-              </div>
-              <div className="min-w-0 leading-tight">
-                <p className="text-sm font-semibold">SubHub Panel</p>
-                <p className="truncate text-xs text-muted-foreground">{user?.subhubName ?? "Float ERP workspace"}</p>
-              </div>
+      <aside className="sticky top-0 flex h-screen w-64 shrink-0 self-start flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar lg:w-72">
+        <div className="flex h-[72px] shrink-0 items-center gap-3 border-b border-sidebar-border px-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <img src={factoryIcon} alt="Gadsons" className="size-10 shrink-0 rounded-md bg-white p-1 object-contain" />
+            <div className="min-w-0 leading-tight">
+              <p className="text-base font-semibold">SubHub Panel</p>
+              <p className="truncate text-sm text-muted-foreground">{user?.subhubName ?? "Float ERP workspace"}</p>
             </div>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-            aria-label={sidebarCollapsed ? "Open SubHub sidebar" : "Close SubHub sidebar"}
-            title={sidebarCollapsed ? "Open sidebar" : "Close sidebar"}
-            className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
-          >
-            {sidebarCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
-          </button>
+          </div>
         </div>
-        <nav className={`flex-1 space-y-1 ${sidebarCollapsed ? "p-2" : "p-3"}`} aria-label="SubHub navigation">
-          {!sidebarCollapsed ? <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Modules</p> : null}
+        <nav className="flex-1 space-y-1 p-3" aria-label="SubHub navigation">
+          <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Modules</p>
           {visibleNav.map((item) => {
             const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
             return (
@@ -80,26 +67,24 @@ export function SubHubShell({
                 key={item.to}
                 to={item.to}
                 search={item.permission === "procurement" ? { panel: "subhub" } : undefined}
-                title={sidebarCollapsed ? item.label : undefined}
-                className={`flex items-center gap-3 rounded-md py-2 text-sm transition-colors ${sidebarCollapsed ? "justify-center px-2" : "px-3"} ${
+                className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-base leading-snug transition-colors ${
                   active ? "bg-sidebar-accent font-medium text-sidebar-primary" : "text-sidebar-foreground hover:bg-sidebar-accent/60"
                 }`}
               >
-                <item.icon className="size-4" />
-                {!sidebarCollapsed ? item.label : null}
+                <item.icon className="size-5 shrink-0" />
+                {item.label}
               </Link>
             );
           })}
         </nav>
-        <div className={`border-t border-sidebar-border ${sidebarCollapsed ? "p-2" : "p-3"}`}>
-          <div className={`rounded-md py-2 ${sidebarCollapsed ? "flex flex-col items-center gap-2 px-1" : "flex items-center gap-3 px-2"}`}>
-            <div className="flex size-8 items-center justify-center rounded-full bg-secondary font-mono text-xs font-semibold">{initials}</div>
-            {!sidebarCollapsed ? (
-              <div className="min-w-0 flex-1 leading-tight">
-                <p className="truncate text-sm font-medium">{user?.name}</p>
-                <p className="text-xs capitalize text-muted-foreground">{user?.role} · Secure session</p>
-              </div>
-            ) : null}
+        <SidebarDateTime />
+        <div className="border-t border-sidebar-border p-3">
+          <div className="flex items-center gap-3 rounded-md px-2 py-2">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary font-mono text-sm font-semibold">{initials}</div>
+            <div className="min-w-0 flex-1 leading-tight">
+              <p className="truncate text-base font-medium">{user?.name}</p>
+              <p className="text-sm capitalize text-muted-foreground">{user?.role} · Secure session</p>
+            </div>
             <button
               type="button"
               aria-label="Sign out"
@@ -107,7 +92,7 @@ export function SubHubShell({
               onClick={signOut}
               className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
             >
-              <LogOut className="size-4" />
+              <LogOut className="size-5" />
             </button>
           </div>
         </div>

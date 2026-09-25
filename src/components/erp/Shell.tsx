@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   LayoutDashboard,
   Layers,
@@ -13,13 +13,13 @@ import {
   UserCog,
   UserRoundCog,
   ShieldAlert,
-  PanelLeftClose,
-  PanelLeftOpen,
 } from "lucide-react";
 import { useRouter } from "@tanstack/react-router";
 import { logoutFn } from "@/auth";
 import { canAccess, useAuth } from "@/components/auth/AuthContext";
+import factoryIcon from "../../../attached_assets/factory_1790353346567.png";
 import { NotificationBell } from "./HeaderTools";
+import { SidebarDateTime } from "./SidebarDateTime";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, permission: "dashboard" },
@@ -49,7 +49,6 @@ export function Shell({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const router = useRouter();
   const { user } = useAuth();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const visibleNav = nav.filter((item) => canAccess(user, item.permission));
   const initials = user?.name
     .split(" ")
@@ -66,30 +65,19 @@ export function Shell({
 
   return (
     <div className="flex min-h-screen">
-      <aside className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200 lg:flex ${sidebarCollapsed ? "w-[4.5rem]" : "w-64"}`}>
-        <div className={`flex items-center border-b border-sidebar-border py-4 ${sidebarCollapsed ? "justify-center px-3" : "justify-between gap-3 px-5"}`}>
-          {!sidebarCollapsed ? (
-            <div className="flex min-w-0 items-center gap-3">
-              <img src="/gadsons-mark.svg" alt="Gadsons" className="size-9 rounded-md" />
-              <div className="min-w-0 leading-tight">
-                <p className="text-sm font-semibold">Gadsons</p>
-                <p className="truncate text-xs text-muted-foreground">Water Purifier Parts ERP</p>
-              </div>
+      <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
+        <div className="flex items-center gap-3 border-b border-sidebar-border px-4 py-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <img src={factoryIcon} alt="Gadsons" className="size-10 shrink-0 rounded-md bg-white p-1 object-contain" />
+            <div className="min-w-0 leading-tight">
+              <p className="text-base font-semibold">Gadsons</p>
+              <p className="truncate text-sm text-muted-foreground">Water Purifier Parts ERP</p>
             </div>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-            aria-label={sidebarCollapsed ? "Open workspace sidebar" : "Close workspace sidebar"}
-            title={sidebarCollapsed ? "Open sidebar" : "Close sidebar"}
-            className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
-          >
-            {sidebarCollapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
-          </button>
+          </div>
         </div>
 
-        <nav className={`flex-1 space-y-1 overflow-y-auto ${sidebarCollapsed ? "p-2" : "p-3"}`}>
-          {!sidebarCollapsed ? <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Modules</p> : null}
+        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+          <p className="px-2 pb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Modules</p>
           {visibleNav.map((item) => {
             const destination = user?.panel === "procurement" && item.permission === "procurement" ? "/procurement-management" : item.to;
             const active = destination === "/" ? pathname === "/" : pathname.startsWith(destination);
@@ -98,43 +86,39 @@ export function Shell({
                 key={item.to}
                 to={destination}
                 search={item.permission === "procurement" ? { panel: user?.panel ?? "admin" } : undefined}
-                title={sidebarCollapsed ? item.label : undefined}
-                className={`flex items-center gap-3 rounded-md py-2 text-sm transition-colors ${
-                  sidebarCollapsed ? "justify-center px-2" : "px-3"
-                } ${
+                className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-base leading-snug transition-colors ${
                   active
                     ? "bg-sidebar-accent font-medium text-sidebar-primary"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/60"
                 }`}
               >
-                <item.icon className="size-4" />
-                {!sidebarCollapsed ? item.label : null}
+                <item.icon className="size-5 shrink-0" />
+                {item.label}
               </Link>
             );
           })}
         </nav>
 
-        <div className={`border-t border-sidebar-border ${sidebarCollapsed ? "p-2" : "p-3"}`}>
-          <div className={`rounded-md py-2 ${sidebarCollapsed ? "flex flex-col items-center gap-2 px-1" : "flex items-center gap-3 px-2"}`}>
-            <div className="flex size-8 items-center justify-center rounded-full bg-secondary font-mono text-xs font-semibold">
+        <SidebarDateTime />
+        <div className="border-t border-sidebar-border p-3">
+          <div className="flex items-center gap-3 rounded-md px-2 py-2">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary font-mono text-sm font-semibold">
               {initials}
             </div>
-            {!sidebarCollapsed ? (
-              <div className="min-w-0 leading-tight">
-                <p className="truncate text-sm font-medium">{user?.name}</p>
-                <p className="text-xs capitalize text-muted-foreground">
-                  {user?.role === "master_admin" ? "Master Admin" : user?.role} · Secure session
-                </p>
-              </div>
-            ) : null}
+            <div className="min-w-0 flex-1 leading-tight">
+              <p className="truncate text-base font-medium">{user?.name}</p>
+              <p className="text-sm capitalize text-muted-foreground">
+                {user?.role === "master_admin" ? "Master Admin" : user?.role} · Secure session
+              </p>
+            </div>
             <button
               type="button"
               aria-label="Sign out"
               title="Sign out"
               onClick={signOut}
-              className={`${sidebarCollapsed ? "" : "ml-auto"} rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground`}
+              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
             >
-              <LogOut className="size-4" />
+              <LogOut className="size-5" />
             </button>
           </div>
         </div>
@@ -156,7 +140,7 @@ export function Shell({
                 key={item.to}
                 to={user?.panel === "procurement" && item.permission === "procurement" ? "/procurement-management" : item.to}
                 search={item.permission === "procurement" && user?.panel !== "procurement" ? { panel: user?.panel ?? "admin" } : undefined}
-                className="whitespace-nowrap rounded-md px-3 py-1.5 text-xs text-muted-foreground"
+                className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted-foreground"
                 activeProps={{ className: "bg-secondary text-foreground font-medium" }}
               >
                 {item.label}
