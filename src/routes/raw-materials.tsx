@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Database, Pencil, Plus, Search, Trash2, X } 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
+import { TablePagination } from "@/components/erp/TablePagination";
 import { Tag } from "@/components/erp/bits";
 import { deleteRawMaterial, useRawMaterials, updateRawMaterial, addRawMaterial, type RawMaterial } from "@/lib/raw-material-store";
 type RawMaterialSort = "code-asc" | "code-desc" | "name-asc" | "name-desc" | "material-asc" | "source-asc";
@@ -24,7 +25,7 @@ export function RawMaterialsPage({ readOnly }: { readOnly: boolean }) {
   const [sortBy, setSortBy] = useState<RawMaterialSort>("code-asc");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [materialFilter, setMaterialFilter] = useState("all");
-  const [pageSize, setPageSize] = useState<PageSize>(10);
+  const [pageSize, setPageSize] = useState<PageSize>(readOnly ? 25 : 10);
   const [currentPage, setCurrentPage] = useState(1);
   const [showCreator, setShowCreator] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<RawMaterial | null>(null);
@@ -94,7 +95,7 @@ export function RawMaterialsPage({ readOnly }: { readOnly: boolean }) {
 
   return (
     readOnly ? (
-      <SubHubShell title="Raw Materials" subtitle="View-only central raw-part catalog">
+      <SubHubShell headerTitle="Raw Materials">
         <RawMaterialsContent
           materials={materials}
           filteredMaterials={paginatedMaterials}
@@ -210,6 +211,74 @@ function RawMaterialsContent({
   onEdit?: (item: RawMaterial) => void;
   onDelete?: (item: RawMaterial) => void;
 }) {
+  if (readOnly) {
+    return (
+      <section className="space-y-5 px-6 py-5">
+        <label className="block w-full text-base font-medium text-muted-foreground">
+          Search
+          <span className="relative mt-1 block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(event) => onQueryChange(event.target.value)}
+              placeholder="Search raw materials"
+              aria-label="Search raw materials"
+              className="h-12 w-full rounded-md border border-input bg-background pl-10 pr-3 text-base font-normal text-foreground outline-none focus:border-primary"
+            />
+          </span>
+        </label>
+        <div className="overflow-x-auto border-y border-border">
+          <table className="w-full min-w-[900px] table-fixed text-base">
+            <caption className="sr-only">Raw materials</caption>
+            <colgroup>
+              <col className="w-[15%]" />
+              <col className="w-[22%]" />
+              <col className="w-[31%]" />
+              <col className="w-[18%]" />
+              <col className="w-[14%]" />
+            </colgroup>
+            <thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th scope="col" className="px-4 py-3 font-semibold">Code</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Name</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Description</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Material</th>
+                <th scope="col" className="px-4 py-3 font-semibold">Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredMaterials.map((item) => (
+                <tr key={item.code} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
+                  <th scope="row" className="tabular whitespace-nowrap px-4 py-4 text-left font-semibold">{item.code}</th>
+                  <td className="px-4 py-4 font-semibold">{item.name}</td>
+                  <td className="px-4 py-4 leading-6 text-muted-foreground">{item.description}</td>
+                  <td className="px-4 py-4 text-muted-foreground">{item.material}</td>
+                  <td className="px-4 py-4"><Tag tone={item.source === "Molded" ? "info" : "neutral"} size="md">{item.source}</Tag></td>
+                </tr>
+              ))}
+              {!filteredMaterials.length ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-12 text-center text-base text-muted-foreground">
+                    No raw materials match your search.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+        <TablePagination
+          total={totalFiltered}
+          page={currentPage}
+          pageSize={pageSize === "all" ? Math.max(totalFiltered, 1) : pageSize}
+          showPageSizeSelect={false}
+          onPageChange={onPageChange}
+          onPageSizeChange={() => undefined}
+          size="md"
+        />
+      </section>
+    );
+  }
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
