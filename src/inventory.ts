@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { adjustSubhubInventory, adjustSubhubInventoryBatch, getBatchDetail, getBatchOptions, getInventoryItemDetail, getMasterQualityManagement, getSubhubInventory, recordQualityIssues } from "./inventory.server";
+import { adjustSubhubInventory, adjustSubhubInventoryBatch, getBatchDetail, getBatchOptions, getInventoryItemDetail, getManagedHubBatchDetail, getManagedHubBatches, getManagedHubItemDetail, getMasterQualityManagement, getSubhubInventory, recordQualityIssues } from "./inventory.server";
 
 const adjustmentSchema = z.object({
   code: z.string().min(1),
@@ -26,6 +26,9 @@ const qualityBatchSchema = z.object({
 const batchIdSchema = z.object({ batchId: z.string().min(1) });
 const batchOptionsSchema = z.object({ code: z.string().min(1) });
 const itemCodeSchema = z.object({ itemCode: z.string().min(1) });
+const managedHubSchema = z.object({ panel: z.enum(["admin", "procurement"]), hubId: z.string().min(1) });
+const managedBatchSchema = managedHubSchema.extend({ batchId: z.string().min(1) });
+const managedItemSchema = managedHubSchema.extend({ itemCode: z.string().min(1) });
 const inventoryViewSchema = z.object({ view: z.enum(["inventory", "history", "quality", "adjustment", "batches", "all"]) }).optional();
 
 export const getSubhubInventoryFn = createServerFn({ method: "GET" }).validator(inventoryViewSchema).handler(({ data }) => getSubhubInventory(data?.view));
@@ -36,3 +39,6 @@ export const getMasterQualityManagementFn = createServerFn({ method: "GET" }).ha
 export const getBatchDetailFn = createServerFn({ method: "POST" }).validator(batchIdSchema).handler(({ data }) => getBatchDetail(data.batchId));
 export const getBatchOptionsFn = createServerFn({ method: "POST" }).validator(batchOptionsSchema).handler(({ data }) => getBatchOptions(data.code));
 export const getInventoryItemDetailFn = createServerFn({ method: "POST" }).validator(itemCodeSchema).handler(({ data }) => getInventoryItemDetail(data.itemCode));
+export const getManagedHubBatchesFn = createServerFn({ method: "POST" }).validator(managedHubSchema).handler(({ data }) => getManagedHubBatches(data.panel, data.hubId));
+export const getManagedHubBatchDetailFn = createServerFn({ method: "POST" }).validator(managedBatchSchema).handler(({ data }) => getManagedHubBatchDetail(data.panel, data.hubId, data.batchId));
+export const getManagedHubItemDetailFn = createServerFn({ method: "POST" }).validator(managedItemSchema).handler(({ data }) => getManagedHubItemDetail(data.panel, data.hubId, data.itemCode));

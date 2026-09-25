@@ -53,6 +53,14 @@ export type InventoryItemDetail = {
   qualityLogs: QualityLog[];
 };
 
+export type BatchTraceabilityData = {
+  batch: InventoryBatch;
+  movements: BatchMovement[];
+  parents: BatchLineage[];
+  children: BatchLineage[];
+  qualityLogs: QualityLog[];
+};
+
 export type InventoryMovement = {
   id: string;
   date: string;
@@ -235,6 +243,17 @@ type DeliveredProcurementDocument = {
 
 function emptyData(): SubhubInventoryData {
   return { items: [], movements: [], qualityLogs: [], qualitySummary: { records: 0, rejectedUnits: 0 }, batches: [], batchMovements: [], consistencyWarnings: [] };
+}
+
+function restrictSubhubInventory(data: SubhubInventoryData): SubhubInventoryData {
+  return {
+    ...data,
+    items: data.items.map((item) => ({ ...item, price: 0 })),
+    movements: [],
+    qualityLogs: data.qualityLogs.map(({ batchCode: _batchCode, allocations: _allocations, ...log }) => log),
+    batches: [],
+    batchMovements: [],
+  };
 }
 
 function emptyMasterQualityData(): MasterQualityData {
@@ -1295,14 +1314,71 @@ export async function getWorkspaceInventorySnapshot(user: UserDocument, workspac
   return readSubhubInventory(user, workspaceDb, consistencyWarnings, "all");
 }
 
-export async function getSubhubInventory(view: InventoryDataView = "all"): Promise<
+type ManagedInventoryPanel = "admin" | "procurement";
+
+type ManagedWorkspaceResult =
+  | { ok: true; hub: UserDocument; workspaceDb: Db }
+  | { ok: false; message: string };
+
+async function resolveManagedWorkspace(panel: ManagedInventoryPanel, hubId: string): Promise<ManagedWorkspaceResult> {
+  const staff = await getCurrentUserRecord(panel);
+  const authorized = panel === "admin"
+    ? staff?.panel === "admin" && (staff.role === "master_admin" || staff.role === "admin")
+    : staff?.panel === "procurement" && staff.role === "procurement_manager";
+  if (!authorized) {
+    return { ok: false, message: "Only Master Admin and Procurement users can view hub batch inventory." };
+  }
+
+  const controlDb = await getControlPlaneDatabase();
+  const hub = await controlDb.collection<UserDocument>("users").findOne({
+    _id: hubId,
+    panel: "subhub",
+    role: "subhub",
+  });
+  if (!hub) return { ok: false, message: "The requested SubHub could not be found." };
+
+  const workspaceDb = await getMongoDb(hub.databaseName);
+  await syncWorkspaceInventoryForUser(hub, workspaceDb);
+  return { ok: true, hub, workspaceDb };
+}
+
+export async function getManagedHubBatches(panel: ManagedInventoryPanel, hubId: string): Promise<
+  { ok: true; batches: InventoryBatch[] } | { ok: false; batches: []; message: string }
+> {
+  const workspace = await resolveManagedWorkspace(panel, hubId);
+  if (!workspace.ok) return { ok: false, batches: [], message: workspace.message };
+  const data = await readSubhubInventory(workspace.hub, workspace.workspaceDb, [], "batches");
+  return { ok: true, batches: data.batches };
+}
+
+export async function getManagedHubBatchDetail(panel: ManagedInventoryPanel, hubId: string, batchId: string): Promise<
+  { ok: true; data: BatchTraceabilityData } | { ok: false; message: string }
+> {
+  const workspace = await resolveManagedWorkspace(panel, hubId);
+  if (!workspace.ok) return { ok: false, message: workspace.message };
+  return readBatchDetail(workspace.workspaceDb, batchId);
+}
+
+export async function getManagedHubItemDetail(panel: ManagedInventoryPanel, hubId: string, itemCode: string): Promise<
+  { ok: true; data: InventoryItemDetail } | { ok: false; message: string }
+> {
+  const workspace = await resolveManagedWorkspace(panel, hubId);
+  if (!workspace.ok) return { ok: false, message: workspace.message };
+  return readInventoryItemDetail(workspace.workspaceDb, itemCode);
+}
+
+export async function getSubhubInventory(view: InventoryDataView = "inventory"): Promise<
   { ok: true; data: SubhubInventoryData } | { ok: false; data: SubhubInventoryData; message: string }
 > {
   const user = await getCurrentUserRecord("subhub");
   if (user?.panel !== "subhub" || user.role !== "subhub") return { ok: false, data: emptyData(), message: "Only SubHub Managers can view workspace inventory." };
+  if (view !== "inventory" && view !== "quality") {
+    return { ok: false, data: emptyData(), message: "Batch registers and inventory traceability are not available in the SubHub panel." };
+  }
   const workspaceDb = await getMongoDb(user.databaseName);
   const consistencyWarnings = await syncWorkspaceInventoryForUser(user, workspaceDb);
-  return { ok: true, data: await readSubhubInventory(user, workspaceDb, consistencyWarnings, view) };
+  const data = await readSubhubInventory(user, workspaceDb, consistencyWarnings, view);
+  return { ok: true, data: restrictSubhubInventory(data) };
 }
 
 export type AdjustInventoryInput = {
@@ -1385,7 +1461,8 @@ export async function adjustSubhubInventoryBatch(inputs: AdjustInventoryInput[])
   } catch (error) {
     return { ok: false, message: error instanceof Error ? `Stock adjustments were not saved: ${error.message}` : "Stock adjustment transaction could not be committed." };
   }
-  return { ok: true, data: await readSubhubInventory(user, workspaceDb) };
+  const data = await readSubhubInventory(user, workspaceDb, [], "inventory");
+  return { ok: true, data: restrictSubhubInventory(data) };
 }
 
 export type RecordQualityIssueInput = {
@@ -1509,18 +1586,21 @@ export async function recordQualityIssues(inputs: RecordQualityIssueInput[]): Pr
   } catch (error) {
     return { ok: false, message: error instanceof Error ? `No quality issues were saved: ${error.message}` : "Quality transaction could not be committed." };
   }
-  return { ok: true, data: await readSubhubInventory(user, workspaceDb) };
+  const data = await readSubhubInventory(user, workspaceDb, [], "quality");
+  return { ok: true, data: restrictSubhubInventory(data) };
 }
 
 export async function recordQualityIssue(input: RecordQualityIssueInput) {
   return recordQualityIssues([input]);
 }
 
-export async function getBatchDetail(batchId: string): Promise<{ ok: true; batch: InventoryBatch; movements: BatchMovement[]; parents: BatchLineage[]; children: BatchLineage[]; qualityLogs: QualityLog[] } | { ok: false; message: string }> {
-  const user = await getCurrentUserRecord("subhub");
-  if (user?.panel !== "subhub" || user.role !== "subhub") return { ok: false, message: "Only SubHub Managers can view batch traceability." };
-  const db = await getMongoDb(user.databaseName);
-  await syncWorkspaceInventory(user, db);
+export async function getBatchDetail(_batchId: string): Promise<{ ok: true; batch: InventoryBatch; movements: BatchMovement[]; parents: BatchLineage[]; children: BatchLineage[]; qualityLogs: QualityLog[] } | { ok: false; message: string }> {
+  return { ok: false, message: "Use the protected Master Admin or Procurement batch view." };
+}
+
+async function readBatchDetail(db: Db, batchId: string): Promise<
+  { ok: true; data: BatchTraceabilityData } | { ok: false; message: string }
+> {
   const batch = await db.collection<InventoryBatchDocument>("inventory_batches").findOne({ _id: batchId });
   if (!batch) return { ok: false, message: "Batch not found." };
   const [movements, parents, children, qualityLogs] = await Promise.all([
@@ -1546,14 +1626,16 @@ export async function getBatchDetail(batchId: string): Promise<{ ok: true; batch
       ? { ...serialized, quantity: portion.quantity, batchCode: portion.batchCode, allocations: [portion] }
       : serialized;
   });
-  return { ok: true, batch: serializeBatch(batch), movements: movements.map(serializeBatchMovement), parents: parents.map(lineage), children: children.map(lineage), qualityLogs: batchQualityLogs };
+  return { ok: true, data: { batch: serializeBatch(batch), movements: movements.map(serializeBatchMovement), parents: parents.map(lineage), children: children.map(lineage), qualityLogs: batchQualityLogs } };
 }
 
-export async function getInventoryItemDetail(code: string): Promise<{ ok: true; data: InventoryItemDetail } | { ok: false; message: string }> {
-  const user = await getCurrentUserRecord("subhub");
-  if (user?.panel !== "subhub" || user.role !== "subhub") return { ok: false, message: "Only SubHub Managers can view item inventory details." };
-  const db = await getMongoDb(user.databaseName);
-  await syncWorkspaceInventory(user, db);
+export async function getInventoryItemDetail(_code: string): Promise<{ ok: true; data: InventoryItemDetail } | { ok: false; message: string }> {
+  return { ok: false, message: "Use the protected Master Admin or Procurement item view." };
+}
+
+async function readInventoryItemDetail(db: Db, code: string): Promise<
+  { ok: true; data: InventoryItemDetail } | { ok: false; message: string }
+> {
   const item = await db.collection<InventoryItemDocument>("inventory_items").findOne({ _id: code });
   if (!item) return { ok: false, message: "Inventory item not found." };
   const [batches, batchMovements, movements, qualityLogs] = await Promise.all([

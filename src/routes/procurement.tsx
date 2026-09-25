@@ -24,6 +24,7 @@ import { Kpi, Panel, Tag } from "@/components/erp/bits";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { TablePagination } from "@/components/erp/TablePagination";
+import { HubBatchBrowser } from "@/components/erp/HubBatchBrowser";
 import {
   createProcurementOrderFn,
   updateProcurementItemRequestFn,
@@ -337,37 +338,44 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
 }
 
 function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; panel: "admin" | "procurement"; onSaved: (message: string) => Promise<void> }) {
-  const grouped = useMemo(() => {
-    const groups = new Map<string, HubMaterialNeed[]>();
-    data.materialNeeds.forEach((need) => groups.set(need.subhubUserId, [...(groups.get(need.subhubUserId) ?? []), need]));
-    return [...groups.entries()];
-  }, [data.materialNeeds]);
+  const hubs = useMemo(() => data.subhubs.map((hub) => ({
+    ...hub,
+    needs: data.materialNeeds.filter((need) => need.subhubUserId === hub.id),
+  })), [data.materialNeeds, data.subhubs]);
   const [orderHub, setOrderHub] = useState<string | null>(null);
+  const [batchHub, setBatchHub] = useState<string | null>(null);
 
-  if (!grouped.length) {
+  if (!hubs.length) {
     return <Panel title="Hub stock and target material needs" description="Required quantities are calculated from each active production target, production reports, current hub stock, and outstanding procurement orders.">
-      <p className="p-8 text-center text-sm text-muted-foreground">No assigned production targets are available to calculate material needs.</p>
+      <p className="p-8 text-center text-sm text-muted-foreground">No active SubHubs are available.</p>
     </Panel>;
   }
 
   return <>
     <div className="space-y-4">
       <Panel title="Hub stock and target material needs" description="Remaining BOM requirements are compared with stock in each SubHub and material already on order.">
-        <p className="border-b border-border px-5 py-3 text-xs text-muted-foreground">A shortage is the remaining target requirement minus available stock and undelivered procurement quantities. Values recalculate when this page is refreshed.</p>
+        <p className="px-5 py-3 text-xs text-muted-foreground">A shortage is the remaining target requirement minus available stock and undelivered procurement quantities. Use each SubHub’s batch register to review individual items and traceability.</p>
       </Panel>
-      {grouped.map(([hubId, needs]) => {
+      {hubs.map((hub) => {
+        const { id: hubId, name: hubName, needs } = hub;
         const shortageCount = needs.filter((need) => need.shortageQuantity > 0).length;
         return <section key={hubId} className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
-            <div><h2 className="font-semibold">{needs[0]?.subhubName ?? "SubHub"}</h2><p className="mt-1 text-sm text-muted-foreground">{needs.length} raw materials · {shortageCount} below required quantity</p></div>
-            <button type="button" disabled={!shortageCount} onClick={() => setOrderHub(hubId)} className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><PackagePlus className="size-4" /> Create order for shortages</button>
+            <div><h2 className="font-semibold">{hubName}</h2><p className="mt-1 text-sm text-muted-foreground">{needs.length} raw materials · {shortageCount} below required quantity</p></div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" aria-expanded={batchHub === hubId} onClick={() => setBatchHub(batchHub === hubId ? null : hubId)} className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm font-medium hover:bg-muted"><ClipboardList className="size-4" /> {batchHub === hubId ? "Hide batch register" : "Batch register"}</button>
+              <button type="button" disabled={!shortageCount} onClick={() => setOrderHub(hubId)} className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><PackagePlus className="size-4" /> Create order for shortages</button>
+            </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead className="border-b border-border bg-muted/15 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Raw material</th><th className="px-5 py-3 text-right font-medium">Needed for remaining targets</th><th className="px-5 py-3 text-right font-medium">Hub stock</th><th className="px-5 py-3 text-right font-medium">On order</th><th className="px-5 py-3 text-right font-medium">Additional quantity</th><th className="px-5 py-3 text-right font-medium">Stock status</th></tr></thead>
-              <tbody>{needs.map((need) => <tr key={need.itemCode} className="border-b border-border/70 last:border-0"><td className="px-5 py-3 font-medium">{need.itemName}<span className="ml-2 text-xs font-normal text-muted-foreground">{need.itemCode}</span></td><td className="tabular px-5 py-3 text-right">{num(need.requiredQuantity)}</td><td className="tabular px-5 py-3 text-right">{num(need.stockQuantity)}</td><td className="tabular px-5 py-3 text-right">{num(need.onOrderQuantity)}</td><td className={`tabular px-5 py-3 text-right font-semibold ${need.shortageQuantity > 0 ? "text-destructive" : "text-success"}`}>{num(need.shortageQuantity)}</td><td className="px-5 py-3 text-right"><Tag tone={need.shortageQuantity > 0 ? "warn" : "good"}>{need.shortageQuantity > 0 ? "Low stock" : "Sufficient"}</Tag></td></tr>)}</tbody>
-            </table>
-          </div>
+          {needs.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead className="border-b border-border bg-muted/15 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Raw material</th><th className="px-5 py-3 text-right font-medium">Needed for remaining targets</th><th className="px-5 py-3 text-right font-medium">Hub stock</th><th className="px-5 py-3 text-right font-medium">On order</th><th className="px-5 py-3 text-right font-medium">Additional quantity</th><th className="px-5 py-3 text-right font-medium">Stock status</th></tr></thead>
+                <tbody>{needs.map((need) => <tr key={need.itemCode} className="border-b border-border/70 last:border-0"><td className="px-5 py-3 font-medium">{need.itemName}<span className="ml-2 text-xs font-normal text-muted-foreground">{need.itemCode}</span></td><td className="tabular px-5 py-3 text-right">{num(need.requiredQuantity)}</td><td className="tabular px-5 py-3 text-right">{num(need.stockQuantity)}</td><td className="tabular px-5 py-3 text-right">{num(need.onOrderQuantity)}</td><td className={`tabular px-5 py-3 text-right font-semibold ${need.shortageQuantity > 0 ? "text-destructive" : "text-success"}`}>{num(need.shortageQuantity)}</td><td className="px-5 py-3 text-right"><Tag tone={need.shortageQuantity > 0 ? "warn" : "good"}>{need.shortageQuantity > 0 ? "Low stock" : "Sufficient"}</Tag></td></tr>)}</tbody>
+              </table>
+            </div>
+          ) : <p className="p-5 text-sm text-muted-foreground">No active raw-material targets for this SubHub. Its batch register is still available above.</p>}
+          {batchHub === hubId ? <div className="border-t border-border p-4"><HubBatchBrowser hubId={hubId} panel={panel} /></div> : null}
         </section>;
       })}
     </div>

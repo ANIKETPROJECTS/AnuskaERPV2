@@ -149,6 +149,15 @@ function RootComponent() {
   if (auth.user && pathname === "/login") {
     return <Navigate to={auth.user.panel === "subhub" ? "/subhub" : auth.user.panel === "procurement" ? "/procurement-management" : "/"} replace />;
   }
+  if (
+    auth.user?.panel === "subhub" &&
+    (pathname === "/inventory/batches" ||
+      pathname.startsWith("/inventory/batches/") ||
+      pathname === "/inventory/history" ||
+      pathname.startsWith("/inventory/items/"))
+  ) {
+    return <Navigate to="/inventory/raw-materials" replace />;
+  }
   if (auth.user?.role === "subhub" && isAdminPath) {
     return <Navigate to="/subhub" replace />;
   }
