@@ -61,7 +61,7 @@ export function BomMatrix({
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
+    <div className={largeText ? "w-full" : "overflow-hidden rounded-lg border border-border bg-card"}>
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-6 py-5">
         <div>
           <p className={largeText ? "text-lg font-semibold" : "text-base font-semibold"}>{title}</p>
@@ -103,12 +103,25 @@ export function BomMatrix({
             <caption className="sr-only">{title}</caption>
             <thead className={`border-b border-border bg-muted/20 text-left uppercase tracking-wide text-muted-foreground ${largeText ? "text-sm" : "text-xs"}`}>
               <tr>
-                <th scope="col" className="sticky left-0 z-40 w-[280px] min-w-[280px] bg-card px-6 py-4 font-medium shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)]">Raw subpart</th>
-                <th scope="col" className="sticky left-[280px] z-40 w-[110px] min-w-[110px] bg-card px-4 py-4 font-medium">Source</th>
-                <th scope="col" className="sticky left-[390px] z-40 w-[100px] min-w-[100px] bg-card px-4 py-4 text-right font-medium shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)]">₹ / unit</th>
+                {largeText ? (
+                  <>
+                    <th scope="col" className="w-[145px] min-w-[145px] px-4 py-4 font-medium">Raw material code</th>
+                    <th scope="col" className="w-[170px] min-w-[170px] px-4 py-4 font-medium">Name</th>
+                    <th scope="col" className="w-[130px] min-w-[130px] px-4 py-4 font-medium">Material</th>
+                    <th scope="col" className="w-[100px] min-w-[100px] px-4 py-4 text-right font-medium">Weight (kg)</th>
+                    <th scope="col" className="w-[110px] min-w-[110px] px-4 py-4 font-medium">Source</th>
+                  </>
+                ) : (
+                  <>
+                    <th scope="col" className="sticky left-0 z-40 w-[280px] min-w-[280px] bg-card px-6 py-4 font-medium shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)]">Raw subpart</th>
+                    <th scope="col" className="sticky left-[280px] z-40 w-[110px] min-w-[110px] bg-card px-4 py-4 font-medium">Source</th>
+                    <th scope="col" className="sticky left-[390px] z-40 w-[100px] min-w-[100px] bg-card px-4 py-4 text-right font-medium">₹ / unit</th>
+                  </>
+                )}
                 {variants.map(({ key, productCode, productName, variant }) => (
                   <th scope="col" key={key} className="min-w-[150px] px-4 py-4 text-center font-medium">
-                    <span className="tabular block text-foreground">{variant.code}</span>
+                    {largeText ? <span className="block text-xs font-medium normal-case tracking-normal text-muted-foreground">Variant</span> : null}
+                    <span className={`tabular block text-foreground ${largeText ? "mt-1" : ""}`}>{variant.code}</span>
                     <span className={`mt-1 block normal-case tracking-normal text-muted-foreground ${largeText ? "text-base" : "text-sm"}`}>{productCode} · {productName}</span>
                     <span className={`mt-0.5 block normal-case tracking-normal text-muted-foreground ${largeText ? "text-base" : "text-sm"}`}>{variant.name}</span>
                   </th>
@@ -118,14 +131,26 @@ export function BomMatrix({
             <tbody>
               {rows.map(({ code, part }) => (
                 <tr key={code} className="border-b border-border/70 last:border-0">
-                  <th scope="row" className="sticky left-0 z-30 w-[280px] min-w-[280px] bg-card px-6 py-4 text-left shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)]">
-                    <p className="font-semibold">{part?.name ?? code}</p>
-                    <p className={`tabular mt-0.5 font-normal text-muted-foreground ${largeText ? "text-base" : "text-sm"}`}>
-                      {code} · {part?.material ?? "Material details unavailable"}{part?.weight !== undefined ? ` · ${part.weight} kg` : ""}
-                    </p>
-                  </th>
-                  <td className={`sticky left-[280px] z-30 w-[110px] min-w-[110px] bg-card px-4 py-4 text-muted-foreground ${largeText ? "text-base" : "text-sm"}`}>{part?.source ?? "—"}</td>
-                  <td className={`tabular sticky left-[390px] z-30 w-[100px] min-w-[100px] bg-card px-4 py-4 text-right text-muted-foreground shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)] ${largeText ? "text-base" : "text-sm"}`}>{part ? `₹${part.rate}` : "—"}</td>
+                  {largeText ? (
+                    <>
+                      <td className="tabular px-4 py-4 text-muted-foreground">{code}</td>
+                      <th scope="row" className="px-4 py-4 text-left font-semibold">{part?.name ?? "—"}</th>
+                      <td className="px-4 py-4 text-muted-foreground">{part?.material ?? "—"}</td>
+                      <td className="tabular px-4 py-4 text-right text-muted-foreground">{part?.weight ?? "—"}</td>
+                      <td className="px-4 py-4 text-muted-foreground">{part?.source ?? "—"}</td>
+                    </>
+                  ) : (
+                    <>
+                      <th scope="row" className="sticky left-0 z-30 w-[280px] min-w-[280px] bg-card px-6 py-4 text-left shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)]">
+                        <p className="font-semibold">{part?.name ?? code}</p>
+                        <p className="tabular mt-0.5 text-sm font-normal text-muted-foreground">
+                          {code} · {part?.material ?? "Material details unavailable"}{part?.weight !== undefined ? ` · ${part.weight} kg` : ""}
+                        </p>
+                      </th>
+                      <td className="sticky left-[280px] z-30 w-[110px] min-w-[110px] bg-card px-4 py-4 text-sm text-muted-foreground">{part?.source ?? "—"}</td>
+                      <td className="tabular sticky left-[390px] z-30 w-[100px] min-w-[100px] bg-card px-4 py-4 text-right text-sm text-muted-foreground">{part ? `₹${part.rate}` : "—"}</td>
+                    </>
+                  )}
                   {variants.map(({ key, variant }) => {
                     const quantity = variant.parts[code];
                     return (
