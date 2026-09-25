@@ -239,26 +239,51 @@ function RawMaterialsContent({
             </colgroup>
             <thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th scope="col" className="px-4 py-3 font-semibold">Code</th>
-                <th scope="col" className="px-4 py-3 font-semibold">Name</th>
-                <th scope="col" className="px-4 py-3 font-semibold">Description</th>
-                <th scope="col" className="px-4 py-3 font-semibold">Material</th>
-                <th scope="col" className="px-4 py-3 font-semibold">Source</th>
+                <th scope="col" className="px-4 py-3 font-semibold">
+                  Code
+                </th>
+                <th scope="col" className="px-4 py-3 font-semibold">
+                  Name
+                </th>
+                <th scope="col" className="px-4 py-3 font-semibold">
+                  Description
+                </th>
+                <th scope="col" className="px-4 py-3 font-semibold">
+                  Material
+                </th>
+                <th scope="col" className="px-4 py-3 font-semibold">
+                  Source
+                </th>
               </tr>
             </thead>
             <tbody>
               {filteredMaterials.map((item) => (
-                <tr key={item.code} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
-                  <th scope="row" className="tabular whitespace-nowrap px-4 py-4 text-left font-semibold">{item.code}</th>
+                <tr
+                  key={item.code}
+                  className="border-b border-border/70 last:border-0 hover:bg-muted/40"
+                >
+                  <th
+                    scope="row"
+                    className="tabular whitespace-nowrap px-4 py-4 text-left font-semibold"
+                  >
+                    {item.code}
+                  </th>
                   <td className="px-4 py-4 font-semibold">{item.name}</td>
                   <td className="px-4 py-4 leading-6 text-muted-foreground">{item.description}</td>
                   <td className="px-4 py-4 text-muted-foreground">{item.material}</td>
-                  <td className="px-4 py-4"><Tag tone={item.source === "Molded" ? "info" : "neutral"} size="md">{item.source}</Tag></td>
+                  <td className="px-4 py-4">
+                    <Tag tone={item.source === "Molded" ? "info" : "neutral"} size="md">
+                      {item.source}
+                    </Tag>
+                  </td>
                 </tr>
               ))}
               {!filteredMaterials.length ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-base text-muted-foreground">
+                  <td
+                    colSpan={5}
+                    className="px-4 py-12 text-center text-base text-muted-foreground"
+                  >
                     No raw materials match your search.
                   </td>
                 </tr>
