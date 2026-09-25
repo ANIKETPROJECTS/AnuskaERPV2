@@ -42,14 +42,12 @@ const subhubNav = [
 
 export function SubHubShell({
   headerTitle,
-  headerSubtitle,
   title,
   subtitle,
   actions,
   children,
 }: {
   headerTitle?: string;
-  headerSubtitle?: string;
   title?: string;
   subtitle?: string;
   actions?: ReactNode;
@@ -130,10 +128,7 @@ export function SubHubShell({
       <main className="min-w-0 flex-1">
         <header className="sticky top-0 z-20 flex min-h-[65px] flex-wrap items-center justify-between gap-3 border-b border-border bg-background/85 px-6 py-0 backdrop-blur">
           {headerTitle ? (
-            <div className="min-w-0 flex-1">
-              <h1 className="truncate text-lg font-semibold leading-tight">{headerTitle}</h1>
-              {headerSubtitle ? <p className="truncate text-sm text-muted-foreground">{headerSubtitle}</p> : null}
-            </div>
+            <h1 className="min-w-0 text-lg font-semibold leading-tight">{headerTitle}</h1>
           ) : null}
           {actions}
         </header>

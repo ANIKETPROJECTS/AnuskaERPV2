@@ -61,13 +61,8 @@ function PurchaseDetail() {
   const { user } = useAuth();
   const isSubHub = user?.panel === "subhub";
   const currentIndex = ["Order placed", "Payment done", "Dispatch done", "Delivery done"].indexOf(order.status);
-  const summaryMetrics: Array<{ label: string; value: string; hint: string; detail?: string }> = [
-    {
-      label: "Quantity",
-      value: order.quantity.toLocaleString("en-IN"),
-      hint: "Units ordered",
-      ...(isSubHub ? { detail: `${order.materialName} · ${order.vendorName}` } : {}),
-    },
+  const summaryMetrics = [
+    { label: "Quantity", value: order.quantity.toLocaleString("en-IN"), hint: "Units ordered" },
     ...(!isSubHub ? [{ label: "Order amount", value: `₹${order.totalAmount.toLocaleString("en-IN")}`, hint: `${order.items.length} material line${order.items.length === 1 ? "" : "s"}` }] : []),
     { label: "Status", value: order.status, hint: "Current procurement stage" },
     { label: "Expected delivery", value: formatDate(order.expectedDelivery), hint: `Ordered ${formatDate(order.orderDate)}` },
@@ -83,7 +78,6 @@ function PurchaseDetail() {
             <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{metric.label}</p>
             <p className="tabular mt-1 text-2xl font-bold leading-tight sm:text-3xl">{metric.value}</p>
             <p className="mt-1 text-base text-muted-foreground">{metric.hint}</p>
-            {metric.detail ? <p className="mt-1 text-sm text-muted-foreground">{metric.detail}</p> : null}
           </div>
         ))}
       </section>
@@ -138,7 +132,7 @@ function PurchaseDetail() {
   const subtitle = `${order.items.length === 1 ? order.materialName : `${order.items.length} materials`} · ${order.vendorName} · ${order.subhubName}`;
   const actions = <Link to={user?.panel === "procurement" ? "/procurement-management" : "/procurement"} search={user?.panel === "procurement" ? undefined : { panel: user?.panel ?? "admin" }} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold"><ArrowLeft className="size-5" /> Back to procurement</Link>;
   return user?.panel === "subhub" ? (
-    <SubHubShell headerTitle={title} headerSubtitle={order.subhubName} actions={actions}>
+    <SubHubShell headerTitle={title} actions={actions}>
       <div className="space-y-6 px-6 py-5">{content}</div>
     </SubHubShell>
   ) : (
