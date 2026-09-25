@@ -1,8 +1,8 @@
 import { createFileRoute, Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
-import { ArrowDownCircle, ArrowUpCircle, Check, Package, Search, ShieldAlert } from "lucide-react";
+import { ArrowDownAZ, ArrowDownCircle, ArrowUpAZ, ArrowUpCircle, Check, Package, Search, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
-import { Tag } from "@/components/erp/bits";
+import { Panel, Tag } from "@/components/erp/bits";
 import { TablePagination } from "@/components/erp/TablePagination";
 import { adjustSubhubInventoryBatchFn, getSubhubInventoryFn } from "@/inventory";
 import type { BatchMovement, InventoryBatch, InventoryItem, SubhubInventoryData } from "@/inventory.server";
