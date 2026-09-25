@@ -432,8 +432,35 @@ function InventoryTable({ inventoryType, items, loading }: { inventoryType: Inve
 
   return <div className="w-full">
     <div className="flex flex-wrap items-end gap-3 border-b border-border p-4">
-      <div className="relative min-w-[220px] flex-1 text-xs font-medium text-muted-foreground">Search {inventoryType === "Raw Material" ? "raw materials" : "final products"}<label className="relative mt-1 block"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name or unique code" className="h-9 w-full rounded-md border border-input pl-9 pr-3 text-sm font-normal text-foreground outline-none focus:border-primary" /></label></div>
-      <label className="w-[170px] shrink-0 text-xs font-medium text-muted-foreground">Stock status<span className="relative mt-1 block"><select value={stockFilter} onChange={(event) => setStockFilter(event.target.value as "all" | "available" | "low" | "empty")} className="h-9 w-full appearance-none rounded-md border border-input bg-white px-3 pr-9 text-sm font-normal text-foreground"><option value="all">All stock</option><option value="available">Available</option><option value="low">Low stock</option><option value="empty">No stock</option></select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /></span></label>
+      <label className="relative min-w-[240px] flex-1 text-sm font-medium text-muted-foreground">
+        Search {inventoryType === "Raw Material" ? "raw materials" : "final products"}
+        <span className="relative mt-1 block">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            aria-label={`Search ${inventoryType === "Raw Material" ? "raw materials" : "final products"}`}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Name or unique code"
+            className="h-10 w-full rounded-md border border-input pl-9 pr-3 text-base font-normal text-foreground outline-none focus:border-primary"
+          />
+        </span>
+      </label>
+      <label className="w-full shrink-0 text-sm font-medium text-muted-foreground sm:w-44">
+        Stock status
+        <span className="relative mt-1 block">
+          <select
+            value={stockFilter}
+            onChange={(event) => setStockFilter(event.target.value as "all" | "available" | "low" | "empty")}
+            className="h-10 w-full appearance-none rounded-md border border-input bg-white px-3 pr-9 text-base font-normal text-foreground"
+          >
+            <option value="all">All stock</option>
+            <option value="available">Available</option>
+            <option value="low">Low stock</option>
+            <option value="empty">No stock</option>
+          </select>
+          <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        </span>
+      </label>
     </div>
     {loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading {inventoryType === "Raw Material" ? "raw materials" : "final products"}…</p> : <><div className="overflow-x-auto"><table className="w-full min-w-[720px] table-fixed text-base"><colgroup><col className="w-[35%]" /><col className="w-[20%]" /><col className="w-[25%]" /><col className="w-[20%]" /></colgroup><thead className="border-b border-border text-center text-sm font-semibold uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3">Item</th><th className="px-4 py-3">Unique code</th><th className="px-4 py-3">Available quantity</th><th className="px-4 py-3">Status</th></tr></thead><tbody>{paginatedItems.map((item) => {
       const status = item.quantity <= 0 ? "No stock" : item.quantity < 5 ? "Low stock" : "Available";

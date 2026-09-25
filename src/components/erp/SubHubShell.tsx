@@ -113,7 +113,7 @@ export function SubHubShell({
         </div>
       </aside>
       <main className="min-w-0 flex-1">
-        <header className="sticky top-0 z-20 flex min-h-[57px] flex-wrap items-center justify-between gap-3 border-b border-border bg-background/85 px-6 py-3 backdrop-blur">
+        <header className="sticky top-0 z-20 flex min-h-[65px] flex-wrap items-center justify-between gap-3 border-b border-border bg-background/85 px-6 py-3 backdrop-blur">
           {headerTitle ? <h1 className="min-w-0 text-lg font-semibold leading-tight">{headerTitle}</h1> : null}
           {actions}
         </header>
