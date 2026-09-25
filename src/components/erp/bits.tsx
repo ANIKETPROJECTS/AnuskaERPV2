@@ -75,9 +75,11 @@ export function Panel({
 export function Tag({
   children,
   tone = "neutral",
+  size = "sm",
 }: {
   children: ReactNode;
   tone?: "neutral" | "good" | "bad" | "warn" | "info";
+  size?: "sm" | "md";
 }) {
   const map = {
     neutral: "bg-secondary text-secondary-foreground",
@@ -87,7 +89,11 @@ export function Tag({
     info: "bg-primary/10 text-primary",
   } as const;
   return (
-    <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium ${map[tone]}`}>
+    <span
+      className={`inline-flex items-center rounded ${
+        size === "md" ? "px-2.5 py-1 text-sm font-semibold" : "px-2 py-0.5 text-[11px] font-medium"
+      } ${map[tone]}`}
+    >
       {children}
     </span>
   );

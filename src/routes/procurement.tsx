@@ -21,7 +21,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { z } from "zod";
 import type { Panel as ProcurementPanel } from "@/auth.server";
 import { useAuth } from "@/components/auth/AuthContext";
-import { Kpi, Panel, Tag } from "@/components/erp/bits";
+import { Tag } from "@/components/erp/bits";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { TablePagination } from "@/components/erp/TablePagination";
@@ -252,37 +252,58 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
     setError("");
   }
 
+  const summaryMetrics = [
+    ...(canManageProcurement
+      ? [{ label: "Active vendors", value: num(data.summary.vendorCount), hint: `${data.vendors.length} total records` }]
+      : []),
+    { label: "Open orders", value: num(data.summary.openOrders), hint: `${num(data.summary.unitsOnOrder)} units in progress` },
+    ...(panel !== "subhub"
+      ? [{ label: "Committed spend", value: inr(data.summary.committedSpend), hint: "Open procurement orders" }]
+      : []),
+    {
+      label: "On-time delivery",
+      value: data.summary.onTimeRate === null ? "—" : `${data.summary.onTimeRate}%`,
+      hint: `${data.summary.completedOrders} completed orders`,
+    },
+  ];
+
   const content = (
-    <div className="space-y-6">
-      {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
-      {notice ? <p role="status" className="rounded-md border border-success/25 bg-success/5 px-4 py-3 text-sm text-success">{notice}</p> : null}
+    <div className="space-y-6 text-base">
+      {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-base text-destructive">{error}</p> : null}
+      {notice ? <p role="status" className="rounded-md border border-success/25 bg-success/5 px-4 py-3 text-base text-success">{notice}</p> : null}
 
-      <div className={`grid gap-4 sm:grid-cols-2 ${panel === "subhub" ? "xl:grid-cols-2" : canManageProcurement ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
-        {canManageProcurement ? <Kpi label="Active vendors" value={num(data.summary.vendorCount)} hint={`${data.vendors.length} total records`} /> : null}
-        <Kpi label="Open orders" value={num(data.summary.openOrders)} tone="warn" hint={`${num(data.summary.unitsOnOrder)} units in progress`} />
-        {panel !== "subhub" ? <Kpi label="Committed spend" value={inr(data.summary.committedSpend)} hint="open procurement orders" /> : null}
-        <Kpi label="On-time delivery" value={data.summary.onTimeRate === null ? "—" : `${data.summary.onTimeRate}%`} tone={data.summary.onTimeRate === null ? "neutral" : data.summary.onTimeRate >= 85 ? "good" : "warn"} hint={`${data.summary.completedOrders} completed orders`} />
-      </div>
+      <section
+        aria-label="Procurement summary"
+        className={`grid gap-x-8 border-y border-border ${panel === "subhub" ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"}`}
+      >
+        {summaryMetrics.map((metric) => (
+          <div key={metric.label} className="py-4">
+            <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{metric.label}</p>
+            <p className="tabular mt-1 text-3xl font-bold leading-tight">{metric.value}</p>
+            <p className="mt-1 text-base text-muted-foreground">{metric.hint}</p>
+          </div>
+        ))}
+      </section>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex flex-wrap rounded-md border border-border bg-card p-1" role="tablist" aria-label="Procurement sections">
-          <button type="button" role="tab" aria-selected={tab === "orders"} onClick={() => setTab("orders")} className={`inline-flex items-center gap-2 rounded px-3 py-2 text-sm font-medium ${tab === "orders" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
-            <ClipboardList className="size-4" /> Order Management
+      <div className="flex flex-col gap-3 border-b border-border pb-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-1" role="tablist" aria-label="Procurement sections">
+          <button type="button" role="tab" aria-selected={tab === "orders"} onClick={() => setTab("orders")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${tab === "orders" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <ClipboardList className="size-5" /> Order Management
           </button>
-          {canManageProcurement ? <button type="button" role="tab" aria-selected={tab === "vendors"} onClick={() => setTab("vendors")} className={`inline-flex items-center gap-2 rounded px-3 py-2 text-sm font-medium ${tab === "vendors" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
-            <Store className="size-4" /> Vendor Management
+          {canManageProcurement ? <button type="button" role="tab" aria-selected={tab === "vendors"} onClick={() => setTab("vendors")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${tab === "vendors" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <Store className="size-5" /> Vendor Management
           </button> : null}
-          {canManageProcurement ? <button type="button" role="tab" aria-selected={tab === "needs"} onClick={() => setTab("needs")} className={`inline-flex items-center gap-2 rounded px-3 py-2 text-sm font-medium ${tab === "needs" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
-            <PackagePlus className="size-4" /> Hub stock & targets
+          {canManageProcurement ? <button type="button" role="tab" aria-selected={tab === "needs"} onClick={() => setTab("needs")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${tab === "needs" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <PackagePlus className="size-5" /> Hub stock & targets
           </button> : null}
-          {canManageProcurement ? <button type="button" role="tab" aria-selected={tab === "requests"} onClick={() => setTab("requests")} className={`inline-flex items-center gap-2 rounded px-3 py-2 text-sm font-medium ${tab === "requests" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>
-            <ClipboardList className="size-4" /> Item requests{data.itemRequests.some((request) => request.status === "Pending") ? ` (${data.itemRequests.filter((request) => request.status === "Pending").length})` : ""}
+          {canManageProcurement ? <button type="button" role="tab" aria-selected={tab === "requests"} onClick={() => setTab("requests")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${tab === "requests" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <ClipboardList className="size-5" /> Item requests{data.itemRequests.some((request) => request.status === "Pending") ? ` (${data.itemRequests.filter((request) => request.status === "Pending").length})` : ""}
           </button> : null}
         </div>
-        <div className="flex gap-2">
-          {canManageProcurement && tab === "vendors" ? <button type="button" onClick={openCreateVendor} className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm font-medium hover:bg-muted"><Plus className="size-4" /> Add vendor</button> : null}
-          {canManageProcurement && tab === "orders" ? <button type="button" onClick={() => setShowOrderForm(true)} className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium"><PackagePlus className="size-4" /> New procurement order</button> : null}
-          <button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh</button>
+        <div className="flex flex-wrap gap-2">
+          {canManageProcurement && tab === "vendors" ? <button type="button" onClick={openCreateVendor} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted"><Plus className="size-5" /> Add vendor</button> : null}
+          {canManageProcurement && tab === "orders" ? <button type="button" onClick={() => setShowOrderForm(true)} className="rule-header inline-flex min-h-12 items-center gap-2 rounded-md px-4 text-base font-semibold"><PackagePlus className="size-5" /> New procurement order</button> : null}
+          <button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted disabled:opacity-50"><RefreshCw className={`size-5 ${loading ? "animate-spin" : ""}`} /> Refresh</button>
         </div>
       </div>
 
@@ -311,16 +332,18 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
             hasFilters={hasFilters}
             clearFilters={clearFilters}
           />
-          <Panel title="Procurement orders" description={`${filteredOrders.length} of ${data.orders.length} orders · every row is stored in MongoDB`}>
+          <section>
+            <SectionHeading title="Procurement orders" description={`${filteredOrders.length} of ${data.orders.length} orders · all order records are stored in MongoDB`} />
             {loading ? <Loading /> : <OrderTable orders={paginatedOrders} total={filteredOrders.length} page={orderPage} pageSize={orderPageSize} onPageChange={setOrderPage} onPageSizeChange={setOrderPageSize} isAdmin={canManageProcurement} panel={panel} onStatusChange={(order, status) => void updateOrderStatus(order, status)} />}
-          </Panel>
+          </section>
           {canManageProcurement ? <AdminReports data={data} /> : null}
         </>
       ) : tab === "vendors" ? (
         <>
-          <Panel title="Vendor directory" description="Create, edit, archive, and review the shared procurement vendor directory.">
+          <section>
+            <SectionHeading title="Vendor directory" description="Create, edit, archive, and review the shared procurement vendor directory." />
             <VendorTable vendors={visibleVendors} data={data} isAdmin={canManageProcurement} onSelect={setSelectedVendorId} selectedVendorId={selectedVendorId} onEdit={openEditVendor} onRemove={(vendor) => void removeVendor(vendor)} />
-          </Panel>
+          </section>
           {selectedVendor ? <VendorDetail vendor={selectedVendor} orders={selectedVendorOrders} onClose={() => setSelectedVendorId("")} /> : null}
         </>
       ) : null}
@@ -333,9 +356,33 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
   );
 
   return auth.user?.panel === "subhub" ? (
-    <SubHubShell title="Procurement" subtitle={`Orders assigned to ${auth.user?.subhubName ?? "this SubHub"}`}>{content}</SubHubShell>
+    <SubHubShell title="Procurement" subtitle={`Orders assigned to ${auth.user?.subhubName ?? "this SubHub"}`}>
+      <div className="space-y-6 px-6 py-5">{content}</div>
+    </SubHubShell>
   ) : (
-    <Shell title="Procurement" subtitle="Live vendor management, purchase orders, and SubHub-wide delivery reporting">{content}</Shell>
+    <Shell title="Procurement" subtitle="Live vendor management, purchase orders, and SubHub-wide delivery reporting">
+      {content}
+    </Shell>
+  );
+}
+
+function SectionHeading({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <header className="flex flex-wrap items-end justify-between gap-3 border-b border-border py-3">
+      <div className="min-w-0">
+        <h2 className="text-lg font-semibold">{title}</h2>
+        {description ? <p className="mt-1 text-base text-muted-foreground">{description}</p> : null}
+      </div>
+      {action}
+    </header>
   );
 }
 
@@ -348,36 +395,38 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
   const [batchHub, setBatchHub] = useState<string | null>(null);
 
   if (!hubs.length) {
-    return <Panel title="Hub stock and target material needs" description="Required quantities are calculated from each active production target, production reports, current hub stock, and outstanding procurement orders.">
-      <p className="p-8 text-center text-sm text-muted-foreground">No active SubHubs are available.</p>
-    </Panel>;
+    return <section>
+      <SectionHeading title="Hub stock and target material needs" description="Required quantities are calculated from active production targets, reports, hub stock, and outstanding procurement orders." />
+      <p className="border-b border-border py-8 text-center text-base text-muted-foreground">No active SubHubs are available.</p>
+    </section>;
   }
 
   return <>
     <div className="space-y-4">
-      <Panel title="Hub stock and target material needs" description="Remaining BOM requirements are compared with stock in each SubHub and material already on order.">
-        <p className="px-5 py-3 text-xs text-muted-foreground">A shortage is the remaining target requirement minus available stock and undelivered procurement quantities. Use each SubHub’s batch register to review individual items and traceability.</p>
-      </Panel>
+      <div className="border-b border-border pb-3">
+        <SectionHeading title="Hub stock and target material needs" description="Remaining BOM requirements are compared with stock in each SubHub and material already on order." />
+        <p className="mt-3 text-base text-muted-foreground">A shortage is the remaining target requirement minus available stock and undelivered procurement quantities. Use each SubHub’s batch register to review individual items and traceability.</p>
+      </div>
       {hubs.map((hub) => {
         const { id: hubId, name: hubName, needs } = hub;
         const shortageCount = needs.filter((need) => need.shortageQuantity > 0).length;
-        return <section key={hubId} className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
-            <div><h2 className="font-semibold">{hubName}</h2><p className="mt-1 text-sm text-muted-foreground">{needs.length} raw materials · {shortageCount} below required quantity</p></div>
+        return <section key={hubId} className="border-b border-border pb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 py-4">
+            <div><h3 className="text-lg font-semibold">{hubName}</h3><p className="mt-1 text-base text-muted-foreground">{needs.length} raw materials · {shortageCount} below required quantity</p></div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" aria-expanded={batchHub === hubId} onClick={() => setBatchHub(batchHub === hubId ? null : hubId)} className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm font-medium hover:bg-muted"><ClipboardList className="size-4" /> {batchHub === hubId ? "Hide batch register" : "Batch register"}</button>
-              <button type="button" disabled={!shortageCount} onClick={() => setOrderHub(hubId)} className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><PackagePlus className="size-4" /> Create order for shortages</button>
+              <button type="button" aria-expanded={batchHub === hubId} onClick={() => setBatchHub(batchHub === hubId ? null : hubId)} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted"><ClipboardList className="size-5" /> {batchHub === hubId ? "Hide batch register" : "Batch register"}</button>
+              <button type="button" disabled={!shortageCount} onClick={() => setOrderHub(hubId)} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50"><PackagePlus className="size-5" /> Create order for shortages</button>
             </div>
           </div>
           {needs.length ? (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-sm">
-                <thead className="border-b border-border bg-muted/15 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Raw material</th><th className="px-5 py-3 text-right font-medium">Needed for remaining targets</th><th className="px-5 py-3 text-right font-medium">Hub stock</th><th className="px-5 py-3 text-right font-medium">On order</th><th className="px-5 py-3 text-right font-medium">Additional quantity</th><th className="px-5 py-3 text-right font-medium">Stock status</th></tr></thead>
-                <tbody>{needs.map((need) => <tr key={need.itemCode} className="border-b border-border/70 last:border-0"><td className="px-5 py-3 font-medium">{need.itemName}<span className="ml-2 text-xs font-normal text-muted-foreground">{need.itemCode}</span></td><td className="tabular px-5 py-3 text-right">{num(need.requiredQuantity)}</td><td className="tabular px-5 py-3 text-right">{num(need.stockQuantity)}</td><td className="tabular px-5 py-3 text-right">{num(need.onOrderQuantity)}</td><td className={`tabular px-5 py-3 text-right font-semibold ${need.shortageQuantity > 0 ? "text-destructive" : "text-success"}`}>{num(need.shortageQuantity)}</td><td className="px-5 py-3 text-right"><Tag tone={need.shortageQuantity > 0 ? "warn" : "good"}>{need.shortageQuantity > 0 ? "Low stock" : "Sufficient"}</Tag></td></tr>)}</tbody>
+            <div className="overflow-x-auto border-y border-border">
+              <table className="w-full min-w-[760px] text-base">
+                <thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3 font-semibold">Raw material</th><th className="px-4 py-3 text-right font-semibold">Needed for remaining targets</th><th className="px-4 py-3 text-right font-semibold">Hub stock</th><th className="px-4 py-3 text-right font-semibold">On order</th><th className="px-4 py-3 text-right font-semibold">Additional quantity</th><th className="px-4 py-3 text-right font-semibold">Stock status</th></tr></thead>
+                <tbody>{needs.map((need) => <tr key={need.itemCode} className="border-b border-border/70 last:border-0"><td className="px-4 py-4 font-semibold">{need.itemName}<span className="ml-2 text-sm font-normal text-muted-foreground">{need.itemCode}</span></td><td className="tabular px-4 py-4 text-right">{num(need.requiredQuantity)}</td><td className="tabular px-4 py-4 text-right">{num(need.stockQuantity)}</td><td className="tabular px-4 py-4 text-right">{num(need.onOrderQuantity)}</td><td className={`tabular px-4 py-4 text-right font-semibold ${need.shortageQuantity > 0 ? "text-destructive" : "text-success"}`}>{num(need.shortageQuantity)}</td><td className="px-4 py-4 text-right"><Tag size="md" tone={need.shortageQuantity > 0 ? "warn" : "good"}>{need.shortageQuantity > 0 ? "Low stock" : "Sufficient"}</Tag></td></tr>)}</tbody>
               </table>
             </div>
-          ) : <p className="p-5 text-sm text-muted-foreground">No active raw-material targets for this SubHub. Its batch register is still available above.</p>}
-          {batchHub === hubId ? <div className="border-t border-border p-4"><HubBatchBrowser hubId={hubId} panel={panel} /></div> : null}
+          ) : <p className="py-5 text-base text-muted-foreground">No active raw-material targets for this SubHub. Its batch register is still available above.</p>}
+          {batchHub === hubId ? <div className="border-t border-border py-4"><HubBatchBrowser hubId={hubId} panel={panel} /></div> : null}
         </section>;
       })}
     </div>
@@ -441,24 +490,24 @@ function ShortageOrderForm({ data, needs, panel, onClose, onSaved }: { data: Pro
   }
 
   return <Drawer title="Create shortage procurement order" subtitle={`Assign the missing materials for ${hubName} in one order.`} onClose={onClose}>
-    <form onSubmit={(event) => void submit(event)} className="space-y-4">
+    <form onSubmit={(event) => void submit(event)} className="space-y-5 text-base [&_input]:h-12 [&_input]:text-base [&_label]:text-base [&_select]:h-12 [&_select]:text-base [&_textarea]:text-base">
       <label className="block text-sm font-medium">Vendor
-        <select required value={vendorId} onChange={(event) => setVendorId(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+        <select required value={vendorId} onChange={(event) => setVendorId(event.target.value)} className="mt-1 h-12 w-full rounded-md border border-input bg-background px-3 text-base">
           <option value="">Choose an active vendor</option>{data.vendors.filter((vendor) => vendor.status === "active").map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}
           <option value={MISCELLANEOUS_VENDOR_ID}>Miscellaneous</option>
         </select>
       </label>
-      <div className="overflow-hidden rounded-md border border-border">
-        {needs.map((need) => <label key={need.itemCode} className="grid grid-cols-[auto_minmax(0,1fr)_7rem] items-center gap-3 border-b border-border px-3 py-3 last:border-0">
+      <div className="divide-y divide-border border-y border-border">
+        {needs.map((need) => <label key={need.itemCode} className="grid grid-cols-[auto_minmax(0,1fr)_7rem] items-center gap-3 px-2 py-4">
           <input type="checkbox" checked={selected.includes(need.itemCode)} onChange={(event) => setSelected((current) => event.target.checked ? [...current, need.itemCode] : current.filter((code) => code !== need.itemCode))} className="size-4 accent-[var(--color-primary)]" />
-          <span className="min-w-0"><span className="block truncate text-sm font-medium">{need.itemName}</span><span className="text-xs text-muted-foreground">{need.itemCode} · order {num(need.shortageQuantity)} units</span></span>
-          <input aria-label={`Unit price for ${need.itemName}`} required={selected.includes(need.itemCode)} type="number" min="0" step="0.01" value={prices[need.itemCode] ?? ""} onChange={(event) => setPrices((current) => ({ ...current, [need.itemCode]: event.target.value }))} className="h-9 w-28 rounded-md border border-input px-2 text-right text-sm" />
+          <span className="min-w-0"><span className="block truncate text-base font-semibold">{need.itemName}</span><span className="text-sm text-muted-foreground">{need.itemCode} · order {num(need.shortageQuantity)} units</span></span>
+          <input aria-label={`Unit price for ${need.itemName}`} required={selected.includes(need.itemCode)} type="number" min="0" step="0.01" value={prices[need.itemCode] ?? ""} onChange={(event) => setPrices((current) => ({ ...current, [need.itemCode]: event.target.value }))} className="h-11 w-28 rounded-md border border-input px-2 text-right text-base" />
         </label>)}
       </div>
-      <p className="text-xs text-muted-foreground">Enter the quoted unit price for each selected material. Shortage quantities are prefilled from current hub targets and stock.</p>
+      <p className="text-base text-muted-foreground">Enter the quoted unit price for each selected material. Shortage quantities are prefilled from current hub targets and stock.</p>
       <div className="grid gap-3 sm:grid-cols-2"><TextField label="Order date" type="date" required value={orderDate} onChange={setOrderDate} /><TextField label="Expected delivery" type="date" required value={expectedDelivery} onChange={setExpectedDelivery} /></div>
-      <label className="block text-sm font-medium">Notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={2} maxLength={500} placeholder="Supplier quote or delivery instructions" className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm" /></label>
-      {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}
+      <label className="block text-base font-medium">Notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={2} maxLength={500} placeholder="Supplier quote or delivery instructions" className="mt-1 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-base" /></label>
+      {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-3 text-base text-destructive">{error}</p> : null}
       <DrawerActions busy={busy} submitLabel="Create procurement order" onClose={onClose} />
     </form>
   </Drawer>;
@@ -476,13 +525,14 @@ function ItemRequestsTable({ requests, panel, onUpdated }: { requests: Procureme
     else await onUpdated(`${request.itemName} request was ${status.toLowerCase()}.`);
     setBusyId("");
   }
-  return <Panel title="SubHub item requests" description="Requests submitted by SubHub teams for small supplies, tools, and other items.">
-    {error ? <p role="alert" className="border-b border-border bg-destructive/5 px-5 py-3 text-sm text-destructive">{error}</p> : null}
-    {requests.length ? <div className="divide-y divide-border">{requests.map((request) => <article key={request.id} className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center">
-      <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="font-medium">{request.itemName}</h3><Tag tone={request.status === "Approved" ? "good" : request.status === "Declined" ? "neutral" : "warn"}>{request.status}</Tag></div><p className="mt-1 text-xs text-muted-foreground">{request.subhubName} · quantity {num(request.quantity)} · {formatDate(request.createdAt.slice(0, 10))}</p>{request.notes ? <p className="mt-2 text-sm text-muted-foreground">{request.notes}</p> : null}{request.response ? <p className="mt-2 text-sm">Response: {request.response}</p> : null}</div>
-      {request.status === "Pending" ? <div className="flex flex-col gap-2 sm:flex-row"><input value={responses[request.id] ?? ""} onChange={(event) => setResponses((current) => ({ ...current, [request.id]: event.target.value }))} maxLength={500} aria-label={`Response to ${request.itemName} request`} placeholder="Response (optional)" className="h-9 rounded-md border border-input px-3 text-sm" /><button type="button" disabled={busyId === request.id} onClick={() => void update(request, "Declined")} className="rounded-md border border-input px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50">Decline</button><button type="button" disabled={busyId === request.id} onClick={() => void update(request, "Approved")} className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">Approve</button></div> : null}
-    </article>)}</div> : <p className="p-8 text-center text-sm text-muted-foreground">No SubHub item requests have been submitted.</p>}
-  </Panel>;
+  return <section>
+    <SectionHeading title="SubHub item requests" description="Requests submitted by SubHub teams for small supplies, tools, and other items." />
+    {error ? <p role="alert" className="border-b border-border bg-destructive/5 py-3 text-base text-destructive">{error}</p> : null}
+    {requests.length ? <div className="divide-y divide-border border-b border-border">{requests.map((request) => <article key={request.id} className="flex flex-col gap-4 py-5 lg:flex-row lg:items-center">
+      <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-3"><h3 className="text-lg font-semibold">{request.itemName}</h3><Tag size="md" tone={request.status === "Approved" ? "good" : request.status === "Declined" ? "neutral" : "warn"}>{request.status}</Tag></div><p className="mt-1 text-base text-muted-foreground">{request.subhubName} · quantity {num(request.quantity)} · {formatDate(request.createdAt.slice(0, 10))}</p>{request.notes ? <p className="mt-2 text-base text-muted-foreground">{request.notes}</p> : null}{request.response ? <p className="mt-2 text-base">Response: {request.response}</p> : null}</div>
+      {request.status === "Pending" ? <div className="flex flex-col gap-2 sm:flex-row"><input value={responses[request.id] ?? ""} onChange={(event) => setResponses((current) => ({ ...current, [request.id]: event.target.value }))} maxLength={500} aria-label={`Response to ${request.itemName} request`} placeholder="Response (optional)" className="h-12 min-w-52 rounded-md border border-input px-3 text-base" /><button type="button" disabled={busyId === request.id} onClick={() => void update(request, "Declined")} className="min-h-12 rounded-md border border-input px-4 text-base font-semibold hover:bg-muted disabled:opacity-50">Decline</button><button type="button" disabled={busyId === request.id} onClick={() => void update(request, "Approved")} className="min-h-12 rounded-md bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50">Approve</button></div> : null}
+    </article>)}</div> : <p className="border-b border-border py-8 text-center text-base text-muted-foreground">No SubHub item requests have been submitted.</p>}
+  </section>;
 }
 
 function OrderFilters({
@@ -502,10 +552,10 @@ function OrderFilters({
   hasFilters: boolean; clearFilters: () => void;
 }) {
   return (
-    <div className="panel overflow-hidden">
-      <div className="flex items-center gap-2 border-b border-border px-5 py-3.5"><Filter className="size-4 text-primary" /><div><h2 className="text-sm font-semibold">Search and filter orders</h2><p className="text-xs text-muted-foreground">Use an exact date or a date range; filters can be combined.</p></div></div>
-      <div className="filter-toolbar overflow-x-auto border-b border-border bg-muted/10 px-5 py-4">
-        <label className="min-w-[230px] flex-1 text-xs font-medium">Search<span className="relative mt-1.5 block"><Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="PO, vendor, material, SubHub…" className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm font-normal outline-none focus:border-primary" /></span></label>
+    <div className="border-y border-border">
+      <div className="flex items-center gap-3 py-3"><Filter className="size-5 shrink-0 text-primary" /><div><h2 className="text-lg font-semibold">Search and filter orders</h2><p className="mt-1 text-base text-muted-foreground">Use an exact date or a date range; filters can be combined.</p></div></div>
+      <div className="filter-toolbar flex flex-wrap items-end gap-3 border-t border-border py-4">
+        <label className="min-w-[230px] flex-1 text-base font-medium">Search<span className="relative mt-1 block"><Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="PO, vendor, material, SubHub…" className="h-12 w-full rounded-md border border-input bg-background pl-10 pr-3 text-base font-normal outline-none focus:border-primary" /></span></label>
         <SelectFilter label="Vendor" value={vendorFilter} onChange={setVendorFilter}><option value="all">All vendors</option>{vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</SelectFilter>
         {subhubs.length ? <SelectFilter label="SubHub" value={subhubFilter} onChange={setSubhubFilter}><option value="all">All SubHubs</option>{subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.name}</option>)}</SelectFilter> : null}
         <SelectFilter label="Status" value={statusFilter} onChange={(value) => setStatusFilter(value as ProcurementStatus | "all")}><option value="all">All statuses</option>{PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</SelectFilter>
@@ -513,45 +563,57 @@ function OrderFilters({
         <DateFilter label="Exact order date" value={orderDate} onChange={setOrderDate} />
         <DateFilter label="From" value={fromDate} onChange={setFromDate} />
         <DateFilter label="To" value={toDate} onChange={setToDate} />
-        {hasFilters ? <button type="button" onClick={clearFilters} className="mt-[21px] h-9 shrink-0 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-muted">Clear</button> : null}
+        {hasFilters ? <button type="button" onClick={clearFilters} className="h-12 shrink-0 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted">Clear filters</button> : null}
       </div>
     </div>
   );
 }
 
 function SelectFilter({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) {
-  return <label className="shrink-0 text-xs font-medium">{label}<select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1.5 h-9 min-w-32 rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus:border-primary">{children}</select></label>;
+  return <label className="min-w-36 shrink-0 text-base font-medium">{label}<select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-12 w-full rounded-md border border-input bg-background px-3 text-base font-normal outline-none focus:border-primary">{children}</select></label>;
 }
 
 function DateFilter({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="shrink-0 text-xs font-medium">{label}<input type="date" value={value} onChange={(event) => onChange(event.target.value)} className="mt-1.5 h-9 rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus:border-primary" /></label>;
+  return <label className="min-w-40 shrink-0 text-base font-medium">{label}<input type="date" value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-12 w-full rounded-md border border-input bg-background px-3 text-base font-normal outline-none focus:border-primary" /></label>;
 }
 
 function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeChange, isAdmin, panel, onStatusChange }: { orders: ProcurementOrder[]; total: number; page: number; pageSize: number; onPageChange: (page: number) => void; onPageSizeChange: (pageSize: number) => void; isAdmin: boolean; panel: "admin" | "subhub" | "procurement"; onStatusChange: (order: ProcurementOrder, status: ProcurementStatus) => void }) {
   return orders.length ? (
     <>
-      <div className="overflow-x-auto">
-        <table className={`w-full text-sm ${panel === "subhub" ? "min-w-[820px]" : "min-w-[980px]"}`}>
-          <thead className="border-b border-border bg-muted/15 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Order</th>{isAdmin ? <th className="px-5 py-3 font-medium">SubHub</th> : null}<th className="px-5 py-3 font-medium">Vendor</th><th className="px-5 py-3 font-medium">Materials</th><th className="px-5 py-3 text-right font-medium">Qty</th>{panel !== "subhub" ? <th className="px-5 py-3 text-right font-medium">Amount</th> : null}<th className="px-5 py-3 font-medium">Ordered</th><th className="px-5 py-3 font-medium">Expected</th><th className="px-5 py-3 font-medium">Status</th>{isAdmin ? <th className="px-5 py-3 text-right font-medium">Action</th> : null}</tr></thead>
-            <tbody>{orders.map((order) => <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40"><td className="px-5 py-3"><Link to="/po/$id" params={{ id: order.id }} search={{ panel }} className="font-semibold text-primary hover:underline">{order.orderNumber}</Link><p className="mt-1 text-[11px] text-muted-foreground">{order.notes || "No notes"}</p></td>{isAdmin ? <td className="px-5 py-3 text-xs">{order.subhubName}</td> : null}<td className="px-5 py-3 font-medium">{order.vendorName}</td><td className="px-5 py-3">{order.items.map((item) => <p key={`${item.materialCode}:${item.materialName}`} className="font-medium">{item.materialName} <span className="tabular text-xs text-muted-foreground">{item.materialCode}</span></p>)}</td><td className="tabular px-5 py-3 text-right">{num(order.quantity)}</td>{panel !== "subhub" ? <td className="tabular px-5 py-3 text-right">{inr(order.totalAmount)}</td> : null}<td className="tabular whitespace-nowrap px-5 py-3 text-muted-foreground">{formatDate(order.orderDate)}</td><td className="tabular whitespace-nowrap px-5 py-3 text-muted-foreground">{formatDate(order.expectedDelivery)}</td><td className="px-5 py-3"><Tag tone={statusTone(order.status)}>{order.status}</Tag></td>{isAdmin ? <td className="px-5 py-3 text-right"><select aria-label={`Change status for ${order.orderNumber}`} value={order.status} onChange={(event) => onStatusChange(order, event.target.value as ProcurementStatus)} className="h-8 min-w-32 rounded-md border border-input bg-background px-2 text-xs font-medium outline-none focus:border-primary">{PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></td> : null}</tr>)}</tbody>
+      <div className="overflow-x-auto border-y border-border">
+        <table className={`w-full text-base ${panel === "subhub" ? "min-w-[820px]" : "min-w-[980px]"}`}>
+          <thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3 font-semibold">Order</th>{isAdmin ? <th className="px-4 py-3 font-semibold">SubHub</th> : null}<th className="px-4 py-3 font-semibold">Vendor</th><th className="px-4 py-3 font-semibold">Materials</th><th className="px-4 py-3 text-right font-semibold">Qty</th>{panel !== "subhub" ? <th className="px-4 py-3 text-right font-semibold">Amount</th> : null}<th className="px-4 py-3 font-semibold">Ordered</th><th className="px-4 py-3 font-semibold">Expected</th><th className="px-4 py-3 font-semibold">Status</th>{isAdmin ? <th className="px-4 py-3 text-right font-semibold">Action</th> : null}</tr></thead>
+          <tbody>{orders.map((order) => <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40"><td className="px-4 py-4"><Link to="/po/$id" params={{ id: order.id }} search={{ panel }} className="font-semibold text-primary hover:underline">{order.orderNumber}</Link><p className="mt-1 text-sm text-muted-foreground">{order.notes || "No notes"}</p></td>{isAdmin ? <td className="px-4 py-4">{order.subhubName}</td> : null}<td className="px-4 py-4 font-semibold">{order.vendorName}</td><td className="px-4 py-4">{order.items.map((item) => <p key={`${item.materialCode}:${item.materialName}`} className="font-semibold">{item.materialName} <span className="tabular text-sm font-normal text-muted-foreground">{item.materialCode}</span></p>)}</td><td className="tabular px-4 py-4 text-right">{num(order.quantity)}</td>{panel !== "subhub" ? <td className="tabular px-4 py-4 text-right">{inr(order.totalAmount)}</td> : null}<td className="tabular whitespace-nowrap px-4 py-4">{formatDate(order.orderDate)}</td><td className="tabular whitespace-nowrap px-4 py-4">{formatDate(order.expectedDelivery)}</td><td className="px-4 py-4"><Tag size="md" tone={statusTone(order.status)}>{order.status}</Tag></td>{isAdmin ? <td className="px-4 py-4 text-right"><select aria-label={`Change status for ${order.orderNumber}`} value={order.status} onChange={(event) => onStatusChange(order, event.target.value as ProcurementStatus)} className="h-11 min-w-36 rounded-md border border-input bg-background px-2 text-base font-medium outline-none focus:border-primary">{PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></td> : null}</tr>)}</tbody>
         </table>
       </div>
-      <TablePagination total={total} page={page} pageSize={pageSize} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} />
+      <TablePagination total={total} page={page} pageSize={pageSize} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} size="md" />
     </>
   ) : <EmptyState icon={<ShoppingCart className="size-7" />} title="No procurement orders found" description="Create an order or change the current search and filters." />;
 }
 
 function VendorTable({ vendors, data, isAdmin, onSelect, selectedVendorId, onEdit, onRemove }: { vendors: ProcurementVendor[]; data: ProcurementData; isAdmin: boolean; onSelect: (id: string) => void; selectedVendorId: string; onEdit: (vendor: ProcurementVendor) => void; onRemove: (vendor: ProcurementVendor) => void }) {
   const performanceByVendor = new Map(data.vendorPerformance.map((item) => [item.vendorId, item]));
-  return vendors.length ? <div className="overflow-x-auto"><table className="w-full min-w-[920px] text-sm"><thead className="border-b border-border bg-muted/15 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Vendor</th><th className="px-5 py-3 font-medium">Contact</th><th className="px-5 py-3 font-medium">Categories</th><th className="px-5 py-3 text-right font-medium">Orders</th><th className="px-5 py-3 text-right font-medium">Spend</th><th className="px-5 py-3 text-right font-medium">Performance</th><th className="px-5 py-3 text-right font-medium">Actions</th></tr></thead><tbody>{vendors.map((vendor) => { const performance = performanceByVendor.get(vendor.id); return <tr key={vendor.id} className={`border-b border-border/70 last:border-0 hover:bg-muted/40 ${selectedVendorId === vendor.id ? "bg-primary/5" : ""}`}><td className="px-5 py-4"><button type="button" onClick={() => onSelect(selectedVendorId === vendor.id ? "" : vendor.id)} className="text-left font-semibold hover:text-primary">{vendor.name}</button><div className="mt-1 flex items-center gap-2"><Tag tone={vendor.status === "active" ? "good" : "neutral"}>{vendor.status}</Tag>{vendor.paymentTerms ? <span className="text-xs text-muted-foreground">{vendor.paymentTerms}</span> : null}</div></td><td className="px-5 py-4 text-xs text-muted-foreground">{vendor.contactName || "—"}<br />{vendor.phone || vendor.email || "No contact saved"}</td><td className="max-w-48 px-5 py-4 text-xs text-muted-foreground">{vendor.categories.length ? vendor.categories.join(" · ") : "General materials"}</td><td className="tabular px-5 py-4 text-right font-medium">{performance?.orders ?? 0}<p className="text-[11px] font-normal text-muted-foreground">{performance?.pendingOrders ?? 0} pending</p></td><td className="tabular px-5 py-4 text-right">{inr(performance?.spend ?? 0)}</td><td className="px-5 py-4 text-right">{performance?.onTimeRate === null || performance?.onTimeRate === undefined ? <span className="text-xs text-muted-foreground">No deliveries yet</span> : <Tag tone={performance.onTimeRate >= 85 ? "good" : "warn"}>{performance.onTimeRate}% on time</Tag>}</td><td className="px-5 py-4 text-right">{isAdmin ? <div className="inline-flex gap-1"><button type="button" onClick={() => onEdit(vendor)} className="inline-flex items-center gap-1 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium hover:bg-muted"><Edit3 className="size-3.5" /> Edit</button><button type="button" onClick={() => onRemove(vendor)} className="inline-flex items-center gap-1 rounded-md border border-transparent px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:border-destructive/20 hover:bg-destructive/10 hover:text-destructive"><Archive className="size-3.5" /> Archive</button></div> : <button type="button" onClick={() => onSelect(vendor.id)} className="text-xs font-medium text-primary hover:underline">View history</button>}</td></tr>; })}</tbody></table></div> : <EmptyState icon={<Store className="size-7" />} title="No vendors found" description={isAdmin ? "Add the first vendor to start placing procurement orders." : "The Master Admin has not added any active vendors yet."} />;
+  return vendors.length ? <div className="overflow-x-auto border-y border-border"><table className="w-full min-w-[920px] text-base"><thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3 font-semibold">Vendor</th><th className="px-4 py-3 font-semibold">Contact</th><th className="px-4 py-3 font-semibold">Categories</th><th className="px-4 py-3 text-right font-semibold">Orders</th><th className="px-4 py-3 text-right font-semibold">Spend</th><th className="px-4 py-3 text-right font-semibold">Performance</th><th className="px-4 py-3 text-right font-semibold">Actions</th></tr></thead><tbody>{vendors.map((vendor) => { const performance = performanceByVendor.get(vendor.id); return <tr key={vendor.id} className={`border-b border-border/70 last:border-0 hover:bg-muted/40 ${selectedVendorId === vendor.id ? "bg-primary/5" : ""}`}><td className="px-4 py-4"><button type="button" onClick={() => onSelect(selectedVendorId === vendor.id ? "" : vendor.id)} className="text-left font-semibold hover:text-primary">{vendor.name}</button><div className="mt-2 flex flex-wrap items-center gap-2"><Tag size="md" tone={vendor.status === "active" ? "good" : "neutral"}>{vendor.status}</Tag>{vendor.paymentTerms ? <span className="text-sm text-muted-foreground">{vendor.paymentTerms}</span> : null}</div></td><td className="px-4 py-4 text-muted-foreground">{vendor.contactName || "—"}<br />{vendor.phone || vendor.email || "No contact saved"}</td><td className="max-w-48 px-4 py-4 text-muted-foreground">{vendor.categories.length ? vendor.categories.join(" · ") : "General materials"}</td><td className="tabular px-4 py-4 text-right font-semibold">{performance?.orders ?? 0}<p className="text-sm font-normal text-muted-foreground">{performance?.pendingOrders ?? 0} pending</p></td><td className="tabular px-4 py-4 text-right">{inr(performance?.spend ?? 0)}</td><td className="px-4 py-4 text-right">{performance?.onTimeRate === null || performance?.onTimeRate === undefined ? <span className="text-base text-muted-foreground">No deliveries yet</span> : <Tag size="md" tone={performance.onTimeRate >= 85 ? "good" : "warn"}>{performance.onTimeRate}% on time</Tag>}</td><td className="px-4 py-4 text-right">{isAdmin ? <div className="inline-flex gap-1"><button type="button" onClick={() => onEdit(vendor)} className="inline-flex min-h-10 items-center gap-1 rounded-md border border-input px-3 text-base font-semibold hover:bg-muted"><Edit3 className="size-4" /> Edit</button><button type="button" onClick={() => onRemove(vendor)} className="inline-flex min-h-10 items-center gap-1 rounded-md px-3 text-base font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Archive className="size-4" /> Archive</button></div> : <button type="button" onClick={() => onSelect(vendor.id)} className="text-base font-semibold text-primary hover:underline">View history</button>}</td></tr>; })}</tbody></table></div> : <EmptyState icon={<Store className="size-7" />} title="No vendors found" description={isAdmin ? "Add the first vendor to start placing procurement orders." : "The Master Admin has not added any active vendors yet."} />;
 }
 
 function VendorDetail({ vendor, orders, onClose }: { vendor: ProcurementVendor; orders: ProcurementOrder[]; onClose: () => void }) {
-  return <Panel title={`${vendor.name} · purchase history`} description={`${orders.length} orders · ${vendor.paymentTerms || "Payment terms not specified"}`} action={<button type="button" onClick={onClose} aria-label="Close vendor history" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"><X className="size-4" /></button>}>{orders.length ? <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Order</th><th className="px-5 py-3 font-medium">SubHub</th><th className="px-5 py-3 font-medium">Material</th><th className="px-5 py-3 text-right font-medium">Qty</th><th className="px-5 py-3 text-right font-medium">Amount</th><th className="px-5 py-3 font-medium">Status</th></tr></thead><tbody>{orders.map((order) => <tr key={order.id} className="border-b border-border/70 last:border-0"><td className="px-5 py-3"><Link to="/po/$id" params={{ id: order.id }} className="font-medium text-primary hover:underline">{order.orderNumber}</Link><p className="text-xs text-muted-foreground">{formatDate(order.orderDate)}</p></td><td className="px-5 py-3 text-xs">{order.subhubName}</td><td className="px-5 py-3">{order.materialName}</td><td className="tabular px-5 py-3 text-right">{num(order.quantity)}</td><td className="tabular px-5 py-3 text-right">{inr(order.totalAmount)}</td><td className="px-5 py-3"><Tag tone={statusTone(order.status)}>{order.status}</Tag></td></tr>)}</tbody></table></div> : <EmptyState icon={<History className="size-7" />} title="No purchase history" description="Orders placed with this vendor will appear here." />}</Panel>;
+  return <section>
+    <SectionHeading title={`${vendor.name} · purchase history`} description={`${orders.length} orders · ${vendor.paymentTerms || "Payment terms not specified"}`} action={<button type="button" onClick={onClose} aria-label="Close vendor history" className="inline-flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"><X className="size-5" /></button>} />
+    {orders.length ? <div className="overflow-x-auto border-b border-border"><table className="w-full min-w-[680px] text-base"><thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3 font-semibold">Order</th><th className="px-4 py-3 font-semibold">SubHub</th><th className="px-4 py-3 font-semibold">Material</th><th className="px-4 py-3 text-right font-semibold">Qty</th><th className="px-4 py-3 text-right font-semibold">Amount</th><th className="px-4 py-3 font-semibold">Status</th></tr></thead><tbody>{orders.map((order) => <tr key={order.id} className="border-b border-border/70 last:border-0"><td className="px-4 py-4"><Link to="/po/$id" params={{ id: order.id }} className="font-semibold text-primary hover:underline">{order.orderNumber}</Link><p className="text-sm text-muted-foreground">{formatDate(order.orderDate)}</p></td><td className="px-4 py-4">{order.subhubName}</td><td className="px-4 py-4">{order.materialName}</td><td className="tabular px-4 py-4 text-right">{num(order.quantity)}</td><td className="tabular px-4 py-4 text-right">{inr(order.totalAmount)}</td><td className="px-4 py-4"><Tag size="md" tone={statusTone(order.status)}>{order.status}</Tag></td></tr>)}</tbody></table></div> : <EmptyState icon={<History className="size-7" />} title="No purchase history" description="Orders placed with this vendor will appear here." />}
+  </section>;
 }
 
 function AdminReports({ data }: { data: ProcurementData }) {
-  return <div className="grid gap-6 lg:grid-cols-2"><Panel title="SubHub procurement report" description="Spend, quantities, and order status across every active SubHub.">{data.subhubSummary.length ? <div className="overflow-x-auto"><table className="w-full min-w-[580px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">SubHub</th><th className="px-5 py-3 text-right font-medium">Orders</th><th className="px-5 py-3 text-right font-medium">Units</th><th className="px-5 py-3 text-right font-medium">Spend</th><th className="px-5 py-3 text-right font-medium">Status</th></tr></thead><tbody>{data.subhubSummary.map((row) => <tr key={row.subhubName} className="border-b border-border/70 last:border-0"><td className="px-5 py-3 font-medium">{row.subhubName}</td><td className="tabular px-5 py-3 text-right">{row.orders}</td><td className="tabular px-5 py-3 text-right">{num(row.quantity)}</td><td className="tabular px-5 py-3 text-right">{inr(row.spend)}</td><td className="px-5 py-3 text-right text-xs text-muted-foreground">{row.pendingOrders} pending · {row.completedOrders} complete</td></tr>)}</tbody></table></div> : <EmptyState icon={<Users className="size-7" />} title="No SubHub orders yet" description="Orders created for SubHubs will be summarized here." />}</Panel><Panel title="Vendor performance" description="Order volume, spend and completed-delivery reliability.">{data.vendorPerformance.length ? <ul className="divide-y divide-border">{data.vendorPerformance.map((vendor) => <li key={vendor.vendorId} className="flex items-center gap-4 px-5 py-3.5 text-sm"><div className="min-w-0 flex-1"><p className="truncate font-medium">{vendor.vendorName}</p><p className="mt-1 text-xs text-muted-foreground">{vendor.orders} orders · {inr(vendor.spend)} spend</p></div><div className="text-right">{vendor.onTimeRate === null ? <span className="text-xs text-muted-foreground">No deliveries</span> : <Tag tone={vendor.onTimeRate >= 85 ? "good" : "warn"}>{vendor.onTimeRate}% on time</Tag>}<p className="mt-1 text-xs text-muted-foreground">{vendor.pendingOrders} pending</p></div></li>)}</ul> : <EmptyState icon={<Truck className="size-7" />} title="No performance data yet" description="Vendor metrics appear once orders are created." />}</Panel></div>;
+  return <div className="grid gap-x-8 gap-y-6 lg:grid-cols-2">
+    <section>
+      <SectionHeading title="SubHub procurement report" description="Spend, quantities, and order status across every active SubHub." />
+      {data.subhubSummary.length ? <div className="overflow-x-auto border-b border-border"><table className="w-full min-w-[580px] text-base"><thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3 font-semibold">SubHub</th><th className="px-4 py-3 text-right font-semibold">Orders</th><th className="px-4 py-3 text-right font-semibold">Units</th><th className="px-4 py-3 text-right font-semibold">Spend</th><th className="px-4 py-3 text-right font-semibold">Status</th></tr></thead><tbody>{data.subhubSummary.map((row) => <tr key={row.subhubName} className="border-b border-border/70 last:border-0"><td className="px-4 py-4 font-semibold">{row.subhubName}</td><td className="tabular px-4 py-4 text-right">{row.orders}</td><td className="tabular px-4 py-4 text-right">{num(row.quantity)}</td><td className="tabular px-4 py-4 text-right">{inr(row.spend)}</td><td className="px-4 py-4 text-right text-base text-muted-foreground">{row.pendingOrders} pending · {row.completedOrders} complete</td></tr>)}</tbody></table></div> : <EmptyState icon={<Users className="size-7" />} title="No SubHub orders yet" description="Orders created for SubHubs will be summarized here." />}
+    </section>
+    <section>
+      <SectionHeading title="Vendor performance" description="Order volume, spend and completed-delivery reliability." />
+      {data.vendorPerformance.length ? <ul className="divide-y divide-border border-b border-border">{data.vendorPerformance.map((vendor) => <li key={vendor.vendorId} className="flex items-center gap-4 py-4 text-base"><div className="min-w-0 flex-1"><p className="truncate font-semibold">{vendor.vendorName}</p><p className="mt-1 text-base text-muted-foreground">{vendor.orders} orders · {inr(vendor.spend)} spend</p></div><div className="text-right">{vendor.onTimeRate === null ? <span className="text-base text-muted-foreground">No deliveries</span> : <Tag size="md" tone={vendor.onTimeRate >= 85 ? "good" : "warn"}>{vendor.onTimeRate}% on time</Tag>}<p className="mt-1 text-sm text-muted-foreground">{vendor.pendingOrders} pending</p></div></li>)}</ul> : <EmptyState icon={<Truck className="size-7" />} title="No performance data yet" description="Vendor metrics appear once orders are created." />}
+    </section>
+  </div>;
 }
 
 function VendorForm({ mode, vendor, panel, onClose, onSaved }: { mode: "create" | "edit"; vendor: ProcurementVendor | null; panel: "admin" | "procurement"; onClose: () => void; onSaved: (message: string) => Promise<void> }) {
@@ -619,7 +681,73 @@ function OrderForm({ data, isAdmin, panel, onClose, onSaved }: { data: Procureme
     else await onSaved(`${response.order.orderNumber} was created successfully.`);
     setBusy(false);
   }
-  return <Drawer title="New procurement order" subtitle={isAdmin ? "Create an order for a selected SubHub and vendor." : "Create an order for this SubHub. You can add a new vendor without leaving the form."} onClose={onClose}><form onSubmit={submit} className="space-y-4"><label className="block text-sm font-medium">{isAdmin ? "Destination SubHub" : "Destination"}{isAdmin ? <select required value={subhubUserId} onChange={(event) => setSubhubUserId(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">Select SubHub</option>{data.subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.name}</option>)}</select> : <div className="mt-1.5 rounded-md border border-border bg-muted/20 px-3 py-2.5 text-sm">{data.orders[0]?.subhubName ?? "This SubHub workspace"}</div>}</label><div><div className="flex items-center justify-between gap-3"><label className="text-sm font-medium">{addingVendor ? "New vendor" : "Vendor"}</label><button type="button" onClick={() => { setAddingVendor(!addingVendor); setVendorId(""); }} className="text-xs font-medium text-primary hover:underline">{addingVendor ? "Choose existing vendor" : "＋ Add new vendor"}</button></div>{addingVendor ? <div className="mt-1.5 grid gap-3 sm:grid-cols-2"><TextField label="Vendor name" value={newVendorName} required onChange={setNewVendorName} placeholder="New vendor name" /><TextField label="Phone" value={newVendorPhone} onChange={setNewVendorPhone} /><TextField label="Email" type="email" value={newVendorEmail} onChange={setNewVendorEmail} /></div> : <><select required value={vendorId} onChange={(event) => setVendorId(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"><option value="">Select active vendor</option><option value={MISCELLANEOUS_VENDOR_ID}>Miscellaneous</option>{data.vendors.filter((vendor) => vendor.status === "active").map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}{vendor.categories.length ? ` · ${vendor.categories.join(", ")}` : ""}</option>)}</select>{isMiscellaneousVendor ? <div className="mt-3 rounded-md border border-primary/25 bg-primary/5 p-3"><TextField label="Miscellaneous supplier name (optional)" value={miscellaneousVendorName} onChange={setMiscellaneousVendorName} placeholder="Local hardware shop" /><p className="mt-1.5 text-xs text-muted-foreground">Leave blank to save the vendor as Miscellaneous.</p></div> : null}</>}</div><div className="grid gap-4 sm:grid-cols-2"><RawMaterialPicker materials={materials} value={materialCode} onChange={setMaterialCode} />{isOneOffMaterial ? <TextField label="One-off material name" value={customMaterialName} required onChange={setCustomMaterialName} placeholder="Pair of scissors or duct tape" /> : <div /> }<TextField label="Quantity" type="number" required value={quantity} onChange={setQuantity} placeholder="1000" /><TextField label={`Unit price (₹)${isOneOffMaterial ? " (optional)" : ""}`} type="number" required={!isOneOffMaterial} value={unitPrice} onChange={setUnitPrice} placeholder={isOneOffMaterial ? "Optional" : "125"} /><TextField label="Order date" type="date" required value={orderDate} onChange={setOrderDate} /><TextField label="Expected delivery" type="date" required value={expectedDelivery} onChange={setExpectedDelivery} /></div><label className="block text-sm font-medium">Notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} placeholder="Delivery instructions, quotation reference, or remarks…" className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary" /></label>{error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}<DrawerActions busy={busy} submitLabel="Create order" onClose={onClose} /></form></Drawer>;
+  return (
+    <Drawer
+      title="New procurement order"
+      subtitle={isAdmin ? "Create an order for a selected SubHub and vendor." : "Create an order for this SubHub. You can add a new vendor without leaving the form."}
+      onClose={onClose}
+    >
+      <form onSubmit={submit} className="space-y-5 text-base">
+        <label className="block font-medium">
+          {isAdmin ? "Destination SubHub" : "Destination"}
+          {isAdmin ? (
+            <select required value={subhubUserId} onChange={(event) => setSubhubUserId(event.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3">
+              <option value="">Select SubHub</option>
+              {data.subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.name}</option>)}
+            </select>
+          ) : (
+            <p className="mt-1 font-normal text-foreground">{data.orders[0]?.subhubName ?? "This SubHub workspace"}</p>
+          )}
+        </label>
+
+        <div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="font-medium">{addingVendor ? "New vendor" : "Vendor"}</p>
+            <button type="button" onClick={() => { setAddingVendor(!addingVendor); setVendorId(""); }} className="font-semibold text-primary hover:underline">
+              {addingVendor ? "Choose existing vendor" : "＋ Add new vendor"}
+            </button>
+          </div>
+          {addingVendor ? (
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <TextField label="Vendor name" value={newVendorName} required onChange={setNewVendorName} placeholder="New vendor name" />
+              <TextField label="Phone" value={newVendorPhone} onChange={setNewVendorPhone} />
+              <TextField label="Email" type="email" value={newVendorEmail} onChange={setNewVendorEmail} />
+            </div>
+          ) : (
+            <>
+              <select required value={vendorId} onChange={(event) => setVendorId(event.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3">
+                <option value="">Select active vendor</option>
+                <option value={MISCELLANEOUS_VENDOR_ID}>Miscellaneous</option>
+                {data.vendors.filter((vendor) => vendor.status === "active").map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}{vendor.categories.length ? ` · ${vendor.categories.join(", ")}` : ""}</option>)}
+              </select>
+              {isMiscellaneousVendor ? (
+                <div className="mt-3 border-l-2 border-primary py-1 pl-4">
+                  <TextField label="Miscellaneous supplier name (optional)" value={miscellaneousVendorName} onChange={setMiscellaneousVendorName} placeholder="Local hardware shop" />
+                  <p className="mt-2 text-base text-muted-foreground">Leave blank to save the vendor as Miscellaneous.</p>
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <RawMaterialPicker materials={materials} value={materialCode} onChange={setMaterialCode} />
+          {isOneOffMaterial ? <TextField label="One-off material name" value={customMaterialName} required onChange={setCustomMaterialName} placeholder="Pair of scissors or duct tape" /> : <div />}
+          <TextField label="Quantity" type="number" required value={quantity} onChange={setQuantity} placeholder="1000" />
+          <TextField label={`Unit price (₹)${isOneOffMaterial ? " (optional)" : ""}`} type="number" required={!isOneOffMaterial} value={unitPrice} onChange={setUnitPrice} placeholder={isOneOffMaterial ? "Optional" : "125"} />
+          <TextField label="Order date" type="date" required value={orderDate} onChange={setOrderDate} />
+          <TextField label="Expected delivery" type="date" required value={expectedDelivery} onChange={setExpectedDelivery} />
+        </div>
+
+        <label className="block font-medium">
+          Notes
+          <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} placeholder="Delivery instructions, quotation reference, or remarks…" className="mt-1 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-base outline-none focus:border-primary" />
+        </label>
+        {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-3 text-base text-destructive">{error}</p> : null}
+        <DrawerActions busy={busy} submitLabel="Create order" onClose={onClose} />
+      </form>
+    </Drawer>
+  );
 }
 
 function RawMaterialPicker({ materials, value, onChange }: { materials: ReturnType<typeof useRawMaterials>; value: string; onChange: (value: string) => void }) {
@@ -644,25 +772,50 @@ function RawMaterialPicker({ materials, value, onChange }: { materials: ReturnTy
 
   const label = value === ONE_OFF_MATERIAL_CODE ? "New one-off material…" : selectedMaterial ? `${selectedMaterial.name} · ${selectedMaterial.code}` : "Select raw material";
 
-  return <div ref={pickerRef} className="relative block text-sm font-medium"><span>Raw material</span><input required aria-hidden="true" tabIndex={-1} value={value} onChange={() => undefined} className="pointer-events-none absolute h-px w-px opacity-0" /><button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)} className="mt-1.5 flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-left text-sm font-normal outline-none focus:border-primary"><span className={value ? "truncate text-foreground" : "text-muted-foreground"}>{label}</span><ChevronDown className={`size-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} /></button>{open ? <div className="absolute inset-x-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-border bg-card shadow-lg"><div className="border-b border-border p-2"><div className="relative"><Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search raw materials…" aria-label="Search raw materials" className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm outline-none focus:border-primary" /></div></div><div role="listbox" aria-label="Raw materials" className="max-h-64 overflow-y-auto p-1"><button type="button" role="option" aria-selected={value === ONE_OFF_MATERIAL_CODE} onClick={() => { onChange(ONE_OFF_MATERIAL_CODE); setQuery(""); setOpen(false); }} className={`w-full rounded px-3 py-2 text-left text-sm font-medium ${value === ONE_OFF_MATERIAL_CODE ? "bg-primary/10 text-primary" : "text-primary hover:bg-muted"}`}>New one-off material…<span className="mt-0.5 block text-xs font-normal text-muted-foreground">For scissors, duct tape, or other unique items</span></button>{filteredMaterials.length ? filteredMaterials.map((material) => <button type="button" role="option" aria-selected={value === material.code} key={material.code} onClick={() => { onChange(material.code); setQuery(""); setOpen(false); }} className={`w-full rounded px-3 py-2 text-left text-sm ${value === material.code ? "bg-muted font-medium text-foreground" : "text-foreground hover:bg-muted"}`}><span className="block truncate">{material.name}</span><span className="mt-0.5 block text-xs font-normal text-muted-foreground">{material.code}</span></button>) : <p className="px-3 py-4 text-center text-xs text-muted-foreground">No raw materials match “{query}”.</p>}</div></div> : null}</div>;
+  return (
+    <div ref={pickerRef} className="relative block text-base font-medium">
+      <span>Raw material</span>
+      <input required aria-hidden="true" tabIndex={-1} value={value} onChange={() => undefined} className="pointer-events-none absolute h-px w-px opacity-0" />
+      <button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)} className="mt-1 flex h-12 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-left text-base font-normal outline-none focus:border-primary">
+        <span className={value ? "truncate text-foreground" : "text-muted-foreground"}>{label}</span>
+        <ChevronDown className={`size-5 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open ? <div className="absolute inset-x-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-border bg-card shadow-lg">
+        <div className="border-b border-border p-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+            <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search raw materials…" aria-label="Search raw materials" className="h-12 w-full rounded-md border border-input bg-background pl-10 pr-3 text-base outline-none focus:border-primary" />
+          </div>
+        </div>
+        <div role="listbox" aria-label="Raw materials" className="max-h-72 overflow-y-auto p-1">
+          <button type="button" role="option" aria-selected={value === ONE_OFF_MATERIAL_CODE} onClick={() => { onChange(ONE_OFF_MATERIAL_CODE); setQuery(""); setOpen(false); }} className={`w-full rounded px-3 py-3 text-left text-base font-semibold ${value === ONE_OFF_MATERIAL_CODE ? "bg-primary/10 text-primary" : "text-primary hover:bg-muted"}`}>
+            New one-off material…<span className="mt-1 block text-sm font-normal text-muted-foreground">For scissors, duct tape, or other unique items</span>
+          </button>
+          {filteredMaterials.length ? filteredMaterials.map((material) => <button type="button" role="option" aria-selected={value === material.code} key={material.code} onClick={() => { onChange(material.code); setQuery(""); setOpen(false); }} className={`w-full rounded px-3 py-3 text-left text-base ${value === material.code ? "bg-muted font-semibold text-foreground" : "text-foreground hover:bg-muted"}`}>
+            <span className="block truncate">{material.name}</span><span className="mt-1 block text-sm font-normal text-muted-foreground">{material.code}</span>
+          </button>) : <p className="px-3 py-4 text-center text-base text-muted-foreground">No raw materials match “{query}”.</p>}
+        </div>
+      </div> : null}
+    </div>
+  );
 }
 
 function TextField({ label, value, onChange, type = "text", required = false, placeholder }: { label: string; value: string; onChange: (value: string) => void; type?: string; required?: boolean; placeholder?: string }) {
-  return <label className="block text-sm font-medium">{label}<input required={required} type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" /></label>;
+  return <label className="block text-base font-medium">{label}<input required={required} type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-1 h-12 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus:border-primary" /></label>;
 }
 
 function Drawer({ title, subtitle, onClose, children }: { title: string; subtitle: string; onClose: () => void; children: React.ReactNode }) {
-  return <div className="fixed inset-0 z-40 flex justify-end bg-black/25" role="dialog" aria-modal="true"><div className="flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-border bg-card p-6 shadow-xl"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Procurement workspace</p><h2 className="mt-2 text-xl font-semibold">{title}</h2><p className="mt-1 text-sm text-muted-foreground">{subtitle}</p></div><button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"><X className="size-5" /></button></div><div className="mt-7 flex-1">{children}</div></div></div>;
+  return <div className="fixed inset-0 z-40 flex justify-end bg-black/25" role="dialog" aria-modal="true"><div className="flex h-full w-full max-w-2xl flex-col overflow-y-auto border-l border-border bg-card p-6 shadow-xl"><div className="flex items-start justify-between gap-4"><div><p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">Procurement workspace</p><h2 className="mt-2 text-2xl font-semibold">{title}</h2><p className="mt-1 text-base text-muted-foreground">{subtitle}</p></div><button type="button" onClick={onClose} aria-label="Close" className="inline-flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"><X className="size-5" /></button></div><div className="mt-7 flex-1 text-base [&_button]:min-h-12 [&_button]:text-base [&_input:not([type=checkbox]):not([type=radio])]:h-12 [&_input:not([type=checkbox]):not([type=radio])]:text-base [&_label]:text-base [&_p]:text-base [&_select]:h-12 [&_select]:text-base [&_textarea]:text-base">{children}</div></div></div>;
 }
 
 function DrawerActions({ busy, submitLabel, onClose }: { busy: boolean; submitLabel: string; onClose: () => void }) {
-  return <div className="mt-6 flex justify-end gap-3 border-t border-border pt-5"><button type="button" onClick={onClose} className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted">Cancel</button><button type="submit" disabled={busy} className="rule-header inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60"><Check className="size-4" />{busy ? "Saving…" : submitLabel}</button></div>;
+  return <div className="mt-6 flex justify-end gap-3 border-t border-border pt-5"><button type="button" onClick={onClose} className="min-h-12 rounded-md border border-input px-4 text-base font-semibold hover:bg-muted">Cancel</button><button type="submit" disabled={busy} className="rule-header inline-flex min-h-12 items-center gap-2 rounded-md px-4 text-base font-semibold disabled:opacity-60"><Check className="size-5" />{busy ? "Saving…" : submitLabel}</button></div>;
 }
 
 function Loading() {
-  return <p className="p-10 text-center text-sm text-muted-foreground">Loading live procurement data…</p>;
+  return <p className="border-b border-border py-8 text-center text-base text-muted-foreground">Loading live procurement data…</p>;
 }
 
 function EmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
-  return <div className="p-10 text-center text-muted-foreground"><div className="mx-auto flex size-10 items-center justify-center rounded-full bg-muted">{icon}</div><p className="mt-3 font-medium text-foreground">{title}</p><p className="mt-1 text-sm">{description}</p></div>;
+  return <div className="border-b border-border py-8 text-center text-muted-foreground"><div className="mx-auto flex size-10 items-center justify-center text-primary">{icon}</div><p className="mt-3 text-lg font-semibold text-foreground">{title}</p><p className="mt-1 text-base">{description}</p></div>;
 }

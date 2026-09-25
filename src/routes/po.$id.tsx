@@ -2,7 +2,6 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { ArrowLeft, CheckCircle2, Circle, Clock3, Package, Truck } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthContext";
 import { Shell } from "@/components/erp/Shell";
-import { Kpi, Panel } from "@/components/erp/bits";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { getProcurementOrderFn } from "@/procurement";
 import { getAuthStateFn } from "@/auth";
@@ -37,16 +36,23 @@ export const Route = createFileRoute("/po/$id")({
 function PurchaseMissing() {
   const { user } = useAuth();
   const content = (
-      <Panel title="Nothing here">
-        <p className="p-5 text-sm text-muted-foreground">
-          Back to <Link to="/procurement" className="text-primary underline">Procurement</Link>.
-        </p>
-      </Panel>
+    <section>
+      <header className="border-b border-border py-3">
+        <h2 className="text-lg font-semibold">Nothing here</h2>
+      </header>
+      <p className="border-b border-border py-5 text-base text-muted-foreground">
+        Back to <Link to="/procurement" className="font-semibold text-primary underline">Procurement</Link>.
+      </p>
+    </section>
   );
   return user?.panel === "subhub" ? (
-    <SubHubShell title="Purchase not found" subtitle="This order is not available in your procurement workspace">{content}</SubHubShell>
+    <SubHubShell title="Purchase not found" subtitle="This order is not available in your procurement workspace">
+      <div className="px-6 py-5">{content}</div>
+    </SubHubShell>
   ) : (
-    <Shell title="Purchase not found" subtitle="This order is not available in your procurement workspace">{content}</Shell>
+    <Shell title="Purchase not found" subtitle="This order is not available in your procurement workspace">
+      {content}
+    </Shell>
   );
 }
 
@@ -55,34 +61,48 @@ function PurchaseDetail() {
   const { user } = useAuth();
   const isSubHub = user?.panel === "subhub";
   const currentIndex = ["Order placed", "Payment done", "Dispatch done", "Delivery done"].indexOf(order.status);
+  const summaryMetrics = [
+    { label: "Quantity", value: order.quantity.toLocaleString("en-IN"), hint: "Units ordered" },
+    ...(!isSubHub ? [{ label: "Order amount", value: `₹${order.totalAmount.toLocaleString("en-IN")}`, hint: `${order.items.length} material line${order.items.length === 1 ? "" : "s"}` }] : []),
+    { label: "Status", value: order.status, hint: "Current procurement stage" },
+    { label: "Expected delivery", value: formatDate(order.expectedDelivery), hint: `Ordered ${formatDate(order.orderDate)}` },
+  ];
   const content = (
-    <>
-      <div className={`grid gap-4 sm:grid-cols-2 ${isSubHub ? "xl:grid-cols-3" : "xl:grid-cols-4"}`}>
-        <Kpi label="Quantity" value={order.quantity.toLocaleString("en-IN")} hint="units ordered" />
-        {!isSubHub ? <Kpi label="Order amount" value={`₹${order.totalAmount.toLocaleString("en-IN")}`} hint={`${order.items.length} material line${order.items.length === 1 ? "" : "s"}`} /> : null}
-        <Kpi label="Status" value={order.status} tone={order.status === "Delivery done" ? "good" : "warn"} />
-        <Kpi label="Expected delivery" value={formatDate(order.expectedDelivery)} hint={`ordered ${formatDate(order.orderDate)}`} />
-      </div>
+    <div className="space-y-6 text-base">
+      <section
+        aria-label="Order summary"
+        className={`grid gap-x-8 border-y border-border ${isSubHub ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"}`}
+      >
+        {summaryMetrics.map((metric) => (
+          <div key={metric.label} className="py-4">
+            <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{metric.label}</p>
+            <p className="tabular mt-1 text-2xl font-bold leading-tight sm:text-3xl">{metric.value}</p>
+            <p className="mt-1 text-base text-muted-foreground">{metric.hint}</p>
+          </div>
+        ))}
+      </section>
 
-      <Panel title="Order status history" description="Every transition is stored with the actor and timestamp.">
-        <ol className="divide-y divide-border">
+      <section>
+        <DetailSectionHeading title="Order status history" description="Every transition is stored with the actor and timestamp." />
+        <ol className="divide-y divide-border border-b border-border">
           {(["Order placed", "Payment done", "Dispatch done", "Delivery done"] as ProcurementStatus[]).map((status, index) => {
             const entry = order.statusHistory.find((item) => item.status === status);
             const done = index <= currentIndex;
             return (
-              <li key={status} className="flex items-center gap-3 px-5 py-4 text-sm">
-                {done ? <CheckCircle2 className="size-4 text-success" /> : <Circle className="size-4 text-muted-foreground" />}
-                <span className={done ? "font-medium" : "text-muted-foreground"}>{status}</span>
-                {entry ? <span className="ml-auto text-right text-xs text-muted-foreground"><span className="block font-medium text-foreground">{entry.changedByName}</span>{formatTimestamp(entry.changedAt)}</span> : <span className="ml-auto text-xs text-muted-foreground">Pending</span>}
+              <li key={status} className="flex items-center gap-4 px-2 py-4 text-base">
+                {done ? <CheckCircle2 className="size-5 shrink-0 text-success" /> : <Circle className="size-5 shrink-0 text-muted-foreground" />}
+                <span className={done ? "font-semibold" : "text-muted-foreground"}>{status}</span>
+                {entry ? <span className="ml-auto text-right text-sm text-muted-foreground"><span className="block text-base font-semibold text-foreground">{entry.changedByName}</span>{formatTimestamp(entry.changedAt)}</span> : <span className="ml-auto text-sm text-muted-foreground">Pending</span>}
               </li>
             );
           })}
         </ol>
-      </Panel>
+      </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Panel title="Procurement details">
-          <dl className="divide-y divide-border text-sm">
+      <div className="grid gap-x-8 gap-y-6 lg:grid-cols-2">
+        <section>
+          <DetailSectionHeading title="Procurement details" />
+          <dl className="divide-y divide-border border-b border-border text-base">
             <Detail label="Order number" value={order.orderNumber} />
             <Detail label="Vendor" value={order.vendorName} />
             <Detail label="Destination SubHub" value={order.subhubName} />
@@ -90,31 +110,44 @@ function PurchaseDetail() {
             <Detail label="Expected delivery" value={formatDate(order.expectedDelivery)} />
             <Detail label="Created" value={formatTimestamp(order.createdAt)} />
           </dl>
-        </Panel>
-        <Panel title="Materials in this order" description={`${order.items.length} line${order.items.length === 1 ? "" : "s"} · total quantity ${order.quantity.toLocaleString("en-IN")}`}>
-          <div className="divide-y divide-border">
-            {order.items.map((item) => <div key={`${item.materialCode}:${item.materialName}`} className="flex items-center gap-4 px-5 py-3 text-sm"><div className="min-w-0 flex-1"><p className="truncate font-medium">{item.materialName}</p><p className="text-xs text-muted-foreground">{item.materialCode}</p></div><div className="text-right"><p className="tabular font-medium">{item.quantity.toLocaleString("en-IN")} units</p>{!isSubHub ? <p className="tabular text-xs text-muted-foreground">₹{item.totalAmount.toLocaleString("en-IN")}</p> : null}</div></div>)}
+        </section>
+        <section>
+          <DetailSectionHeading title="Materials in this order" description={`${order.items.length} line${order.items.length === 1 ? "" : "s"} · total quantity ${order.quantity.toLocaleString("en-IN")}`} />
+          <div className="divide-y divide-border border-b border-border">
+            {order.items.map((item) => <div key={`${item.materialCode}:${item.materialName}`} className="flex items-center gap-4 px-2 py-4 text-base"><div className="min-w-0 flex-1"><p className="truncate font-semibold">{item.materialName}</p><p className="text-sm text-muted-foreground">{item.materialCode}</p></div><div className="text-right"><p className="tabular font-semibold">{item.quantity.toLocaleString("en-IN")} units</p>{!isSubHub ? <p className="tabular text-sm text-muted-foreground">₹{item.totalAmount.toLocaleString("en-IN")}</p> : null}</div></div>)}
           </div>
-        </Panel>
-        <Panel title="Order notes" description="Receiving instructions and procurement context">
-          {order.notes ? <p className="whitespace-pre-wrap p-5 text-sm leading-6 text-muted-foreground">{order.notes}</p> : <div className="p-10 text-center"><Package className="mx-auto size-7 text-muted-foreground" /><p className="mt-3 text-sm text-muted-foreground">No notes were added to this order.</p></div>}
-        </Panel>
+        </section>
+        <section className="lg:col-span-2">
+          <DetailSectionHeading title="Order notes" description="Receiving instructions and procurement context." />
+          {order.notes ? <p className="whitespace-pre-wrap border-b border-border py-4 text-base leading-7 text-muted-foreground">{order.notes}</p> : <div className="border-b border-border py-8 text-center"><Package className="mx-auto size-8 text-primary" /><p className="mt-3 text-base text-muted-foreground">No notes were added to this order.</p></div>}
+        </section>
       </div>
-      <div className="flex items-center gap-2 rounded-md border border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground"><Clock3 className="size-4" /> {user?.panel === "subhub" ? "Order details are read-only for SubHub users." : "Status changes are recorded in the procurement audit trail."}<Truck className="ml-auto size-4" /></div>
-    </>
+      <div className="flex items-center gap-3 border-y border-border py-3 text-base text-muted-foreground"><Clock3 className="size-5 shrink-0" /> {user?.panel === "subhub" ? "Order details are read-only for SubHub users." : "Status changes are recorded in the procurement audit trail."}<Truck className="ml-auto size-5 shrink-0" /></div>
+    </div>
   );
   const title = `Purchase ${order.orderNumber}`;
   const subtitle = `${order.items.length === 1 ? order.materialName : `${order.items.length} materials`} · ${order.vendorName} · ${order.subhubName}`;
-  const actions = <Link to={user?.panel === "procurement" ? "/procurement-management" : "/procurement"} search={user?.panel === "procurement" ? undefined : { panel: user?.panel ?? "admin" }} className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm"><ArrowLeft className="size-4" /> Back to procurement</Link>;
+  const actions = <Link to={user?.panel === "procurement" ? "/procurement-management" : "/procurement"} search={user?.panel === "procurement" ? undefined : { panel: user?.panel ?? "admin" }} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold"><ArrowLeft className="size-5" /> Back to procurement</Link>;
   return user?.panel === "subhub" ? (
-    <SubHubShell title={title} subtitle={subtitle} actions={actions}>{content}</SubHubShell>
+    <SubHubShell title={title} subtitle={subtitle} actions={actions}>
+      <div className="space-y-6 px-6 py-5">{content}</div>
+    </SubHubShell>
   ) : (
     <Shell title={title} subtitle={subtitle} actions={actions}>{content}</Shell>
   );
 }
 
+function DetailSectionHeading({ title, description }: { title: string; description?: string }) {
+  return (
+    <header className="border-b border-border py-3">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      {description ? <p className="mt-1 text-base text-muted-foreground">{description}</p> : null}
+    </header>
+  );
+}
+
 function Detail({ label, value }: { label: string; value: string }) {
-  return <div className="flex items-center gap-3 px-5 py-3"><dt className="text-muted-foreground">{label}</dt><dd className="ml-auto text-right font-medium">{value}</dd></div>;
+  return <div className="flex items-center gap-3 px-2 py-4"><dt className="text-muted-foreground">{label}</dt><dd className="ml-auto text-right font-semibold">{value}</dd></div>;
 }
 
 function formatDate(value: string) {
