@@ -292,18 +292,6 @@ function DailyProductionManager() {
         </div>
         {demoMode ? <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning"><strong>Demo data:</strong> No live orders are available yet. This sample order is only for testing the screens.</div> : null}
 
-        {data.orders.length ? (
-          <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
-            <label className="block text-sm font-medium">Day-end notes <span className="font-normal text-muted-foreground">(optional)</span>
-              <textarea value={notes} onChange={(event) => { setNotes(event.target.value); setSaved(false); }} rows={3} placeholder="Shift notes, downtime, quality observations, or other details…" className="mt-2 w-full resize-none rounded-md border border-input px-3 py-2 text-sm outline-none focus:border-primary" />
-            </label>
-            <div className="mt-4 flex items-center justify-end gap-3 border-t border-border pt-4">
-              {saved ? <span className="inline-flex items-center gap-1.5 text-sm text-success"><Check className="size-4" /> Production saved to {data.subhubName}</span> : null}
-              <button type="button" disabled={saving || demoMode} onClick={() => void saveProduction()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"><Save className="size-4" /> {demoMode ? "Demo mode" : saving ? "Saving…" : "Save day report"}</button>
-            </div>
-          </div>
-        ) : null}
-
         <Link
           to="/subhub/reports"
           className="group flex flex-col gap-4 rounded-xl border border-border bg-white p-5 shadow-sm transition-colors hover:border-primary/40 sm:flex-row sm:items-center sm:justify-between"
@@ -319,6 +307,18 @@ function DailyProductionManager() {
             View reports <ArrowRight className="size-4" />
           </span>
         </Link>
+
+        {data.orders.length ? (
+          <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
+            <label className="block text-sm font-medium">Day-end notes <span className="font-normal text-muted-foreground">(optional)</span>
+              <textarea value={notes} onChange={(event) => { setNotes(event.target.value); setSaved(false); }} rows={3} placeholder="Shift notes, downtime, quality observations, or other details…" className="mt-2 w-full resize-none rounded-md border border-input px-3 py-2 text-sm outline-none focus:border-primary" />
+            </label>
+            <div className="mt-4 flex items-center justify-end gap-3 border-t border-border pt-4">
+              {saved ? <span className="inline-flex items-center gap-1.5 text-sm text-success"><Check className="size-4" /> Production saved to {data.subhubName}</span> : null}
+              <button type="button" disabled={saving || demoMode} onClick={() => void saveProduction()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"><Save className="size-4" /> {demoMode ? "Demo mode" : saving ? "Saving…" : "Save day report"}</button>
+            </div>
+          </div>
+        ) : null}
       </section>
     </SubHubShell>
   );
