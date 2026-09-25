@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
-import { ArrowDownAZ, ArrowDownCircle, ArrowUpAZ, ArrowUpCircle, Check, Package, RefreshCw, Search, ShieldAlert } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, Check, Package, Search, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { Tag } from "@/components/erp/bits";
@@ -67,18 +67,13 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
   }, [view]);
 
   const title = view === "raw-materials" ? "Raw Materials Inventory" : view === "final-products" ? "Final Product Inventory" : view === "history" ? "Inventory History" : view === "quality" ? "Quality Management" : "Batch Register";
-  const isInventoryPage = view === "raw-materials" || view === "final-products";
 
   if (view === "batches" || view === "history") {
     return <Navigate to="/inventory/raw-materials" replace />;
   }
 
   return (
-    <SubHubShell actions={<div className="flex flex-wrap gap-2"><Link to="/inventory/raw-materials" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Raw materials</Link><Link to="/inventory/final-products" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Final products</Link><Link to="/inventory/quality" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><ShieldAlert className="size-4" /> Quality</Link></div>}>
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-white px-6 py-4">
-        <h1 className="text-xl font-semibold">{title}</h1>
-        <button type="button" onClick={() => void load()} className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><RefreshCw className="size-4" /> Refresh</button>
-      </header>
+    <SubHubShell headerTitle={title} actions={<div className="flex flex-wrap gap-2"><Link to="/inventory/raw-materials" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Raw materials</Link><Link to="/inventory/final-products" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Final products</Link><Link to="/inventory/quality" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><ShieldAlert className="size-4" /> Quality</Link></div>}>
       <section className="px-6 pb-6">
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
         {view === "raw-materials" ? <InventoryTable inventoryType="Raw Material" items={data.items.filter((item) => item.category === "Raw Material")} loading={loading} /> : null}
@@ -308,37 +303,37 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
 
 function InventoryTable({ inventoryType, items, loading }: { inventoryType: InventoryItem["category"]; items: InventoryItem[]; loading: boolean }) {
   const [query, setQuery] = useState("");
-  const [stockFilter, setStockFilter] = useState<"all" | "available" | "empty">("all");
-  const [sortKey, setSortKey] = useState<"name" | "code" | "quantity">("name");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [stockFilter, setStockFilter] = useState<"all" | "available" | "low" | "empty">("all");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(15);
+  const [pageSize, setPageSize] = useState(25);
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return items
       .filter((item) => !normalizedQuery || `${item.name} ${item.code}`.toLowerCase().includes(normalizedQuery))
-      .filter((item) => stockFilter === "all" || (stockFilter === "available" ? item.quantity > 0 : item.quantity <= 0))
-      .sort((a, b) => {
-        const left = sortKey === "name" ? `${a.name} ${a.code}` : a[sortKey];
-        const right = sortKey === "name" ? `${b.name} ${b.code}` : b[sortKey];
-        const comparison = typeof left === "string" ? left.localeCompare(right as string) : left - (right as number);
-        return sortDirection === "asc" ? comparison : -comparison;
-      });
-  }, [items, query, stockFilter, sortKey, sortDirection]);
+      .filter((item) => {
+        if (stockFilter === "available") return item.quantity >= 5;
+        if (stockFilter === "low") return item.quantity > 0 && item.quantity < 5;
+        if (stockFilter === "empty") return item.quantity <= 0;
+        return true;
+      })
+      .sort((a, b) => `${a.name} ${a.code}`.localeCompare(`${b.name} ${b.code}`));
+  }, [items, query, stockFilter]);
   const paginatedItems = useMemo(() => filteredItems.slice((page - 1) * pageSize, page * pageSize), [filteredItems, page, pageSize]);
   useEffect(() => {
     setPage(1);
-  }, [query, stockFilter, sortKey, sortDirection]);
+  }, [query, stockFilter]);
 
   return <div className="w-full">
     <div className="flex flex-wrap items-end gap-3 border-b border-border p-4">
       <div className="relative min-w-[220px] flex-1 text-xs font-medium text-muted-foreground">Search {inventoryType === "Raw Material" ? "raw materials" : "final products"}<label className="relative mt-1 block"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name or unique code" className="h-9 w-full rounded-md border border-input pl-9 pr-3 text-sm font-normal text-foreground outline-none focus:border-primary" /></label></div>
-      <label className="text-xs font-medium text-muted-foreground">Stock status<select value={stockFilter} onChange={(event) => setStockFilter(event.target.value as "all" | "available" | "empty")} className="mt-1 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal text-foreground"><option value="all">All stock</option><option value="available">Available</option><option value="empty">No stock</option></select></label>
-      <label className="text-xs font-medium text-muted-foreground">Sort by<select value={sortKey} onChange={(event) => setSortKey(event.target.value as typeof sortKey)} className="mt-1 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal text-foreground"><option value="name">Item name</option><option value="code">Unique code</option><option value="quantity">Quantity</option></select></label>
-      <button type="button" onClick={() => setSortDirection(sortDirection === "asc" ? "desc" : "asc")} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-white px-3 text-sm" aria-label={`Sort ${sortDirection === "asc" ? "descending" : "ascending"}`}>{sortDirection === "asc" ? <ArrowUpAZ className="size-4" /> : <ArrowDownAZ className="size-4" />}{sortDirection === "asc" ? "Ascending" : "Descending"}</button>
+      <label className="text-xs font-medium text-muted-foreground">Stock status<select value={stockFilter} onChange={(event) => setStockFilter(event.target.value as "all" | "available" | "low" | "empty")} className="mt-1 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal text-foreground"><option value="all">All stock</option><option value="available">Available (5+)</option><option value="low">Low stock (1–4)</option><option value="empty">No stock</option></select></label>
     </div>
-    {loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading {inventoryType === "Raw Material" ? "raw materials" : "final products"}…</p> : <><div className="overflow-x-auto"><table className="w-full min-w-[620px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Item</th><th className="px-5 py-3 font-medium">Unique code</th><th className="px-5 py-3 text-right font-medium">Available quantity</th><th className="px-5 py-3 font-medium">Status</th></tr></thead><tbody>{paginatedItems.map((item) => <tr key={item.code} className="border-b border-border/70 last:border-0"><td className="px-5 py-3 font-medium">{item.name}</td><td className="tabular whitespace-nowrap px-5 py-3 text-xs text-muted-foreground">{item.code}</td><td className="tabular px-5 py-3 text-right font-semibold">{num(item.quantity)} {item.unit}</td><td className="px-5 py-3"><Tag tone={item.quantity > 0 ? "good" : "warn"}>{item.quantity > 0 ? "Available" : "No stock"}</Tag></td></tr>)}</tbody></table>{!paginatedItems.length ? <p className="p-8 text-center text-sm text-muted-foreground">No {inventoryType === "Raw Material" ? "raw materials" : "final products"} match the current search or filters.</p> : null}</div><TablePagination total={filteredItems.length} page={page} pageSize={pageSize} pageSizeOptions={[15, 25, 50, 100]} onPageChange={setPage} onPageSizeChange={setPageSize} /></>}
+    {loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading {inventoryType === "Raw Material" ? "raw materials" : "final products"}…</p> : <><div className="overflow-x-auto"><table className="w-full min-w-[720px] table-fixed text-base"><colgroup><col className="w-[35%]" /><col className="w-[20%]" /><col className="w-[25%]" /><col className="w-[20%]" /></colgroup><thead className="border-b border-border text-center text-sm font-semibold uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3">Item</th><th className="px-4 py-3">Unique code</th><th className="px-4 py-3">Available quantity</th><th className="px-4 py-3">Status</th></tr></thead><tbody>{paginatedItems.map((item) => {
+      const status = item.quantity <= 0 ? "No stock" : item.quantity < 5 ? "Low stock" : "Available";
+      const tone = item.quantity <= 0 ? "bad" : item.quantity < 5 ? "warn" : "good";
+      return <tr key={item.code} className="border-b border-border/70 last:border-0"><td className="px-4 py-4 text-center font-medium">{item.name}</td><td className="tabular whitespace-nowrap px-4 py-4 text-center text-base text-muted-foreground">{item.code}</td><td className="tabular px-4 py-4 text-center text-base font-semibold">{num(item.quantity)} {item.unit}</td><td className="px-4 py-4 text-center"><Tag tone={tone}>{status}</Tag></td></tr>;
+    })}</tbody></table>{!paginatedItems.length ? <p className="p-8 text-center text-base text-muted-foreground">No {inventoryType === "Raw Material" ? "raw materials" : "final products"} match the current search or filters.</p> : null}</div><TablePagination total={filteredItems.length} page={page} pageSize={pageSize} pageSizeOptions={[25, 50, 100]} onPageChange={setPage} onPageSizeChange={setPageSize} /></>}
   </div>;
 }
 
