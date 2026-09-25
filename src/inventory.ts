@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { adjustSubhubInventory, adjustSubhubInventoryBatch, getBatchDetail, getBatchOptions, getInventoryItemDetail, getManagedHubBatchDetail, getManagedHubBatches, getManagedHubItemDetail, getMasterQualityManagement, getSubhubInventory, recordQualityIssues } from "./inventory.server";
+import { adjustSubhubInventory, adjustSubhubInventoryBatch, getBatchDetail, getBatchOptions, getInventoryItemDetail, getManagedHubBatchDetail, getManagedHubBatches, getManagedHubItemDetail, getMasterQualityManagement, getSubhubInventory, recordQualityIssues, replaceSubhubQualityHistoryWithDemoData } from "./inventory.server";
 
 const adjustmentSchema = z.object({
   code: z.string().min(1),
@@ -31,6 +31,7 @@ const managedItemSchema = managedHubSchema.extend({ itemCode: z.string().min(1) 
 const inventoryViewSchema = z.object({ view: z.enum(["inventory", "history", "quality", "quality-history", "adjustment", "batches", "all"]) }).optional();
 
 export const getSubhubInventoryFn = createServerFn({ method: "GET" }).validator(inventoryViewSchema).handler(({ data }) => getSubhubInventory(data?.view));
+export const replaceSubhubQualityHistoryWithDemoDataFn = createServerFn({ method: "POST" }).handler(() => replaceSubhubQualityHistoryWithDemoData());
 export const adjustSubhubInventoryFn = createServerFn({ method: "POST" }).validator(adjustmentSchema).handler(({ data }) => adjustSubhubInventory(data));
 export const adjustSubhubInventoryBatchFn = createServerFn({ method: "POST" }).validator(adjustmentBatchSchema).handler(({ data }) => adjustSubhubInventoryBatch(data.adjustments));
 export const recordQualityIssuesFn = createServerFn({ method: "POST" }).validator(qualityBatchSchema).handler(({ data }) => recordQualityIssues(data.issues));

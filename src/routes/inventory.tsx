@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { Panel, Tag } from "@/components/erp/bits";
 import { TablePagination } from "@/components/erp/TablePagination";
-import { adjustSubhubInventoryBatchFn, getSubhubInventoryFn } from "@/inventory";
+import { adjustSubhubInventoryBatchFn, getSubhubInventoryFn, replaceSubhubQualityHistoryWithDemoDataFn } from "@/inventory";
 import type { BatchMovement, InventoryBatch, InventoryItem, SubhubInventoryData } from "@/inventory.server";
 import { num } from "@/lib/erp-data";
 
@@ -84,7 +84,7 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
         {view === "raw-materials" ? <InventoryTable inventoryType="Raw Material" items={data.items.filter((item) => item.category === "Raw Material")} loading={loading} /> : null}
         {view === "final-products" ? <InventoryTable inventoryType="Float" items={data.items.filter((item) => item.category === "Float")} loading={loading} /> : null}
         {view === "quality" ? <QualityManagement data={data} loading={loading} onSaved={load} /> : null}
-        {view === "quality-history" ? <QualityManagementHistory data={data} loading={loading} /> : null}
+        {view === "quality-history" ? <QualityManagementHistory data={data} loading={loading} onReplaced={load} /> : null}
       </section>
     </SubHubShell>
   );
@@ -440,13 +440,16 @@ function qualityCategoryLabel(category: string) {
   return category === "Float" || category === "Molded" ? "Final Product" : "Raw Material";
 }
 
-function QualityManagementHistory({ data, loading }: { data: SubhubInventoryData; loading: boolean }) {
+function QualityManagementHistory({ data, loading, onReplaced }: { data: SubhubInventoryData; loading: boolean; onReplaced: () => Promise<void> }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [reason, setReason] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
+  const [replacingDemoData, setReplacingDemoData] = useState(false);
+  const [demoMessage, setDemoMessage] = useState("");
+  const [demoError, setDemoError] = useState("");
   const pageSize = 25;
   const reasons = useMemo(() => [...new Set(data.qualityLogs.map((log) => log.issue))].sort(), [data.qualityLogs]);
   const filteredLogs = useMemo(() => {
@@ -465,9 +468,45 @@ function QualityManagementHistory({ data, loading }: { data: SubhubInventoryData
   const hasFilters = Boolean(query || category !== "all" || reason !== "all" || dateFrom || dateTo);
   useEffect(() => setPage(1), [query, category, reason, dateFrom, dateTo]);
 
+  async function replaceWithDemoData() {
+    const confirmed = window.confirm(
+      "This will permanently replace the saved Quality Management History records for this SubHub workspace with six demo rows. Inventory counts and stock movements will not change. Continue?",
+    );
+    if (!confirmed) return;
+
+    setReplacingDemoData(true);
+    setDemoError("");
+    setDemoMessage("");
+    const result = await replaceSubhubQualityHistoryWithDemoDataFn();
+    if (!result.ok) {
+      setDemoError(result.message);
+    } else {
+      setDemoMessage(`Replaced the saved history with ${result.count} demo rows.`);
+      await onReplaced();
+    }
+    setReplacingDemoData(false);
+  }
+
   if (loading) return <p className="py-8 text-center text-base text-muted-foreground">Loading quality history…</p>;
   return (
     <div className="w-full space-y-4 pt-4">
+      {import.meta.env.DEV ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border px-4 py-3">
+          <p className="text-sm text-muted-foreground">
+            Development demo only. Replacing history won’t change inventory stock.
+          </p>
+          <button
+            type="button"
+            disabled={replacingDemoData}
+            onClick={() => void replaceWithDemoData()}
+            className="h-10 rounded-md border border-destructive/40 bg-white px-3 text-sm font-medium text-destructive hover:bg-destructive/5 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {replacingDemoData ? "Replacing…" : "Replace saved history with demo data"}
+          </button>
+        </div>
+      ) : null}
+      {demoMessage ? <p role="status" className="text-sm font-medium text-success">{demoMessage}</p> : null}
+      {demoError ? <p role="alert" className="text-sm font-medium text-destructive">{demoError}</p> : null}
       <div className="flex flex-wrap items-end gap-3">
         <label className="min-w-[220px] flex-1 text-sm font-medium text-muted-foreground">
           Search
