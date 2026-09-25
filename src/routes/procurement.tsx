@@ -106,6 +106,13 @@ function statusTone(status: ProcurementStatus): "good" | "warn" | "info" | "neut
   return "neutral";
 }
 
+function solidStatusClass(status: ProcurementStatus) {
+  if (status === "Delivery done") return "bg-emerald-700";
+  if (status === "Dispatch done") return "bg-blue-700";
+  if (status === "Payment done") return "bg-amber-700";
+  return "bg-slate-700";
+}
+
 function Procurement() {
   return <ProcurementPage result={Route.useLoaderData()} />;
 }
@@ -368,7 +375,7 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
   );
 
   return auth.user?.panel === "subhub" ? (
-    <SubHubShell title="Procurement">
+    <SubHubShell headerTitle="Procurement">
       <div className="space-y-6 px-6 py-5">{content}</div>
     </SubHubShell>
   ) : (
@@ -602,8 +609,9 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
             <tr>
               <th className="px-4 py-3 font-semibold">Order</th>
               {isAdmin ? <th className="px-4 py-3 font-semibold">SubHub</th> : null}
-              <th className="px-4 py-3 font-semibold">Vendor</th>
+              {panel !== "subhub" ? <th className="px-4 py-3 font-semibold">Vendor</th> : null}
               <th className="px-4 py-3 font-semibold">Materials</th>
+              {panel === "subhub" ? <th className="px-4 py-3 font-semibold">Material code</th> : null}
               <th className="px-4 py-3 text-right font-semibold">Qty</th>
               {panel !== "subhub" ? <th className="px-4 py-3 text-right font-semibold">Amount</th> : null}
               <th className="px-4 py-3 font-semibold">Ordered</th>
@@ -615,27 +623,38 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
           <tbody>
             {orders.map((order) => {
               const note = order.notes.trim();
-              const hideSeedNote = panel === "subhub" && note === "Seeded open purchase order.";
               return (
                 <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
                   <td className="px-4 py-4">
                     <Link to="/po/$id" params={{ id: order.id }} search={{ panel }} className="font-semibold text-primary hover:underline">{order.orderNumber}</Link>
-                    {!hideSeedNote && (note || panel !== "subhub") ? <p className="mt-1 text-sm text-muted-foreground">{note || "No notes"}</p> : null}
+                    {panel !== "subhub" ? <p className="mt-1 text-sm text-muted-foreground">{note || "No notes"}</p> : null}
                   </td>
                   {isAdmin ? <td className="px-4 py-4">{order.subhubName}</td> : null}
-                  <td className="px-4 py-4 font-semibold">{order.vendorName}</td>
+                  {panel !== "subhub" ? <td className="px-4 py-4 font-semibold">{order.vendorName}</td> : null}
                   <td className="px-4 py-4">
                     {order.items.map((item) => (
                       <p key={`${item.materialCode}:${item.materialName}`} className="font-semibold">
-                        {item.materialName} <span className="tabular text-sm font-normal text-muted-foreground">{item.materialCode}</span>
+                        {item.materialName}
+                        {panel !== "subhub" ? <span className="tabular text-sm font-normal text-muted-foreground"> {item.materialCode}</span> : null}
                       </p>
                     ))}
                   </td>
+                  {panel === "subhub" ? (
+                    <td className="px-4 py-4">
+                      {order.items.map((item) => (
+                        <p key={`${item.materialCode}:${item.materialName}`} className="tabular text-sm text-muted-foreground">{item.materialCode}</p>
+                      ))}
+                    </td>
+                  ) : null}
                   <td className="tabular px-4 py-4 text-right">{num(order.quantity)}</td>
                   {panel !== "subhub" ? <td className="tabular px-4 py-4 text-right">{inr(order.totalAmount)}</td> : null}
                   <td className="tabular whitespace-nowrap px-4 py-4">{formatDate(order.orderDate)}</td>
                   <td className="tabular whitespace-nowrap px-4 py-4">{formatDate(order.expectedDelivery)}</td>
-                  <td className="px-4 py-4"><Tag size="md" tone={statusTone(order.status)}>{order.status}</Tag></td>
+                  <td className="px-4 py-4">
+                    {panel === "subhub" ? (
+                      <span className={`inline-flex items-center rounded px-2.5 py-1 text-sm font-semibold text-white ${solidStatusClass(order.status)}`}>{order.status}</span>
+                    ) : <Tag size="md" tone={statusTone(order.status)}>{order.status}</Tag>}
+                  </td>
                   {isAdmin ? (
                     <td className="px-4 py-4 text-right">
                       <select aria-label={`Change status for ${order.orderNumber}`} value={order.status} onChange={(event) => onStatusChange(order, event.target.value as ProcurementStatus)} className="h-11 min-w-36 rounded-md border border-input bg-background px-2 text-base font-medium outline-none focus:border-primary">

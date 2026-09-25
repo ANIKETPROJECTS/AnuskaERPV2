@@ -122,14 +122,14 @@ function PurchaseDetail() {
           {order.notes ? <p className="whitespace-pre-wrap border-b border-border py-4 text-base leading-7 text-muted-foreground">{order.notes}</p> : <div className="border-b border-border py-8 text-center"><Package className="mx-auto size-8 text-primary" /><p className="mt-3 text-base text-muted-foreground">No notes were added to this order.</p></div>}
         </section>
       </div>
-      <div className="flex items-center gap-3 border-y border-border py-3 text-base text-muted-foreground"><Clock3 className="size-5 shrink-0" /> {user?.panel === "subhub" ? "Order details are read-only for SubHub users." : "Status changes are recorded in the procurement audit trail."}<Truck className="ml-auto size-5 shrink-0" /></div>
+      {!isSubHub ? <div className="flex items-center gap-3 border-y border-border py-3 text-base text-muted-foreground"><Clock3 className="size-5 shrink-0" /> Status changes are recorded in the procurement audit trail.<Truck className="ml-auto size-5 shrink-0" /></div> : null}
     </div>
   );
   const title = `Purchase ${order.orderNumber}`;
   const subtitle = `${order.items.length === 1 ? order.materialName : `${order.items.length} materials`} · ${order.vendorName} · ${order.subhubName}`;
   const actions = <Link to={user?.panel === "procurement" ? "/procurement-management" : "/procurement"} search={user?.panel === "procurement" ? undefined : { panel: user?.panel ?? "admin" }} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold"><ArrowLeft className="size-5" /> Back to procurement</Link>;
   return user?.panel === "subhub" ? (
-    <SubHubShell title={title} subtitle={subtitle} actions={actions}>
+    <SubHubShell headerTitle={title} headerSubtitle={subtitle} actions={actions}>
       <div className="space-y-6 px-6 py-5">{content}</div>
     </SubHubShell>
   ) : (
