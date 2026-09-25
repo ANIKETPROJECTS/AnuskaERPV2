@@ -7,12 +7,14 @@ type BomMatrixProps = {
   products: BomProduct[];
   title?: string;
   description?: string;
+  largeText?: boolean;
 };
 
 export function BomMatrix({
   products,
   title = "BOM matrix",
   description = "Quantity of each raw subpart required per finished unit.",
+  largeText = false,
 }: BomMatrixProps) {
   const materials = useRawMaterials();
   const variants = products.flatMap((product) =>
@@ -62,12 +64,12 @@ export function BomMatrix({
     <div className="overflow-hidden rounded-lg border border-border bg-card">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-6 py-5">
         <div>
-          <p className="text-base font-semibold">{title}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+          <p className={largeText ? "text-lg font-semibold" : "text-base font-semibold"}>{title}</p>
+          <p className={`mt-1 text-muted-foreground ${largeText ? "text-base" : "text-sm"}`}>{description}</p>
         </div>
         {variants.length ? (
           <div className="flex items-center gap-2">
-            <p className="text-sm text-muted-foreground">
+            <p className={`text-muted-foreground ${largeText ? "text-base" : "text-sm"}`}>
               {scrollState.canScrollLeft || scrollState.canScrollRight ? "Scroll horizontally to view all variants" : "All variants visible"}
             </p>
             <div className="flex rounded-md border border-input bg-white">
@@ -76,7 +78,7 @@ export function BomMatrix({
                 onClick={() => scrollMatrix("left")}
                 disabled={!scrollState.canScrollLeft}
                 aria-label="Scroll BOM matrix left"
-                className="inline-flex size-10 items-center justify-center border-r border-input text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                className={`inline-flex items-center justify-center border-r border-input text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 ${largeText ? "size-11" : "size-10"}`}
               >
                 <ChevronLeft className="size-4" />
               </button>
@@ -85,7 +87,7 @@ export function BomMatrix({
                 onClick={() => scrollMatrix("right")}
                 disabled={!scrollState.canScrollRight}
                 aria-label="Scroll BOM matrix right"
-                className="inline-flex size-10 items-center justify-center text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+                className={`inline-flex items-center justify-center text-muted-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40 ${largeText ? "size-11" : "size-10"}`}
               >
                 <ChevronRight className="size-4" />
               </button>
@@ -99,7 +101,7 @@ export function BomMatrix({
         <div ref={matrixRef} tabIndex={0} aria-label="BOM matrix table. Scroll horizontally to view more variants." className="overflow-x-auto outline-none focus:ring-2 focus:ring-inset focus:ring-primary/30">
           <table className="w-full min-w-max text-base">
             <caption className="sr-only">{title}</caption>
-            <thead className="border-b border-border bg-muted/20 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className={`border-b border-border bg-muted/20 text-left uppercase tracking-wide text-muted-foreground ${largeText ? "text-sm" : "text-xs"}`}>
               <tr>
                 <th scope="col" className="sticky left-0 z-40 w-[280px] min-w-[280px] bg-card px-6 py-4 font-medium shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)]">Raw subpart</th>
                 <th scope="col" className="sticky left-[280px] z-40 w-[110px] min-w-[110px] bg-card px-4 py-4 font-medium">Source</th>
@@ -107,8 +109,8 @@ export function BomMatrix({
                 {variants.map(({ key, productCode, productName, variant }) => (
                   <th scope="col" key={key} className="min-w-[150px] px-4 py-4 text-center font-medium">
                     <span className="tabular block text-foreground">{variant.code}</span>
-                    <span className="mt-1 block text-sm normal-case tracking-normal text-muted-foreground">{productCode} · {productName}</span>
-                    <span className="mt-0.5 block text-sm normal-case tracking-normal text-muted-foreground">{variant.name}</span>
+                    <span className={`mt-1 block normal-case tracking-normal text-muted-foreground ${largeText ? "text-base" : "text-sm"}`}>{productCode} · {productName}</span>
+                    <span className={`mt-0.5 block normal-case tracking-normal text-muted-foreground ${largeText ? "text-base" : "text-sm"}`}>{variant.name}</span>
                   </th>
                 ))}
               </tr>
@@ -118,12 +120,12 @@ export function BomMatrix({
                 <tr key={code} className="border-b border-border/70 last:border-0">
                   <th scope="row" className="sticky left-0 z-30 w-[280px] min-w-[280px] bg-card px-6 py-4 text-left shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)]">
                     <p className="font-semibold">{part?.name ?? code}</p>
-                    <p className="tabular mt-0.5 text-sm font-normal text-muted-foreground">
+                    <p className={`tabular mt-0.5 font-normal text-muted-foreground ${largeText ? "text-base" : "text-sm"}`}>
                       {code} · {part?.material ?? "Material details unavailable"}{part?.weight !== undefined ? ` · ${part.weight} kg` : ""}
                     </p>
                   </th>
-                  <td className="sticky left-[280px] z-30 w-[110px] min-w-[110px] bg-card px-4 py-4 text-sm text-muted-foreground">{part?.source ?? "—"}</td>
-                  <td className="tabular sticky left-[390px] z-30 w-[100px] min-w-[100px] bg-card px-4 py-4 text-right text-sm text-muted-foreground shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)]">{part ? `₹${part.rate}` : "—"}</td>
+                  <td className={`sticky left-[280px] z-30 w-[110px] min-w-[110px] bg-card px-4 py-4 text-muted-foreground ${largeText ? "text-base" : "text-sm"}`}>{part?.source ?? "—"}</td>
+                  <td className={`tabular sticky left-[390px] z-30 w-[100px] min-w-[100px] bg-card px-4 py-4 text-right text-muted-foreground shadow-[6px_0_8px_-8px_rgba(15,23,42,0.45)] ${largeText ? "text-base" : "text-sm"}`}>{part ? `₹${part.rate}` : "—"}</td>
                   {variants.map(({ key, variant }) => {
                     const quantity = variant.parts[code];
                     return (

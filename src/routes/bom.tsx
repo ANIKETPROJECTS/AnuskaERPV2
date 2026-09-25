@@ -287,21 +287,21 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                   <img src={product.image} alt={`${product.name} component assembly`} className="h-full w-full object-contain" />
                 </div>
                 <div className="p-4">
-                  <p className="tabular text-sm font-medium uppercase tracking-wide text-muted-foreground">{product.code}</p>
-                  <h2 className="mt-1 text-lg font-semibold">{product.name}</h2>
-                  <p className="mt-1 min-h-12 text-sm leading-6 text-muted-foreground">{product.description}</p>
-                  <div className="mt-4 grid grid-cols-2 border-t border-border pt-3 text-sm">
+                  <p className={`tabular font-medium uppercase tracking-wide text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>{product.code}</p>
+                  <h2 className={`mt-1 font-semibold ${readOnly ? "text-xl" : "text-lg"}`}>{product.name}</h2>
+                  <p className={`mt-1 min-h-12 leading-6 text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>{product.description}</p>
+                  <div className={`mt-4 grid grid-cols-2 border-t border-border pt-3 ${readOnly ? "text-base" : "text-sm"}`}>
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Variants</p>
-                      <p className="mt-1 text-base font-semibold">{product.variants.length}</p>
+                      <p className={`font-medium uppercase tracking-wide text-muted-foreground ${readOnly ? "text-sm" : "text-xs"}`}>Variants</p>
+                      <p className={`mt-1 font-semibold ${readOnly ? "text-lg" : "text-base"}`}>{product.variants.length}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Raw parts</p>
-                      <p className="mt-1 text-base font-semibold">{rawPartCount(product)}</p>
+                      <p className={`font-medium uppercase tracking-wide text-muted-foreground ${readOnly ? "text-sm" : "text-xs"}`}>Raw parts</p>
+                      <p className={`mt-1 font-semibold ${readOnly ? "text-lg" : "text-base"}`}>{rawPartCount(product)}</p>
                     </div>
                   </div>
                   {readOnly ? (
-                    <Link to="/subhub/bom/$code" params={{ code: product.code }} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">
+                    <Link to="/subhub/bom/$code" params={{ code: product.code }} className="mt-4 inline-flex items-center gap-2 text-base font-semibold text-primary hover:underline">
                       Open structure <span aria-hidden="true">→</span>
                     </Link>
                   ) : (
@@ -326,12 +326,12 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                         {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
                       </span>
                       <span className="min-w-0">
-                        <span className="tabular block text-sm font-medium uppercase tracking-wide text-muted-foreground">{product.code}</span>
+                        <span className={`tabular block font-medium uppercase tracking-wide text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>{product.code}</span>
                         <span className="mt-1 block text-lg font-semibold">{product.name}</span>
-                        <span className="mt-1 block truncate text-sm text-muted-foreground">{product.description}</span>
+                        <span className={`mt-1 block truncate text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>{product.description}</span>
                       </span>
                     </button>
-                    <div className="flex flex-wrap items-center gap-4 text-sm">
+                    <div className={`flex flex-wrap items-center gap-4 ${readOnly ? "text-base" : "text-sm"}`}>
                       <span><span className="text-muted-foreground">Variants</span> <strong className="ml-1">{product.variants.length}</strong></span>
                       <span><span className="text-muted-foreground">Raw parts</span> <strong className="ml-1">{rawPartCount(product)}</strong></span>
                       <span className="font-medium text-primary">{expanded ? "Hide variants" : "View variants"}</span>
@@ -345,7 +345,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                   {expanded ? (
                     <div className="border-t border-border bg-muted/10 px-4 py-4 sm:px-6">
                       <div className="space-y-3 border-l-2 border-primary/20 pl-4">
-                          <p className="text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">Variants and required materials</p>
+                          <p className={`font-semibold uppercase tracking-[0.1em] text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>Variants and required materials</p>
                         {!product.variants.length ? (
                           <p className="rounded-md border border-dashed border-border bg-card px-4 py-5 text-sm text-muted-foreground">No variants have been added to this assembly.</p>
                         ) : (
@@ -358,21 +358,21 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                                     <ChevronRight className="size-4 transition-transform group-open:rotate-90" />
                                   </span>
                                   <span className="min-w-0 flex-1">
-                                    <span className="tabular block text-xs font-medium uppercase tracking-wide text-muted-foreground">{variant.code}</span>
+                                    <span className={`tabular block font-medium uppercase tracking-wide text-muted-foreground ${readOnly ? "text-sm" : "text-xs"}`}>{variant.code}</span>
                                     <span className="mt-1 block text-base font-semibold">{variant.name}</span>
-                                    <span className="mt-1 block text-sm text-muted-foreground">{variant.company}</span>
+                                    <span className={`mt-1 block text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>{variant.company}</span>
                                   </span>
-                                  <span className="rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary">{requiredMaterials.length} required materials</span>
+                                  <span className={`rounded-full bg-primary/10 px-3 py-1.5 font-medium text-primary ${readOnly ? "text-base" : "text-sm"}`}>{requiredMaterials.length} required materials</span>
                                 </summary>
                                 <div className="mb-4 ml-4 border-l-2 border-border pl-4">
-                                  <p className="text-sm font-medium text-muted-foreground">Required materials</p>
+                                  <p className={`font-medium text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>Required materials</p>
                                   {requiredMaterials.length ? (
                                     <div className="mt-2 space-y-2">
                                       {requiredMaterials.map((material) => (
-                                        <div key={material.code} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/70 bg-muted/20 px-4 py-3 text-sm">
+                                        <div key={material.code} className={`flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/70 bg-muted/20 px-4 py-3 ${readOnly ? "text-base" : "text-sm"}`}>
                                           <div className="min-w-0">
                                             <p className="font-semibold">{material.name}</p>
-                                            <p className="tabular mt-0.5 text-sm text-muted-foreground">{material.code} · {material.material}</p>
+                                            <p className={`tabular mt-0.5 text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>{material.code} · {material.material}</p>
                                           </div>
                                           <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
                                             <span>Qty <strong className="text-foreground">{material.quantity}</strong></span>
@@ -383,7 +383,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                                       ))}
                                     </div>
                                   ) : (
-                                    <p className="mt-2 text-sm text-muted-foreground">No required materials are defined for this variant.</p>
+                                    <p className={`mt-2 text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>No required materials are defined for this variant.</p>
                                   )}
                                 </div>
                               </details>
@@ -398,14 +398,25 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
             })}
           </div>
         ) : (
-          <BomMatrix products={filteredProducts} title="All Float types BOM matrix" description="Compare every matching Float type and variant against its required raw materials." />
+          <BomMatrix
+            products={filteredProducts}
+            title="All Float types BOM matrix"
+            description="Compare every matching Float type and variant against its required raw materials."
+            largeText={readOnly}
+          />
         )}
-        {!filteredProducts.length ? <p className="rounded-md border border-dashed border-border px-5 py-12 text-center text-base text-muted-foreground">No BOM products match the current search and filters.</p> : null}
+        {!filteredProducts.length ? (
+          <p className="rounded-md border border-dashed border-border px-5 py-12 text-center text-base text-muted-foreground">
+            {readOnly
+              ? "No BOM products match your search."
+              : "No BOM products match the current search and filters."}
+          </p>
+        ) : null}
       </section>
   );
 
   if (readOnly) {
-    return <SubHubShell title="Bills of Materials" subtitle="View-only parent assemblies and component structures">{content}</SubHubShell>;
+    return <SubHubShell headerTitle="Bills of Materials">{content}</SubHubShell>;
   }
 
   return (
