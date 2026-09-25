@@ -109,6 +109,14 @@ export type ProductionReassignment = {
   createdAt: string;
 };
 
+export type ProductionCapacityWarning = {
+  subhubUserId: string;
+  subhubName: string;
+  capacityUnits: number;
+  openUnits: number;
+  excessUnits: number;
+};
+
 export type ProductionOrderActivity = {
   id: string;
   orderId: string;
@@ -191,6 +199,7 @@ export type AdminHubDetail = {
 type ProductionOrderDocument = {
   _id: string;
   orderNumber: string;
+  assignmentMode?: "manual" | "automatic";
   subhubUserId: string;
   subhubName: string;
   productCode: string;
@@ -476,7 +485,9 @@ async function rebalanceProductionOrders(actorId: string): Promise<ProductionRea
     if (!sourceCapacity || (loads.get(source._id) ?? 0) <= sourceCapacity) continue;
 
     const sourceOrders = orders
-      .filter((order) => order.subhubUserId === source._id)
+      // Admin-selected destinations are authoritative. Only explicitly automatic
+      // orders may move; legacy orders without a mode are treated as manual.
+      .filter((order) => order.subhubUserId === source._id && order.assignmentMode === "automatic")
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
     for (const order of sourceOrders) {
@@ -684,7 +695,10 @@ export async function createProductionOrders(input: {
     dueDate: string;
     notes: string;
   }>;
-}): Promise<{ ok: true; orders: ProductionOrder[] } | { ok: false; message: string }> {
+}): Promise<
+  { ok: true; orders: ProductionOrder[]; capacityWarnings: ProductionCapacityWarning[] } |
+  { ok: false; message: string }
+> {
   const current = await getCurrentUserRecord("admin");
   if (!isAdmin(current)) return { ok: false, message: "Only Admin users can create production orders." };
 
@@ -729,6 +743,7 @@ export async function createProductionOrders(input: {
   const orders: ProductionOrderDocument[] = validatedAssignments.map(({ assignment, subhub, product, variant, dueDate }) => ({
     _id: randomUUID().replace(/-/g, ""),
     orderNumber: `ORD-${now.getTime().toString().slice(-8)}-${randomUUID().replace(/-/g, "").slice(0, 4).toUpperCase()}`,
+    assignmentMode: "manual",
     subhubUserId: subhub._id,
     subhubName: subhub.subhubName!,
     productCode: product.code,
@@ -769,8 +784,34 @@ export async function createProductionOrders(input: {
     userId: user._id,
     reports: await reportsForDatabase(user.databaseName),
   })));
+  const reportsByUserId = new Map(reportsByUser.map(({ userId, reports }) => [userId, reports]));
+  const [allOrders, capacities] = await Promise.all([
+    db.collection<ProductionOrderDocument>("production_orders").find().toArray(),
+    capacityDocumentsFor(users),
+  ]);
+  const assignedHubIds = new Set(orders.map((order) => order.subhubUserId));
+  const capacityWarnings = users.flatMap((user) => {
+    if (!assignedHubIds.has(user._id)) return [];
+    const capacityUnits = capacities.get(user._id)?.capacityUnits;
+    if (capacityUnits === undefined || capacityUnits === null) return [];
+    const openUnits = allOrders.reduce((total, order) => (
+      order.subhubUserId === user._id
+        ? total + openUnitsForOrder(order, reportsByUserId.get(user._id) ?? [])
+        : total
+    ), 0);
+    return openUnits > capacityUnits
+      ? [{
+          subhubUserId: user._id,
+          subhubName: user.subhubName ?? "SubHub",
+          capacityUnits,
+          openUnits,
+          excessUnits: openUnits - capacityUnits,
+        }]
+      : [];
+  });
   return {
     ok: true,
+    capacityWarnings,
     orders: orderedSavedOrders.map((order) => summarizeOrder(
       order,
       reportsByUser.find((item) => item.userId === order.subhubUserId)?.reports ?? [],
@@ -833,6 +874,7 @@ export async function updateProductionOrder(input: {
       $set: {
         subhubUserId: destination._id,
         subhubName: destination.subhubName,
+        assignmentMode: "manual",
         productCode: product.code,
         productName: product.name,
         variantCode: variant.code,
@@ -992,6 +1034,7 @@ export async function reassignProductionOrder(input: {
       $set: {
         subhubUserId: destination._id,
         subhubName: destination.subhubName,
+        assignmentMode: "manual",
         updatedAt: new Date(),
       },
     },
