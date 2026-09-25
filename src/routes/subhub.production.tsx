@@ -1,13 +1,18 @@
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { AlertTriangle, Check, ClipboardCheck, Minus, Plus, RefreshCw, Save, Settings2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
+import { AlertTriangle, Check, ClipboardCheck, RefreshCw, Save, Settings2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { HubManagerOrderCard } from "@/components/erp/HubManagerOrderCard";
 import { SubHubShell } from "@/components/erp/SubHubShell";
-import { getManagerProductionDataFn, previewProductionBatchAllocationFn, saveDailyProductionFn, setHubCapacityFn } from "@/production";
+import {
+  getManagerProductionDataFn,
+  previewProductionBatchAllocationFn,
+  saveDailyProductionFn,
+  setHubCapacityFn,
+} from "@/production";
 import type { ManagerProductionData, ProductionOrder } from "@/production.server";
 import type { ProductionAllocationPreview, ProductionManualAllocation } from "@/inventory.server";
 import { num } from "@/lib/erp-data";
 import { useAuth } from "@/components/auth/AuthContext";
-import { demoProductionData } from "@/lib/production-demo";
 
 export const Route = createFileRoute("/subhub/production")({
   head: () => ({ meta: [{ title: "Production — Hub Manager · SubHub" }] }),
@@ -30,15 +35,18 @@ function today() {
 
 function HubManagerProduction() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  return pathname.replace(/\/+$/, "") === "/subhub/production"
-    ? <DailyProductionManager />
-    : <Outlet />;
+  return pathname.replace(/\/+$/, "") === "/subhub/production" ? (
+    <DailyProductionManager />
+  ) : (
+    <Outlet />
+  );
 }
 
 function DailyProductionManager() {
   const { user } = useAuth();
   const [data, setData] = useState(emptyData);
   const [selectedDate, setSelectedDate] = useState(today());
+  const selectedDateRef = useRef(selectedDate);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [capacityInput, setCapacityInput] = useState("");
   const [notes, setNotes] = useState("");
@@ -48,8 +56,9 @@ function DailyProductionManager() {
   const [saved, setSaved] = useState(false);
   const [capacitySaved, setCapacitySaved] = useState(false);
   const [error, setError] = useState("");
-  const [demoMode, setDemoMode] = useState(false);
-  const [allocationPreviews, setAllocationPreviews] = useState<Record<string, ProductionAllocationPreview>>({});
+  const [allocationPreviews, setAllocationPreviews] = useState<
+    Record<string, ProductionAllocationPreview>
+  >({});
   const [allocationQuantities, setAllocationQuantities] = useState<Record<string, number>>({});
   const [allocationLoading, setAllocationLoading] = useState<Record<string, boolean>>({});
   const [manualModes, setManualModes] = useState<Record<string, boolean>>({});
@@ -57,18 +66,22 @@ function DailyProductionManager() {
 
   async function load() {
     setLoading(true);
-    const result = await getManagerProductionDataFn();
-    if (result.ok) {
-      setDemoMode(result.data.orders.length === 0);
-      setData(result.data.orders.length ? result.data : demoProductionData);
-      setCapacityInput(result.data.capacityUnits?.toString() ?? "");
-      setError("");
-    } else {
-      setDemoMode(true);
-      setData(demoProductionData);
-      setError("");
+    try {
+      const result = await getManagerProductionDataFn();
+      if (result.ok) {
+        setData(result.data);
+        setCapacityInput(result.data.capacityUnits?.toString() ?? "");
+        setError("");
+      } else {
+        setData(emptyData);
+        setError(result.message);
+      }
+    } catch {
+      setData(emptyData);
+      setError("Work could not be loaded. Check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -80,6 +93,62 @@ function DailyProductionManager() {
     [data.reports, selectedDate],
   );
 
+  const loadAllocation = useCallback(
+    async (order: ProductionOrder, quantity: number, applyEditableState = true) => {
+      setAllocationLoading((current) => ({ ...current, [order.id]: true }));
+      try {
+        const result = await previewProductionBatchAllocationFn({
+          data: { orderId: order.id, date: selectedDate, quantity },
+        });
+        if (selectedDateRef.current !== selectedDate) return;
+        if (result.ok) {
+          setAllocationPreviews((current) => ({ ...current, [order.id]: result.preview }));
+          setAllocationQuantities((current) => ({ ...current, [order.id]: quantity }));
+          if (applyEditableState) {
+            const manual = result.preview.allocationMode === "hybrid";
+            const rows = result.preview.manualAllocations;
+            setManualRows((current) => ({
+              ...current,
+              [order.id]: rows,
+            }));
+            setManualModes((current) => ({
+              ...current,
+              [order.id]: manual,
+            }));
+            try {
+              window.sessionStorage.setItem(
+                allocationStorageKey(order.id, selectedDate),
+                JSON.stringify({ manual, rows }),
+              );
+            } catch {
+              // The allocation remains usable for this page even if storage is unavailable.
+            }
+          }
+          setError("");
+        } else setError(result.message);
+      } catch {
+        if (selectedDateRef.current === selectedDate) {
+          setError(
+            `Materials for ${order.variantName} could not be checked. Try again before saving.`,
+          );
+        }
+      } finally {
+        if (selectedDateRef.current === selectedDate) {
+          setAllocationLoading((current) => ({ ...current, [order.id]: false }));
+        }
+      }
+    },
+    [selectedDate],
+  );
+
+  useEffect(() => {
+    setAllocationPreviews({});
+    setAllocationQuantities({});
+    setAllocationLoading({});
+    setManualModes({});
+    setManualRows({});
+  }, [selectedDate]);
+
   useEffect(() => {
     const nextQuantities: Record<string, number> = {};
     reportsForDate.forEach((report) => {
@@ -87,8 +156,11 @@ function DailyProductionManager() {
     });
     setQuantities(nextQuantities);
     setNotes(reportsForDate.find((report) => report.notes)?.notes ?? "");
-    setSaved(false);
-  }, [reportsForDate]);
+    data.orders.forEach((order) => {
+      const quantity = nextQuantities[order.id] ?? 0;
+      if (quantity > 0) void loadAllocation(order, quantity, false);
+    });
+  }, [reportsForDate, data.orders, loadAllocation]);
 
   async function saveCapacity() {
     if (!user?.id) return;
@@ -101,205 +173,365 @@ function DailyProductionManager() {
     setSavingCapacity(true);
     setCapacitySaved(false);
     setError("");
-    const result = await setHubCapacityFn({ data: { subhubUserId: user.id, capacityUnits } });
-    if (!result.ok) {
-      setError(result.message);
-    } else {
-      setCapacitySaved(true);
-      await load();
-    }
-    setSavingCapacity(false);
-  }
-
-  async function loadAllocation(order: ProductionOrder, quantityOverride?: number, applyEditableState = true) {
-    const quantity = quantityOverride ?? quantities[order.id] ?? 0;
-    setAllocationLoading((current) => ({ ...current, [order.id]: true }));
-    const result = await previewProductionBatchAllocationFn({ data: { orderId: order.id, date: selectedDate, quantity } });
-    if (result.ok) {
-      setAllocationPreviews((current) => ({ ...current, [order.id]: result.preview }));
-      setAllocationQuantities((current) => ({ ...current, [order.id]: quantity }));
-      if (applyEditableState) {
-        setManualRows((current) => ({ ...current, [order.id]: result.preview.manualAllocations }));
-        setManualModes((current) => ({ ...current, [order.id]: result.preview.allocationMode === "hybrid" }));
+    try {
+      const result = await setHubCapacityFn({ data: { subhubUserId: user.id, capacityUnits } });
+      if (!result.ok) {
+        setError(result.message);
+      } else {
+        setCapacitySaved(true);
+        setData((current) => {
+          const availableUnits =
+            result.capacityUnits === null ? null : result.capacityUnits - current.openUnits;
+          return {
+            ...current,
+            capacityUnits: result.capacityUnits,
+            availableUnits,
+            overloaded: availableUnits !== null && availableUnits < 0,
+          };
+        });
       }
-      setError("");
-    } else setError(result.message);
-    setAllocationLoading((current) => ({ ...current, [order.id]: false }));
+    } catch {
+      setError("Hub work limit could not be saved. Check your connection and try again.");
+    } finally {
+      setSavingCapacity(false);
+    }
   }
-
-  useEffect(() => {
-    if (demoMode || !data.orders.length) return;
-    void Promise.all(data.orders.map((order) => loadAllocation(order, Math.max(0, order.remaining), false)));
-  }, [data.orders, selectedDate, demoMode]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     data.orders.forEach((order) => {
-      const stored = window.sessionStorage.getItem(allocationStorageKey(order.id, selectedDate));
-      if (!stored) return;
       try {
-        const value = JSON.parse(stored) as { manual?: boolean; rows?: ProductionManualAllocation[] };
-        if (typeof value.manual === "boolean") setManualModes((current) => ({ ...current, [order.id]: value.manual ?? false }));
-        if (Array.isArray(value.rows)) setManualRows((current) => ({ ...current, [order.id]: value.rows ?? [] }));
+        const stored = window.sessionStorage.getItem(allocationStorageKey(order.id, selectedDate));
+        if (!stored) {
+          setManualModes((current) => ({ ...current, [order.id]: false }));
+          setManualRows((current) => ({ ...current, [order.id]: [] }));
+          return;
+        }
+        const value = JSON.parse(stored) as {
+          manual?: boolean;
+          rows?: ProductionManualAllocation[];
+        };
+        setManualModes((current) => ({
+          ...current,
+          [order.id]: typeof value.manual === "boolean" ? value.manual : false,
+        }));
+        setManualRows((current) => ({
+          ...current,
+          [order.id]: Array.isArray(value.rows) ? value.rows : [],
+        }));
       } catch {
         window.sessionStorage.removeItem(allocationStorageKey(order.id, selectedDate));
+        setManualModes((current) => ({ ...current, [order.id]: false }));
+        setManualRows((current) => ({ ...current, [order.id]: [] }));
       }
     });
   }, [data.orders, selectedDate]);
 
-  const totalTarget = data.orders.reduce((sum, order) => sum + order.target, 0);
-  const totalProduced = data.orders.reduce((sum, order) => sum + order.produced, 0);
+  const unitsLeft = data.orders.reduce((sum, order) => sum + order.remaining, 0);
   const todayProduced = data.orders.reduce((sum, order) => sum + (quantities[order.id] ?? 0), 0);
-  const completion = totalTarget ? Math.round((totalProduced / totalTarget) * 100) : 0;
+  const allocationBusy = Object.values(allocationLoading).some(Boolean);
 
   function updateQuantity(orderId: string, value: number) {
     setSaved(false);
-    setQuantities((current) => ({ ...current, [orderId]: Math.max(0, Number.isFinite(value) ? Math.floor(value) : 0) }));
+    setError("");
+    const quantity = Math.max(0, Number.isFinite(value) ? Math.floor(value) : 0);
+    setQuantities((current) => ({ ...current, [orderId]: quantity }));
     const order = data.orders.find((item) => item.id === orderId);
-    if (order) void loadAllocation(order, Math.max(0, Number.isFinite(value) ? Math.floor(value) : 0));
+    if (order && quantity > 0) void loadAllocation(order, quantity);
   }
 
   async function saveProduction() {
-    if (demoMode || !data.orders.length) return;
-    const invalid = data.orders.find((order) => manualModes[order.id] && !isManualValid(allocationPreviews[order.id], manualRows[order.id] ?? []));
+    if (!data.orders.length || allocationBusy) return;
+    const invalid = data.orders.find(
+      (order) =>
+        (quantities[order.id] ?? 0) > 0 &&
+        manualModes[order.id] &&
+        !isManualValid(allocationPreviews[order.id], manualRows[order.id] ?? []),
+    );
     if (invalid) {
-      setError(`Manual material allocation for ${invalid.variantName} must exactly match every BOM requirement.`);
+      setError(
+        `Manual material allocation for ${invalid.variantName} must exactly match every BOM requirement.`,
+      );
       return;
     }
     setSaving(true);
     setError("");
-    const results = await Promise.all(
-      data.orders.map((order) =>
-        saveDailyProductionFn({
-          data: {
-            orderId: order.id, date: selectedDate, quantity: quantities[order.id] ?? 0, notes,
-            ...(manualModes[order.id] ? { manualAllocations: manualRows[order.id] ?? [] } : {}),
-          },
-        }),
-      ),
-    );
-    const failed = results.find((result) => !result.ok);
-    if (failed && !failed.ok) {
-      setError(failed.message);
-    } else {
-      setSaved(true);
-      await load();
+    try {
+      const results = await Promise.all(
+        data.orders.map((order) =>
+          saveDailyProductionFn({
+            data: {
+              orderId: order.id,
+              date: selectedDate,
+              quantity: quantities[order.id] ?? 0,
+              notes,
+              ...(manualModes[order.id] ? { manualAllocations: manualRows[order.id] ?? [] } : {}),
+            },
+          }),
+        ),
+      );
+      const failed = results.find((result) => !result.ok);
+      if (failed && !failed.ok) {
+        setError(failed.message);
+      } else {
+        setSaved(true);
+        await load();
+      }
+    } catch {
+      setError("Production could not be saved. Check your connection and try again.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   const assignedOrdersSection = (
-    <div className="rounded-xl border border-border bg-white shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4">
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h2 className="font-semibold">Assigned orders for {selectedDate}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Enter the finished quantity for each target. Material usage is calculated from the BOM recipe and consumed automatically when you save.</p>
+          <h2 className="text-lg font-semibold">Work assigned to your hub</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Enter the finished units for each order, then save once.
+          </p>
         </div>
-        <button type="button" disabled={loading} onClick={() => void load()} className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm disabled:opacity-50"><RefreshCw className="size-4" /> Refresh assignments</button>
+        {data.orders.length ? (
+          <p className="rounded-full bg-secondary px-3 py-1 text-sm font-medium">
+            {data.orders.length} {data.orders.length === 1 ? "order" : "orders"}
+          </p>
+        ) : null}
       </div>
       {loading ? (
-        <p className="p-8 text-center text-sm text-muted-foreground">Loading assignments…</p>
+        <div className="rounded-xl border border-border bg-white p-8 text-center text-sm text-muted-foreground">
+          Loading today’s work…
+        </div>
       ) : data.orders.length === 0 ? (
-        <div className="p-10 text-center">
-          <ClipboardCheck className="mx-auto size-8 text-muted-foreground" />
-          <p className="mt-3 font-medium">No orders assigned to this SubHub</p>
-          <p className="mt-1 text-sm text-muted-foreground">The Master Admin will assign production targets here when work is ready.</p>
+        <div className="rounded-xl border border-border bg-white p-8 text-center shadow-sm sm:p-12">
+          <ClipboardCheck className="mx-auto size-10 text-primary" aria-hidden="true" />
+          <h3 className="mt-3 text-lg font-semibold">No work assigned yet</h3>
+          <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+            Your assigned orders will appear here. Ask your Admin to assign work before entering
+            production.
+          </p>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md border border-input bg-white px-4 text-sm font-medium hover:bg-muted"
+          >
+            <RefreshCw className="size-4" /> Check again
+          </button>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <tr><th className="px-5 py-3 font-medium">Order / product</th><th className="px-5 py-3 text-right font-medium">Target</th><th className="px-5 py-3 text-center font-medium">Produced on date</th><th className="px-5 py-3 text-right font-medium">Total to date</th><th className="px-5 py-3 text-right font-medium">Status</th></tr>
-            </thead>
-            <tbody>
-              {data.orders.map((order) => (
-                <ProductionRow
-                  key={order.id}
-                  order={order}
-                  quantity={quantities[order.id] ?? 0}
-                  selectedDate={selectedDate}
-                  onChange={(value) => updateQuantity(order.id, value)}
-                />
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-3">
+          {data.orders.map((order) => (
+            <HubManagerOrderCard
+              key={order.id}
+              order={order}
+              quantity={quantities[order.id] ?? 0}
+              reports={data.reports}
+              preview={allocationPreviews[order.id]}
+              previewQuantity={allocationQuantities[order.id]}
+              allocationLoading={Boolean(allocationLoading[order.id])}
+              manualMode={Boolean(manualModes[order.id])}
+              manualRows={manualRows[order.id] ?? []}
+              onQuantityChange={(value) => updateQuantity(order.id, value)}
+              onManualModeChange={(value) => {
+                setSaved(false);
+                setManualModes((current) => ({ ...current, [order.id]: value }));
+                try {
+                  window.sessionStorage.setItem(
+                    allocationStorageKey(order.id, selectedDate),
+                    JSON.stringify({ manual: value, rows: manualRows[order.id] ?? [] }),
+                  );
+                } catch {
+                  // The allocation remains usable for this page even if storage is unavailable.
+                }
+              }}
+              onManualRowsChange={(rows) => {
+                setSaved(false);
+                setManualRows((current) => ({ ...current, [order.id]: rows }));
+                try {
+                  window.sessionStorage.setItem(
+                    allocationStorageKey(order.id, selectedDate),
+                    JSON.stringify({ manual: Boolean(manualModes[order.id]), rows }),
+                  );
+                } catch {
+                  // The allocation remains usable for this page even if storage is unavailable.
+                }
+              }}
+            />
+          ))}
         </div>
       )}
-    </div>
+    </section>
   );
 
   return (
-    <SubHubShell>
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border bg-white px-6 py-5">
-        <div className="flex items-center gap-3">
-          <ClipboardCheck className="size-5 text-muted-foreground" />
-          <div>
-            <p className="text-xs text-muted-foreground">SubHub / Hub Manager</p>
-            <h1 className="text-xl font-semibold">Daily production</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{data.subhubName || "Your isolated workspace"} · enter output for assigned orders only</p>
-          </div>
-        </div>
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">
-          Production date
-          <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className="h-9 rounded-md border border-input bg-white px-3 text-sm text-foreground" />
+    <SubHubShell
+      headerTitle="Daily production"
+      actions={
+        <label className="flex min-h-11 items-center gap-2 text-sm font-medium text-foreground">
+          Date
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(event) => {
+              setSaved(false);
+              selectedDateRef.current = event.target.value;
+              setSelectedDate(event.target.value);
+            }}
+            className="h-10 rounded-md border border-input bg-white px-3 text-sm"
+          />
         </label>
-      </header>
+      }
+    >
+      <section className="space-y-4 p-4 pb-28 sm:space-y-5 sm:p-6 sm:pb-28">
+        <p className="text-sm text-muted-foreground">
+          Enter the finished units for each order. Check materials if needed, then save once.
+        </p>
+        {error ? (
+          <p
+            role="alert"
+            className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+          >
+            {error}
+          </p>
+        ) : null}
 
-      <section className="space-y-6 p-6">
-        {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+        {!loading && data.orders.length ? (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Stat
+              label="Orders assigned"
+              value={num(data.orders.length)}
+              helper="work items for this hub"
+              tone="text-foreground"
+            />
+            <Stat
+              label="Units still needed"
+              value={num(unitsLeft)}
+              helper="across all assigned orders"
+              tone="text-primary"
+            />
+            <Stat
+              label="Made today"
+              value={num(todayProduced)}
+              helper="units entered on this screen"
+              tone="text-success"
+            />
+          </div>
+        ) : null}
+
         {assignedOrdersSection}
-        <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <Settings2 className="size-4 text-primary" />
-                <h2 className="font-semibold">Declare hub capacity</h2>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">Set the active target units this hub can handle. Admin will use this data for assignment and reassignment decisions.</p>
-            </div>
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end">
-              <label className="text-sm font-medium">
-                Capacity units
-                <input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={capacityInput}
-                  onChange={(event) => { setCapacityInput(event.target.value); setCapacitySaved(false); }}
-                  placeholder="No limit"
-                  aria-label="Hub capacity units"
-                  className="tabular mt-1.5 h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary sm:w-44"
-                />
-              </label>
-              <button type="button" disabled={savingCapacity} onClick={() => void saveCapacity()} className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-50">
-                <Save className="size-4" /> {savingCapacity ? "Saving…" : "Save capacity"}
-              </button>
-            </div>
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4 text-sm">
-            <span className="text-muted-foreground">Current load: <strong className="tabular text-foreground">{num(data.openUnits)}</strong> open units</span>
-            <span className="text-muted-foreground">Declared: <strong className="tabular text-foreground">{data.capacityUnits === null ? "No limit" : num(data.capacityUnits)}</strong></span>
-            {data.availableUnits !== null ? <span className={data.overloaded ? "font-medium text-destructive" : "text-success"}>{data.overloaded ? `${num(Math.abs(data.availableUnits))} units over capacity` : `${num(data.availableUnits)} units available`}</span> : null}
-            {data.overloaded ? <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive"><AlertTriangle className="size-3.5" /> Admin reassignment review needed</span> : null}
-            {capacitySaved ? <span className="inline-flex items-center gap-1 text-success"><Check className="size-4" /> Capacity shared with Admin</span> : null}
-          </div>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Stat label="Assigned target" value={num(totalTarget)} helper={`${data.orders.length} orders`} tone="text-foreground" />
-          <Stat label="Produced to date" value={num(totalProduced)} helper="all stored reports" tone="text-primary" />
-          <Stat label={`Entered ${selectedDate}`} value={num(todayProduced)} helper="output for this date" tone="text-success" />
-          <Stat label="Completion" value={`${completion}%`} helper="against assigned target" tone={completion >= 100 ? "text-success" : "text-warning"} />
-        </div>
-        {demoMode ? <div className="rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning"><strong>Demo data:</strong> No live orders are available yet. This sample order is only for testing the screens.</div> : null}
 
         {data.orders.length ? (
-          <div className="rounded-xl border border-border bg-white p-5 shadow-sm">
-            <label className="block text-sm font-medium">Day-end notes <span className="font-normal text-muted-foreground">(optional)</span>
-              <textarea value={notes} onChange={(event) => { setNotes(event.target.value); setSaved(false); }} rows={3} placeholder="Shift notes, downtime, quality observations, or other details…" className="mt-2 w-full resize-none rounded-md border border-input px-3 py-2 text-sm outline-none focus:border-primary" />
+          <div className="rounded-xl border border-border bg-white p-4 shadow-sm sm:p-5">
+            <label className="block text-sm font-semibold">
+              Notes for today <span className="font-normal text-muted-foreground">(optional)</span>
+              <textarea
+                value={notes}
+                onChange={(event) => {
+                  setNotes(event.target.value);
+                  setSaved(false);
+                }}
+                rows={2}
+                placeholder="Report a delay, material shortage, or machine problem."
+                className="mt-2 w-full resize-y rounded-md border border-input px-3 py-2 text-sm outline-none focus:border-primary"
+              />
             </label>
-            <div className="mt-4 flex items-center justify-end gap-3 border-t border-border pt-4">
-              {saved ? <span className="inline-flex items-center gap-1.5 text-sm text-success"><Check className="size-4" /> Production saved to {data.subhubName}</span> : null}
-              <button type="button" disabled={saving || demoMode} onClick={() => void saveProduction()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"><Save className="size-4" /> {demoMode ? "Demo mode" : saving ? "Saving…" : "Save day report"}</button>
+          </div>
+        ) : null}
+
+        {user?.id ? (
+          <details className="rounded-xl border border-border bg-white shadow-sm">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-4 py-3 font-semibold [&::-webkit-details-marker]:hidden">
+              <Settings2 className="size-4 text-primary" aria-hidden="true" />
+              Hub work limit (optional)
+            </summary>
+            <div className="space-y-4 border-t border-border p-4">
+              <p className="text-sm text-muted-foreground">
+                Set how many open units your hub can handle. Admin uses this when assigning work.
+                Leave blank for no limit.
+              </p>
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="text-sm font-medium">
+                  Maximum open units
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={capacityInput}
+                    onChange={(event) => {
+                      setCapacityInput(event.target.value);
+                      setCapacitySaved(false);
+                    }}
+                    placeholder="No limit"
+                    aria-label="Maximum open units for this hub"
+                    className="tabular mt-1.5 block h-11 w-48 rounded-md border border-input bg-background px-3 text-base outline-none focus:border-primary"
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={savingCapacity}
+                  onClick={() => void saveCapacity()}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                >
+                  <Save className="size-4" /> {savingCapacity ? "Saving…" : "Save work limit"}
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-border pt-3 text-sm">
+                <span>
+                  Open units: <strong className="tabular">{num(data.openUnits)}</strong>
+                </span>
+                <span>
+                  Limit:{" "}
+                  <strong>
+                    {data.capacityUnits === null ? "No limit" : num(data.capacityUnits)}
+                  </strong>
+                </span>
+                {data.availableUnits !== null ? (
+                  <span
+                    className={
+                      data.overloaded ? "font-medium text-destructive" : "font-medium text-success"
+                    }
+                  >
+                    {data.overloaded
+                      ? `${num(Math.abs(data.availableUnits))} units over limit`
+                      : `${num(data.availableUnits)} units available`}
+                  </span>
+                ) : null}
+                {data.overloaded ? (
+                  <span className="inline-flex items-center gap-1 text-sm font-medium text-destructive">
+                    <AlertTriangle className="size-4" /> Ask Admin to review assignments.
+                  </span>
+                ) : null}
+                {capacitySaved ? (
+                  <span role="status" className="inline-flex items-center gap-1 text-success">
+                    <Check className="size-4" /> Work limit saved.
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </details>
+        ) : null}
+
+        {data.orders.length ? (
+          <div className="sticky bottom-0 z-10 -mx-4 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">Made today</p>
+                <p className="tabular text-lg font-bold">{num(todayProduced)} units</p>
+                {saved ? (
+                  <p role="status" className="text-sm font-medium text-success">
+                    Today’s production is saved.
+                  </p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                disabled={saving || loading || allocationBusy}
+                onClick={() => void saveProduction()}
+                className="inline-flex min-h-12 items-center gap-2 rounded-md bg-primary px-5 text-base font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Save className="size-5" /> {saving ? "Saving…" : "Save today’s work"}
+              </button>
             </div>
           </div>
         ) : null}
@@ -308,49 +540,16 @@ function DailyProductionManager() {
   );
 }
 
-function ProductionRow({
-  order,
-  quantity,
-  selectedDate,
-  onChange,
-}: {
-  order: ProductionOrder;
-  quantity: number;
-  selectedDate: string;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <tr className="border-b border-border/70 last:border-0">
-      <td className="px-5 py-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{order.productName}</p>
-            <a href={`/subhub/production/orders/${encodeURIComponent(order.id)}`} className="mt-1 block font-medium text-primary hover:underline">{order.variantName}</a>
-            <p className="tabular text-xs text-muted-foreground">{order.orderNumber} · {order.variantCode}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Due {order.dueDate}</p>
-          </div>
-          <Link
-            to="/subhub/production/allocation/$orderId"
-            params={{ orderId: order.id }}
-            search={{ date: selectedDate, quantity }}
-            className="inline-flex w-max min-w-max flex-none items-center whitespace-nowrap rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted"
-          >
-            Material allocation
-          </Link>
-        </div>
-      </td>
-      <td className="tabular px-5 py-4 text-right font-semibold">{num(order.target)}</td>
-      <td className="px-5 py-4"><div className="mx-auto flex w-36 items-center justify-center gap-1"><button type="button" aria-label={`Decrease ${order.variantName}`} onClick={() => onChange(quantity - 1)} className="flex size-8 items-center justify-center rounded-md border border-input text-muted-foreground hover:bg-muted"><Minus className="size-3.5" /></button><input type="number" min="0" step="1" value={quantity} onChange={(event) => onChange(Number(event.target.value))} className="h-8 w-20 rounded-md border border-input text-center text-sm font-semibold" /><button type="button" aria-label={`Increase ${order.variantName}`} onClick={() => onChange(quantity + 1)} className="flex size-8 items-center justify-center rounded-md border border-input text-muted-foreground hover:bg-muted"><Plus className="size-3.5" /></button></div></td>
-      <td className="tabular px-5 py-4 text-right">{num(order.produced)}</td>
-      <td className="px-5 py-4 text-right"><span className={`rounded-full px-2 py-1 text-[11px] font-medium ${order.status === "Complete" || order.status === "Over target" ? "bg-success/10 text-success" : order.status === "In progress" ? "bg-warning/10 text-warning" : "bg-muted text-muted-foreground"}`}>{order.status}</span></td>
-    </tr>
-  );
-}
-
-function isManualValid(preview: ProductionAllocationPreview | undefined, rows: ProductionManualAllocation[]) {
+function isManualValid(
+  preview: ProductionAllocationPreview | undefined,
+  rows: ProductionManualAllocation[],
+) {
   if (!preview) return false;
-  return preview.requirements.every((requirement) =>
-    rows.filter((row) => row.itemCode === requirement.itemCode).reduce((sum, row) => sum + row.quantity, 0) === requirement.requiredQuantity,
+  return preview.requirements.every(
+    (requirement) =>
+      rows
+        .filter((row) => row.itemCode === requirement.itemCode)
+        .reduce((sum, row) => sum + row.quantity, 0) === requirement.requiredQuantity,
   );
 }
 
@@ -358,6 +557,22 @@ function allocationStorageKey(orderId: string, date: string) {
   return `subhub:production-allocation:${orderId}:${date}`;
 }
 
-function Stat({ label, value, helper, tone }: { label: string; value: string; helper: string; tone: string }) {
-  return <div className="rounded-xl border border-border bg-white p-4 shadow-sm"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p><p className={`mt-2 text-2xl font-semibold ${tone}`}>{value}</p><p className="mt-1 text-xs text-muted-foreground">{helper}</p></div>;
+function Stat({
+  label,
+  value,
+  helper,
+  tone,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+  tone: string;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={`mt-2 text-2xl font-semibold ${tone}`}>{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
+    </div>
+  );
 }
