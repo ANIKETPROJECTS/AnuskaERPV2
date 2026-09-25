@@ -7,6 +7,7 @@ type TablePaginationProps = {
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   pageSizeOptions?: number[];
+  showPageSizeSelect?: boolean;
 };
 
 export function TablePagination({
@@ -16,6 +17,7 @@ export function TablePagination({
   onPageChange,
   onPageSizeChange,
   pageSizeOptions = [10, 25, 50, 100],
+  showPageSizeSelect = true,
 }: TablePaginationProps) {
   if (!total) return null;
 
@@ -29,55 +31,60 @@ export function TablePagination({
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3 text-xs text-muted-foreground">
-      <span>
+    <div className="flex flex-col gap-3 border-t border-border bg-background px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-sm text-muted-foreground">
         Showing{" "}
-        <span className="font-medium text-foreground">
+        <span className="tabular font-semibold text-foreground">
           {start}–{end}
         </span>{" "}
-        of <span className="font-medium text-foreground">{total}</span>
-      </span>
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="inline-flex items-center gap-2">
-          Rows per page
-          <select
-            value={pageSize}
-            onChange={(event) => {
-              onPageSizeChange(Number(event.target.value));
-              onPageChange(1);
-            }}
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
-            aria-label="Rows per page"
-          >
-            {pageSizeOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="tabular">
-          Page {currentPage} of {pageCount}
-        </span>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => changePage(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="inline-flex size-8 items-center justify-center rounded-md border border-input hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Previous page"
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => changePage(currentPage + 1)}
-            disabled={currentPage === pageCount}
-            className="inline-flex size-8 items-center justify-center rounded-md border border-input hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Next page"
-          >
-            <ChevronRight className="size-4" />
-          </button>
+        of <span className="tabular font-semibold text-foreground">{total}</span>
+      </p>
+      <div className="flex flex-wrap items-center justify-between gap-4 sm:justify-end">
+        {showPageSizeSelect ? (
+          <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+            Rows per page
+            <select
+              value={pageSize}
+              onChange={(event) => {
+                onPageSizeChange(Number(event.target.value));
+                onPageChange(1);
+              }}
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+              aria-label="Rows per page"
+            >
+              {pageSizeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <div className="flex items-center gap-3">
+          <span className="tabular text-sm text-muted-foreground">
+            Page <span className="font-medium text-foreground">{currentPage}</span> of{" "}
+            <span className="font-medium text-foreground">{pageCount}</span>
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => changePage(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="inline-flex size-9 items-center justify-center rounded-md border border-input bg-background hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => changePage(currentPage + 1)}
+              disabled={currentPage === pageCount}
+              className="inline-flex size-9 items-center justify-center rounded-md border border-input bg-background hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Next page"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -32,6 +32,7 @@ import { Route as InventoryBatchesRouteImport } from './routes/inventory.batches
 import { Route as InventoryFinalProductsRouteImport } from './routes/inventory.final-products'
 import { Route as InventoryHistoryRouteImport } from './routes/inventory.history'
 import { Route as InventoryQualityRouteImport } from './routes/inventory.quality'
+import { Route as InventoryQualityHistoryRouteImport } from './routes/inventory.quality-history'
 import { Route as InventoryRawMaterialsRouteImport } from './routes/inventory.raw-materials'
 import { Route as PartCodeRouteImport } from './routes/part.$code'
 import { Route as PoIdRouteImport } from './routes/po.$id'
@@ -169,6 +170,11 @@ const InventoryQualityRoute = InventoryQualityRouteImport.update({
   path: '/quality',
   getParentRoute: () => InventoryRoute,
 } as any)
+const InventoryQualityHistoryRoute = InventoryQualityHistoryRouteImport.update({
+  id: '/quality-history',
+  path: '/quality-history',
+  getParentRoute: () => InventoryRoute,
+} as any)
 const InventoryRawMaterialsRoute = InventoryRawMaterialsRouteImport.update({
   id: '/raw-materials',
   path: '/raw-materials',
@@ -303,6 +309,7 @@ export interface FileRoutesByFullPath {
   '/inventory/final-products': typeof InventoryFinalProductsRoute
   '/inventory/history': typeof InventoryHistoryRoute
   '/inventory/quality': typeof InventoryQualityRoute
+  '/inventory/quality-history': typeof InventoryQualityHistoryRoute
   '/inventory/raw-materials': typeof InventoryRawMaterialsRoute
   '/part/$code': typeof PartCodeRoute
   '/po/$id': typeof PoIdRoute
@@ -349,6 +356,7 @@ export interface FileRoutesByTo {
   '/inventory/final-products': typeof InventoryFinalProductsRoute
   '/inventory/history': typeof InventoryHistoryRoute
   '/inventory/quality': typeof InventoryQualityRoute
+  '/inventory/quality-history': typeof InventoryQualityHistoryRoute
   '/inventory/raw-materials': typeof InventoryRawMaterialsRoute
   '/part/$code': typeof PartCodeRoute
   '/po/$id': typeof PoIdRoute
@@ -396,6 +404,7 @@ export interface FileRoutesById {
   '/inventory/final-products': typeof InventoryFinalProductsRoute
   '/inventory/history': typeof InventoryHistoryRoute
   '/inventory/quality': typeof InventoryQualityRoute
+  '/inventory/quality-history': typeof InventoryQualityHistoryRoute
   '/inventory/raw-materials': typeof InventoryRawMaterialsRoute
   '/part/$code': typeof PartCodeRoute
   '/po/$id': typeof PoIdRoute
@@ -444,6 +453,7 @@ export interface FileRouteTypes {
     | '/inventory/final-products'
     | '/inventory/history'
     | '/inventory/quality'
+    | '/inventory/quality-history'
     | '/inventory/raw-materials'
     | '/part/$code'
     | '/po/$id'
@@ -490,6 +500,7 @@ export interface FileRouteTypes {
     | '/inventory/final-products'
     | '/inventory/history'
     | '/inventory/quality'
+    | '/inventory/quality-history'
     | '/inventory/raw-materials'
     | '/part/$code'
     | '/po/$id'
@@ -536,6 +547,7 @@ export interface FileRouteTypes {
     | '/inventory/final-products'
     | '/inventory/history'
     | '/inventory/quality'
+    | '/inventory/quality-history'
     | '/inventory/raw-materials'
     | '/part/$code'
     | '/po/$id'
@@ -746,6 +758,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InventoryQualityRouteImport
       parentRoute: typeof InventoryRoute
     }
+    '/inventory/quality-history': {
+      id: '/inventory/quality-history'
+      path: '/quality-history'
+      fullPath: '/inventory/quality-history'
+      preLoaderRoute: typeof InventoryQualityHistoryRouteImport
+      parentRoute: typeof InventoryRoute
+    }
     '/inventory/raw-materials': {
       id: '/inventory/raw-materials'
       path: '/raw-materials'
@@ -942,6 +961,7 @@ interface InventoryRouteChildren {
   InventoryFinalProductsRoute: typeof InventoryFinalProductsRoute
   InventoryHistoryRoute: typeof InventoryHistoryRoute
   InventoryQualityRoute: typeof InventoryQualityRoute
+  InventoryQualityHistoryRoute: typeof InventoryQualityHistoryRoute
   InventoryRawMaterialsRoute: typeof InventoryRawMaterialsRoute
   InventoryItemsItemCodeRoute: typeof InventoryItemsItemCodeRoute
 }
@@ -951,6 +971,7 @@ const InventoryRouteChildren: InventoryRouteChildren = {
   InventoryFinalProductsRoute: InventoryFinalProductsRoute,
   InventoryHistoryRoute: InventoryHistoryRoute,
   InventoryQualityRoute: InventoryQualityRoute,
+  InventoryQualityHistoryRoute: InventoryQualityHistoryRoute,
   InventoryRawMaterialsRoute: InventoryRawMaterialsRoute,
   InventoryItemsItemCodeRoute: InventoryItemsItemCodeRoute,
 }

@@ -106,7 +106,7 @@ export type SubhubInventoryData = {
   batchMovements: BatchMovement[];
   consistencyWarnings: string[];
 };
-export type InventoryDataView = "inventory" | "history" | "quality" | "adjustment" | "batches" | "all";
+export type InventoryDataView = "inventory" | "history" | "quality" | "quality-history" | "adjustment" | "batches" | "all";
 
 export type MasterQualityData = {
   logs: QualityLog[];
@@ -1272,7 +1272,7 @@ async function ensureMasterInventoryItems(user: UserDocument, workspaceDb: Db): 
 async function readSubhubInventory(user: UserDocument, workspaceDb: Db, consistencyWarnings: string[] = [], view: InventoryDataView = "all"): Promise<SubhubInventoryData> {
   const includeItems = view === "inventory" || view === "quality" || view === "adjustment" || view === "all";
   const includeMovements = view === "all";
-  const includeQuality = view === "quality" || view === "all";
+  const includeQuality = view === "quality" || view === "quality-history" || view === "all";
   const includeBatches = view === "adjustment" || view === "batches" || view === "all";
   const includeBatchMovements = view === "history" || view === "all";
   if (includeItems) await ensureMasterInventoryItems(user, workspaceDb);
@@ -1372,11 +1372,11 @@ export async function getSubhubInventory(view: InventoryDataView = "inventory"):
 > {
   const user = await getCurrentUserRecord("subhub");
   if (user?.panel !== "subhub" || user.role !== "subhub") return { ok: false, data: emptyData(), message: "Only SubHub Managers can view workspace inventory." };
-  if (view !== "inventory" && view !== "quality") {
+  if (view !== "inventory" && view !== "quality" && view !== "quality-history") {
     return { ok: false, data: emptyData(), message: "Batch registers and inventory traceability are not available in the SubHub panel." };
   }
   const workspaceDb = await getMongoDb(user.databaseName);
-  const consistencyWarnings = await syncWorkspaceInventoryForUser(user, workspaceDb);
+  const consistencyWarnings = view === "quality-history" ? [] : await syncWorkspaceInventoryForUser(user, workspaceDb);
   const data = await readSubhubInventory(user, workspaceDb, consistencyWarnings, view);
   return { ok: true, data: restrictSubhubInventory(data) };
 }

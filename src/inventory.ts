@@ -28,7 +28,7 @@ const itemCodeSchema = z.object({ itemCode: z.string().min(1) });
 const managedHubSchema = z.object({ panel: z.enum(["admin", "procurement"]), hubId: z.string().min(1) });
 const managedBatchSchema = managedHubSchema.extend({ batchId: z.string().min(1) });
 const managedItemSchema = managedHubSchema.extend({ itemCode: z.string().min(1) });
-const inventoryViewSchema = z.object({ view: z.enum(["inventory", "history", "quality", "adjustment", "batches", "all"]) }).optional();
+const inventoryViewSchema = z.object({ view: z.enum(["inventory", "history", "quality", "quality-history", "adjustment", "batches", "all"]) }).optional();
 
 export const getSubhubInventoryFn = createServerFn({ method: "GET" }).validator(inventoryViewSchema).handler(({ data }) => getSubhubInventory(data?.view));
 export const adjustSubhubInventoryFn = createServerFn({ method: "POST" }).validator(adjustmentSchema).handler(({ data }) => adjustSubhubInventory(data));

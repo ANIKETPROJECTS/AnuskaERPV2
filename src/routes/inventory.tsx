@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
-import { ArrowDownAZ, ArrowDownCircle, ArrowUpAZ, ArrowUpCircle, Check, Package, Search, ShieldAlert } from "lucide-react";
+import { ArrowDownAZ, ArrowDownCircle, ArrowUpAZ, ArrowUpCircle, Check, ChevronDown, History as HistoryIcon, Package, Search, ShieldAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { Panel, Tag } from "@/components/erp/bits";
@@ -8,7 +8,7 @@ import { adjustSubhubInventoryBatchFn, getSubhubInventoryFn } from "@/inventory"
 import type { BatchMovement, InventoryBatch, InventoryItem, SubhubInventoryData } from "@/inventory.server";
 import { num } from "@/lib/erp-data";
 
-export type View = "inventory" | "raw-materials" | "final-products" | "history" | "quality" | "batches";
+export type View = "inventory" | "raw-materials" | "final-products" | "history" | "quality" | "quality-history" | "batches";
 
 export const Route = createFileRoute("/inventory")({
   head: () => ({ meta: [{ title: "Inventory Management — Float ERP" }] }),
@@ -43,7 +43,7 @@ function InventoryRouteLayout() {
 
 export function InventoryManagement({ initialView }: { initialView: View }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const view: View = pathname.endsWith("/raw-materials") ? "raw-materials" : pathname.endsWith("/final-products") ? "final-products" : pathname.endsWith("/history") ? "history" : pathname.endsWith("/quality") ? "quality" : pathname.endsWith("/batches") ? "batches" : initialView;
+  const view: View = pathname.endsWith("/raw-materials") ? "raw-materials" : pathname.endsWith("/final-products") ? "final-products" : pathname.endsWith("/quality-history") ? "quality-history" : pathname.endsWith("/history") ? "history" : pathname.endsWith("/quality") ? "quality" : pathname.endsWith("/batches") ? "batches" : initialView;
   const [data, setData] = useState(emptyData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -66,19 +66,20 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
     void load();
   }, [view]);
 
-  const title = view === "raw-materials" ? "Raw Materials Inventory" : view === "final-products" ? "Final Product Inventory" : view === "history" ? "Inventory History" : view === "quality" ? "Quality Management" : "Batch Register";
+  const title = view === "raw-materials" ? "Raw Materials Inventory" : view === "final-products" ? "Final Product Inventory" : view === "quality-history" ? "Quality Management History" : view === "history" ? "Inventory History" : view === "quality" ? "Quality Management" : "Batch Register";
 
   if (view === "batches" || view === "history") {
     return <Navigate to="/inventory/raw-materials" replace />;
   }
 
   return (
-    <SubHubShell headerTitle={title} actions={<div className="flex flex-wrap gap-2"><Link to="/inventory/raw-materials" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Raw materials</Link><Link to="/inventory/final-products" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Final products</Link><Link to="/inventory/quality" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><ShieldAlert className="size-4" /> Quality</Link></div>}>
+    <SubHubShell headerTitle={title} actions={<div className="flex flex-wrap gap-2"><Link to="/inventory/raw-materials" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Raw materials</Link><Link to="/inventory/final-products" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm">Final products</Link><Link to="/inventory/quality" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><ShieldAlert className="size-4" /> Quality</Link><Link to="/inventory/quality-history" className="inline-flex items-center gap-2 rounded-md border border-input bg-white px-3 py-2 text-sm"><HistoryIcon className="size-4" /> Quality history</Link></div>}>
       <section className="px-6 pb-6">
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
         {view === "raw-materials" ? <InventoryTable inventoryType="Raw Material" items={data.items.filter((item) => item.category === "Raw Material")} loading={loading} /> : null}
         {view === "final-products" ? <InventoryTable inventoryType="Float" items={data.items.filter((item) => item.category === "Float")} loading={loading} /> : null}
         {view === "quality" ? <QualityManagement data={data} loading={loading} onSaved={load} /> : null}
+        {view === "quality-history" ? <QualityManagementHistory data={data} loading={loading} /> : null}
       </section>
     </SubHubShell>
   );
@@ -98,6 +99,9 @@ export function InventoryFinalProductsPage() {
 
 export function InventoryQualityPage() {
   return <InventoryManagement initialView="quality" />;
+}
+export function InventoryQualityHistoryPage() {
+  return <InventoryManagement initialView="quality-history" />;
 }
 export function InventoryBatchesPage() { return <InventoryManagement initialView="batches" />; }
 
@@ -230,13 +234,8 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
     setSaving(false);
   }
 
-  return <div className="space-y-6">
-    <Panel title="Quick quality adjustments" description="Filter raw materials or final products, then enter the updated total count. The reason is selected automatically based on whether stock increases or decreases.">
-      <div className="p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/15 bg-primary/5 px-4 py-3 text-sm">
-          <p><span className="font-medium">Fast entry:</span> enter the new total count. For example, if current stock is 10, enter 20 to set the total to 20.</p>
-          <p className="text-xs text-muted-foreground">{filteredItems.length} of {data.items.length} inventory item{data.items.length === 1 ? "" : "s"} shown</p>
-        </div>
+  return <div className="w-full">
+    <div>
         <div className="mb-4 flex flex-wrap items-end gap-3">
           <label className="min-w-[240px] flex-1 text-xs font-medium text-muted-foreground">
             Search inventory
@@ -266,7 +265,7 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
             {sortDirection === "asc" ? "Ascending" : "Descending"}
           </button>
         </div>
-        {loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading inventory items…</p> : data.items.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">No raw materials or final products are available.</p> : filteredItems.length === 0 ? <p className="rounded-md border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No inventory items match the current filter or search.</p> : <div className="overflow-x-auto rounded-md border border-border">
+        {loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading inventory items…</p> : data.items.length === 0 ? <p className="p-8 text-center text-sm text-muted-foreground">No raw materials or final products are available.</p> : filteredItems.length === 0 ? <p className="border-y border-dashed border-border p-8 text-center text-sm text-muted-foreground">No inventory items match the current filter or search.</p> : <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] text-sm">
             <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr><th className="px-4 py-3 font-medium">Item</th><th className="px-4 py-3 font-medium">Type</th><th className="px-4 py-3 text-right font-medium">Current stock</th><th className="w-44 px-4 py-3 font-medium">Updated count</th><th className="min-w-[280px] px-4 py-3 font-medium">Reason</th><th className="w-24 px-4 py-3 text-right font-medium">Status</th></tr>
@@ -293,11 +292,20 @@ function QualityManagement({ data, loading, onSaved }: { data: SubhubInventoryDa
         </div>}
         {error ? <p role="alert" className="mt-4 rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
         <div className="mt-5 flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4">{message ? <span className="inline-flex items-center gap-1.5 text-sm text-success"><Check className="size-4" /> {message}</span> : null}<button type="button" disabled={saving || loading} onClick={() => void save()} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"><ShieldAlert className="size-4" /> {saving ? "Saving…" : "Save updated counts"}</button></div>
-      </div>
-    </Panel>
-    <Panel title="Quality management history" description="Every quality deduction recorded in this SubHub workspace.">
-      {loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading quality history…</p> : data.qualityLogs.length === 0 ? <div className="p-10 text-center"><ShieldAlert className="mx-auto size-8 text-muted-foreground" /><p className="mt-3 font-medium">No quality issues recorded</p><p className="mt-1 text-sm text-muted-foreground">Saved quality adjustments will appear here.</p></div> : <div className="overflow-x-auto"><table className="w-full min-w-[820px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">Item</th><th className="px-5 py-3 font-medium">Issue</th><th className="px-5 py-3 text-right font-medium">Rejected</th><th className="px-5 py-3 text-right font-medium">Balance</th><th className="px-5 py-3 font-medium">Notes</th></tr></thead><tbody>{data.qualityLogs.map((log) => <tr key={log.id} className="border-b border-border/70 last:border-0"><td className="tabular whitespace-nowrap px-5 py-3 text-xs text-muted-foreground">{log.date.slice(0, 16).replace("T", " ")}</td><td className="px-5 py-3"><p className="font-medium">{log.product}</p><p className="tabular text-xs text-muted-foreground">{log.code} · {log.category}</p></td><td className="px-5 py-3"><Tag tone="bad">{log.issue}</Tag></td><td className="tabular px-5 py-3 text-right font-semibold text-destructive">-{num(log.quantity)}</td><td className="tabular px-5 py-3 text-right">{num(log.afterQuantity)}</td><td className="max-w-xs truncate px-5 py-3 text-muted-foreground">{log.notes || "—"}</td></tr>)}</tbody></table></div>}
-    </Panel>
+    </div>
+  </div>;
+}
+
+function QualityManagementHistory({ data, loading }: { data: SubhubInventoryData; loading: boolean }) {
+  if (loading) return <p className="py-8 text-center text-sm text-muted-foreground">Loading quality history…</p>;
+  if (data.qualityLogs.length === 0) {
+    return <div className="py-10 text-center"><ShieldAlert className="mx-auto size-8 text-muted-foreground" /><p className="mt-3 font-medium">No quality issues recorded</p><p className="mt-1 text-sm text-muted-foreground">Saved quality adjustments will appear here.</p></div>;
+  }
+  return <div className="w-full overflow-x-auto">
+    <table className="w-full min-w-[820px] text-sm">
+      <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">Item</th><th className="px-5 py-3 font-medium">Issue</th><th className="px-5 py-3 text-right font-medium">Rejected</th><th className="px-5 py-3 text-right font-medium">Balance</th><th className="px-5 py-3 font-medium">Notes</th></tr></thead>
+      <tbody>{data.qualityLogs.map((log) => <tr key={log.id} className="border-b border-border/70 last:border-0"><td className="tabular whitespace-nowrap px-5 py-3 text-xs text-muted-foreground">{log.date.slice(0, 16).replace("T", " ")}</td><td className="px-5 py-3"><p className="font-medium">{log.product}</p><p className="tabular text-xs text-muted-foreground">{log.code} · {log.category}</p></td><td className="px-5 py-3"><Tag tone="bad">{log.issue}</Tag></td><td className="tabular px-5 py-3 text-right font-semibold text-destructive">-{num(log.quantity)}</td><td className="tabular px-5 py-3 text-right">{num(log.afterQuantity)}</td><td className="max-w-xs truncate px-5 py-3 text-muted-foreground">{log.notes || "—"}</td></tr>)}</tbody>
+    </table>
   </div>;
 }
 
@@ -305,7 +313,7 @@ function InventoryTable({ inventoryType, items, loading }: { inventoryType: Inve
   const [query, setQuery] = useState("");
   const [stockFilter, setStockFilter] = useState<"all" | "available" | "low" | "empty">("all");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const pageSize = 5;
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -327,13 +335,13 @@ function InventoryTable({ inventoryType, items, loading }: { inventoryType: Inve
   return <div className="w-full">
     <div className="flex flex-wrap items-end gap-3 border-b border-border p-4">
       <div className="relative min-w-[220px] flex-1 text-xs font-medium text-muted-foreground">Search {inventoryType === "Raw Material" ? "raw materials" : "final products"}<label className="relative mt-1 block"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name or unique code" className="h-9 w-full rounded-md border border-input pl-9 pr-3 text-sm font-normal text-foreground outline-none focus:border-primary" /></label></div>
-      <label className="text-xs font-medium text-muted-foreground">Stock status<select value={stockFilter} onChange={(event) => setStockFilter(event.target.value as "all" | "available" | "low" | "empty")} className="mt-1 h-9 rounded-md border border-input bg-white px-2 text-sm font-normal text-foreground"><option value="all">All stock</option><option value="available">Available (5+)</option><option value="low">Low stock (1–4)</option><option value="empty">No stock</option></select></label>
+      <label className="w-[170px] shrink-0 text-xs font-medium text-muted-foreground">Stock status<span className="relative mt-1 block"><select value={stockFilter} onChange={(event) => setStockFilter(event.target.value as "all" | "available" | "low" | "empty")} className="h-9 w-full appearance-none rounded-md border border-input bg-white px-3 pr-9 text-sm font-normal text-foreground"><option value="all">All stock</option><option value="available">Available</option><option value="low">Low stock</option><option value="empty">No stock</option></select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /></span></label>
     </div>
     {loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading {inventoryType === "Raw Material" ? "raw materials" : "final products"}…</p> : <><div className="overflow-x-auto"><table className="w-full min-w-[720px] table-fixed text-base"><colgroup><col className="w-[35%]" /><col className="w-[20%]" /><col className="w-[25%]" /><col className="w-[20%]" /></colgroup><thead className="border-b border-border text-center text-sm font-semibold uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3">Item</th><th className="px-4 py-3">Unique code</th><th className="px-4 py-3">Available quantity</th><th className="px-4 py-3">Status</th></tr></thead><tbody>{paginatedItems.map((item) => {
       const status = item.quantity <= 0 ? "No stock" : item.quantity < 5 ? "Low stock" : "Available";
       const tone = item.quantity <= 0 ? "bad" : item.quantity < 5 ? "warn" : "good";
       return <tr key={item.code} className="border-b border-border/70 last:border-0"><td className="px-4 py-4 text-center font-medium">{item.name}</td><td className="tabular whitespace-nowrap px-4 py-4 text-center text-base text-muted-foreground">{item.code}</td><td className="tabular px-4 py-4 text-center text-base font-semibold">{num(item.quantity)} {item.unit}</td><td className="px-4 py-4 text-center"><Tag tone={tone}>{status}</Tag></td></tr>;
-    })}</tbody></table>{!paginatedItems.length ? <p className="p-8 text-center text-base text-muted-foreground">No {inventoryType === "Raw Material" ? "raw materials" : "final products"} match the current search or filters.</p> : null}</div><TablePagination total={filteredItems.length} page={page} pageSize={pageSize} pageSizeOptions={[25, 50, 100]} onPageChange={setPage} onPageSizeChange={setPageSize} /></>}
+    })}</tbody></table>{!paginatedItems.length ? <p className="p-8 text-center text-base text-muted-foreground">No {inventoryType === "Raw Material" ? "raw materials" : "final products"} match the current search or filters.</p> : null}</div><TablePagination total={filteredItems.length} page={page} pageSize={pageSize} showPageSizeSelect={false} onPageChange={setPage} onPageSizeChange={() => undefined} /></>}
   </div>;
 }
 
