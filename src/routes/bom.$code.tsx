@@ -247,8 +247,115 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
       </div>
   );
 
+  const subHubContent = (
+    <section className="space-y-6 px-6 pb-6">
+      <div className="border-b border-border pt-5">
+        <div className="flex flex-wrap items-end justify-between gap-4 pb-4">
+          <div>
+            <h2 className="text-lg font-semibold">Company BOM variants</h2>
+            <p className="mt-1 text-base text-muted-foreground">{product.variants.length} variants</p>
+          </div>
+          <label className="block w-full max-w-sm text-sm font-medium text-muted-foreground">
+            Search variants
+            <span className="relative mt-1 block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={variantSearch}
+                onChange={(event) => setVariantSearch(event.target.value)}
+                placeholder="Search variants"
+                aria-label="Search variants"
+                className="h-11 w-full rounded-md border border-input bg-background pl-10 pr-3 text-base font-normal text-foreground outline-none focus:border-primary"
+              />
+            </span>
+          </label>
+        </div>
+        <nav aria-label="Company BOM variants" className="flex max-w-full overflow-x-auto border-t border-border">
+          {filteredVariants.map((variant) => {
+            const selected = variant.id === selectedVariantId;
+            return (
+              <button
+                key={variant.id}
+                type="button"
+                onClick={() => setSelectedVariantId(variant.id)}
+                aria-pressed={selected}
+                className={`min-w-[200px] border-b-2 px-4 py-3 text-left transition-colors ${
+                  selected
+                    ? "border-primary bg-primary/5 text-foreground"
+                    : "border-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                }`}
+              >
+                <span className="tabular block text-base font-medium uppercase tracking-wide">{variant.code}</span>
+                <span className="mt-1 block text-lg font-semibold">{variant.name}</span>
+                <span className="mt-1 block text-base text-muted-foreground">{variant.company}</span>
+              </button>
+            );
+          })}
+          {filteredVariants.length === 0 ? (
+            <p className="px-4 py-6 text-base text-muted-foreground">No matching variants.</p>
+          ) : null}
+        </nav>
+      </div>
+
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center gap-4 border-b border-border pb-4">
+          <img
+            src={product.image}
+            alt={`${product.name} assembly`}
+            className="size-16 rounded-md border border-border bg-white object-contain p-1"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              {structureView === "matrix" ? "BOM matrix" : "Raw subparts"}
+            </p>
+            <h2 className="mt-1 text-xl font-semibold">
+              {structureView === "matrix" ? `${product.name} variants` : selectedVariant?.name ?? "No variant selected"}
+            </h2>
+            <p className="mt-1 text-base text-muted-foreground">
+              {structureView === "matrix"
+                ? "Compare every variant against its required raw materials."
+                : selectedVariant
+                  ? `${selectedVariant.company} · ${selectedVariant.code}`
+                  : "No variant is available for this product."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex rounded-md border border-input bg-white p-1" role="group" aria-label="Structure view">
+              <button
+                type="button"
+                onClick={() => setStructureView("detail")}
+                aria-pressed={structureView === "detail"}
+                className={`min-h-10 rounded px-4 py-2 text-base font-medium ${
+                  structureView === "detail" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                Detail
+              </button>
+              <button
+                type="button"
+                onClick={() => setStructureView("matrix")}
+                aria-pressed={structureView === "matrix"}
+                className={`inline-flex min-h-10 items-center gap-2 rounded px-4 py-2 text-base font-medium ${
+                  structureView === "matrix" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <Table2 className="size-4" /> Matrix
+              </button>
+            </div>
+          </div>
+        </div>
+        {structureView === "matrix" ? (
+          <BomMatrix products={[currentProduct]} title={`${product.name} BOM matrix`} largeText />
+        ) : selectedVariant ? (
+          <PartsTable variant={selectedVariant} materials={materials} largeText />
+        ) : (
+          <p className="py-12 text-center text-base text-muted-foreground">No variant selected.</p>
+        )}
+      </div>
+    </section>
+  );
+
   const backLink = readOnly ? (
-    <Link to="/subhub/bom" className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm">
+    <Link to="/subhub/bom" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-card px-4 py-2 text-base">
       <ArrowLeft className="size-4" /> Bill of Materials
     </Link>
   ) : (
@@ -260,11 +367,10 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
   if (readOnly) {
     return (
       <SubHubShell
-        title={`${product.name} structure`}
-        subtitle={`${product.code} · ${product.variants.length} product variants · ${new Set(product.variants.flatMap((variant) => Object.keys(variant.parts))).size} raw parts`}
+        headerTitle={`${product.name} structure`}
         actions={backLink}
       >
-        {content}
+        {subHubContent}
       </SubHubShell>
     );
   }
@@ -313,14 +419,22 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
   );
 }
 
-function PartsTable({ variant, materials }: { variant: BomVariant; materials: RawMaterial[] }) {
+function PartsTable({
+  variant,
+  materials,
+  largeText = false,
+}: {
+  variant: BomVariant;
+  materials: RawMaterial[];
+  largeText?: boolean;
+}) {
   const parts = Object.entries(variant.parts)
     .map(([code, quantity]) => ({ part: materials.find((item) => item.code === code), quantity }))
     .filter((item): item is { part: RawMaterial; quantity: number } => Boolean(item.part));
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[650px] text-base">
+      <table className={largeText ? "w-full min-w-[720px] table-fixed text-base" : "w-full min-w-[650px] text-base"}>
         <caption className="sr-only">Raw parts for {variant.name}</caption>
         <thead className="border-b border-border bg-muted/20 text-left text-sm uppercase tracking-wide text-muted-foreground">
           <tr>
@@ -335,7 +449,7 @@ function PartsTable({ variant, materials }: { variant: BomVariant; materials: Ra
             <tr key={part.code} className="border-b border-border/70 last:border-0">
               <td className="px-6 py-4">
                 <p className="font-semibold">{part.name}</p>
-                <p className="tabular mt-0.5 text-sm text-muted-foreground">{part.code}</p>
+                <p className={`tabular mt-0.5 text-muted-foreground ${largeText ? "text-base" : "text-sm"}`}>{part.code}</p>
               </td>
               <td className="px-6 py-4 text-muted-foreground">{part.material}</td>
               <td className="px-6 py-4"><Tag tone={part.source === "Molded" ? "info" : "neutral"} size="md">{part.source}</Tag></td>

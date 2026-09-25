@@ -289,7 +289,9 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                 <div className="p-4">
                   <p className={`tabular font-medium uppercase tracking-wide text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>{product.code}</p>
                   <h2 className={`mt-1 font-semibold ${readOnly ? "text-xl" : "text-lg"}`}>{product.name}</h2>
-                  <p className={`mt-1 min-h-12 leading-6 text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>{product.description}</p>
+                  {!readOnly ? (
+                    <p className="mt-1 min-h-12 text-sm leading-6 text-muted-foreground">{product.description}</p>
+                  ) : null}
                   <div className={`mt-4 grid grid-cols-2 border-t border-border pt-3 ${readOnly ? "text-base" : "text-sm"}`}>
                     <div>
                       <p className={`font-medium uppercase tracking-wide text-muted-foreground ${readOnly ? "text-sm" : "text-xs"}`}>Variants</p>
@@ -328,7 +330,9 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                       <span className="min-w-0">
                         <span className={`tabular block font-medium uppercase tracking-wide text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>{product.code}</span>
                         <span className="mt-1 block text-lg font-semibold">{product.name}</span>
-                        <span className={`mt-1 block truncate text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>{product.description}</span>
+                        {!readOnly ? (
+                          <span className="mt-1 block truncate text-sm text-muted-foreground">{product.description}</span>
+                        ) : null}
                       </span>
                     </button>
                     <div className={`flex flex-wrap items-center gap-4 ${readOnly ? "text-base" : "text-sm"}`}>
