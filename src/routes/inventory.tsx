@@ -18,22 +18,12 @@ export const Route = createFileRoute("/inventory")({
 const emptyData: SubhubInventoryData = { items: [], movements: [], qualityLogs: [], qualitySummary: { records: 0, rejectedUnits: 0 }, batches: [], batchMovements: [], consistencyWarnings: [] };
 const qualityReasonOptions = [
   { value: "", label: "Select reason" },
-  { value: "custom", label: "Custom reason" },
-  { value: "quantity-increase", label: "Quantity increase" },
-  { value: "quantity-decrease", label: "Quantity decrease" },
-  { value: "faulty", label: "Faulty / failed inspection" },
-  { value: "damaged", label: "Damaged in handling" },
-  { value: "rejected", label: "Rejected during quality check" },
-  { value: "expired", label: "Expired or past shelf life" },
-  { value: "count-correction", label: "Stock count correction" },
-  { value: "supplier-discrepancy", label: "Supplier quantity discrepancy" },
-  { value: "rework", label: "Sent for rework" },
-  { value: "stock-received", label: "Stock received" },
-  { value: "returned-stock", label: "Returned stock" },
-  { value: "recovered-stock", label: "Recovered after reinspection" },
-  { value: "production-overage", label: "Production overage" },
-  { value: "supplier-replacement", label: "Supplier replacement" },
-  { value: "found-during-count", label: "Found during stock count" },
+  { value: "quantity-increase", label: "Stock went up" },
+  { value: "quantity-decrease", label: "Stock went down" },
+  { value: "damaged", label: "Damaged" },
+  { value: "faulty", label: "Did not pass check" },
+  { value: "expired", label: "Expired" },
+  { value: "custom", label: "Other reason" },
 ] as const;
 
 function InventoryRouteLayout() {
