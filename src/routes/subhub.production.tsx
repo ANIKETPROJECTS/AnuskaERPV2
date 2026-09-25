@@ -347,7 +347,7 @@ function ProductionRow({
             to="/subhub/production/allocation/$orderId"
             params={{ orderId: order.id }}
             search={{ date: selectedDate, quantity }}
-            className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted"
+            className="inline-flex w-max min-w-max flex-none items-center whitespace-nowrap rounded-md border border-input bg-white px-2.5 py-1.5 text-xs font-medium hover:bg-muted"
           >
             Material allocation
           </Link>
