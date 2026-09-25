@@ -268,7 +268,7 @@ function RequestStatus({ status }: { status: ProcurementItemRequest["status"] })
       ? "bg-green-700 text-white"
       : status === "Declined"
         ? "bg-red-700 text-white"
-        : "bg-[#8b6f00] text-white";
+        : "bg-yellow-500 text-white [text-shadow:0_1px_2px_#664d03]";
 
   return (
     <span className={`rounded-full px-2.5 py-1 text-sm font-semibold ${style}`}>{status}</span>
