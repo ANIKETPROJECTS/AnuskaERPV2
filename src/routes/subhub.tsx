@@ -1,5 +1,4 @@
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { ArrowUpRight, ClipboardCheck, FileBarChart, PackageOpen, ShoppingCart, UserRoundCog } from "lucide-react";
+import { createFileRoute, Navigate, Outlet, useRouterState } from "@tanstack/react-router";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { canAccess, useAuth } from "@/components/auth/AuthContext";
 
@@ -15,99 +14,36 @@ export const Route = createFileRoute("/subhub")({
 
 function SubHub() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const { user } = useAuth();
 
   if (pathname !== "/subhub") {
     return <Outlet />;
   }
 
-  return (
-    <SubHubShell>
-      <header className="border-b border-border bg-card px-6 py-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">SubHub Panel</p>
-        <h1 className="mt-2 text-xl font-semibold">Hub Operations</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Manage stock, hub activity, and operational reporting from one workspace.</p>
-      </header>
-      <SubHubOverview />
-    </SubHubShell>
-  );
-}
-
-function SubHubOverview() {
-  const { user } = useAuth();
-  const cards = [
-    {
-      permission: "inventory",
-      to: "/inventory",
-      icon: PackageOpen,
-      label: "Inventory Management",
-      description: "Manage raw materials and final product inventory separately.",
-       detail: "Workspace-scoped stock records",
-    },
-    {
-      permission: "hub-manager",
-      to: "/subhub/production",
-      icon: ClipboardCheck,
-      label: "Hub Manager",
-      description: "Record daily production output and manage hub-level targets.",
-       detail: "Orders assigned by Admin",
-    },
-    {
-      permission: "hub-reports",
-      to: "/subhub/reports",
-      icon: FileBarChart,
-      label: "Hub Reports",
-      description: "Review production performance and inventory movement reports.",
-       detail: "Saved daily reports",
-    },
-    {
-      permission: "hr",
-      to: "/subhub/hr",
-      icon: UserRoundCog,
-      label: "HR & Attendance",
-      description: "Mark daily attendance, manage shifts, and prepare monthly payroll reports.",
-      detail: "Simple daily status entry",
-    },
-    {
-      permission: "procurement",
-      to: "/procurement",
-      icon: ShoppingCart,
-      label: "Procurement",
-      description: "Choose vendors, place SubHub orders, and track delivery progress.",
-      detail: "Workspace-scoped purchase orders",
-    },
-  ];
-
-  const visibleCards = cards.filter((card) => canAccess(user, card.permission));
+  const defaultRoutes = [
+    { permission: "inventory", to: "/inventory" },
+    { permission: "hub-manager", to: "/subhub/production" },
+    { permission: "hub-reports", to: "/subhub/reports" },
+    { permission: "item-requests", to: "/subhub/request-items" },
+    { permission: "hr", to: "/subhub/hr" },
+    { permission: "procurement", to: "/procurement" },
+    { permission: "bom", to: "/subhub/bom" },
+    { permission: "raw-materials", to: "/subhub/raw-materials" },
+  ] as const;
+  const destination = defaultRoutes.find((route) => canAccess(user, route.permission))?.to;
+  if (destination === "/procurement") {
+    return <Navigate to="/procurement" search={{ panel: "subhub" }} replace />;
+  }
+  if (destination) return <Navigate to={destination} replace />;
 
   return (
-    <section className="space-y-6 p-6">
-      <div className="grid gap-4 lg:grid-cols-3">
-        {visibleCards.map((card) => (
-          <Link key={card.to} to={card.to} className="panel group p-5 transition hover:-translate-y-0.5 hover:border-primary/40">
-            <div className="flex items-start justify-between">
-              <div className="flex size-10 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <card.icon className="size-5" />
-              </div>
-              <ArrowUpRight className="size-4 text-muted-foreground transition group-hover:text-primary" />
-            </div>
-            <h2 className="mt-5 font-semibold">{card.label}</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">{card.description}</p>
-            <p className="mt-5 border-t border-border pt-3 text-xs font-medium text-primary">{card.detail}</p>
-          </Link>
-        ))}
-      </div>
-      {!visibleCards.length ? (
+    <SubHubShell title="No sections assigned" subtitle="Contact the Master Admin to request SubHub access.">
+      <div className="p-6">
         <div className="panel p-10 text-center">
-          <h2 className="font-semibold">No sections assigned</h2>
+          <h1 className="font-semibold">No sections assigned</h1>
           <p className="mt-2 text-sm text-muted-foreground">Contact the Master Admin to request SubHub access.</p>
         </div>
-      ) : null}
-      <div className="panel p-5">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Workspace boundary</p>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          This SubHub account is connected to its own isolated workspace. Admin master data such as Bills of Materials and Raw Materials is managed separately.
-        </p>
       </div>
-    </section>
+    </SubHubShell>
   );
 }

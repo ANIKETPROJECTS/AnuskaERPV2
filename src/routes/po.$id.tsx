@@ -53,12 +53,13 @@ function PurchaseMissing() {
 function PurchaseDetail() {
   const { order } = Route.useLoaderData();
   const { user } = useAuth();
+  const isSubHub = user?.panel === "subhub";
   const currentIndex = ["Order placed", "Payment done", "Dispatch done", "Delivery done"].indexOf(order.status);
   const content = (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className={`grid gap-4 sm:grid-cols-2 ${isSubHub ? "xl:grid-cols-3" : "xl:grid-cols-4"}`}>
         <Kpi label="Quantity" value={order.quantity.toLocaleString("en-IN")} hint="units ordered" />
-        <Kpi label="Order amount" value={`₹${order.totalAmount.toLocaleString("en-IN")}`} hint={`${order.items.length} material line${order.items.length === 1 ? "" : "s"}`} />
+        {!isSubHub ? <Kpi label="Order amount" value={`₹${order.totalAmount.toLocaleString("en-IN")}`} hint={`${order.items.length} material line${order.items.length === 1 ? "" : "s"}`} /> : null}
         <Kpi label="Status" value={order.status} tone={order.status === "Delivery done" ? "good" : "warn"} />
         <Kpi label="Expected delivery" value={formatDate(order.expectedDelivery)} hint={`ordered ${formatDate(order.orderDate)}`} />
       </div>
@@ -92,7 +93,7 @@ function PurchaseDetail() {
         </Panel>
         <Panel title="Materials in this order" description={`${order.items.length} line${order.items.length === 1 ? "" : "s"} · total quantity ${order.quantity.toLocaleString("en-IN")}`}>
           <div className="divide-y divide-border">
-            {order.items.map((item) => <div key={`${item.materialCode}:${item.materialName}`} className="flex items-center gap-4 px-5 py-3 text-sm"><div className="min-w-0 flex-1"><p className="truncate font-medium">{item.materialName}</p><p className="text-xs text-muted-foreground">{item.materialCode}</p></div><div className="text-right"><p className="tabular font-medium">{item.quantity.toLocaleString("en-IN")} units</p><p className="tabular text-xs text-muted-foreground">₹{item.totalAmount.toLocaleString("en-IN")}</p></div></div>)}
+            {order.items.map((item) => <div key={`${item.materialCode}:${item.materialName}`} className="flex items-center gap-4 px-5 py-3 text-sm"><div className="min-w-0 flex-1"><p className="truncate font-medium">{item.materialName}</p><p className="text-xs text-muted-foreground">{item.materialCode}</p></div><div className="text-right"><p className="tabular font-medium">{item.quantity.toLocaleString("en-IN")} units</p>{!isSubHub ? <p className="tabular text-xs text-muted-foreground">₹{item.totalAmount.toLocaleString("en-IN")}</p> : null}</div></div>)}
           </div>
         </Panel>
         <Panel title="Order notes" description="Receiving instructions and procurement context">

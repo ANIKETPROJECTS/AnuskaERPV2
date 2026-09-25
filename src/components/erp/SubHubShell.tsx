@@ -73,15 +73,6 @@ export function SubHubShell({
         </div>
         <nav className={`flex-1 space-y-1 ${sidebarCollapsed ? "p-2" : "p-3"}`} aria-label="SubHub navigation">
           {!sidebarCollapsed ? <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Modules</p> : null}
-          <Link
-            to="/subhub"
-            title={sidebarCollapsed ? "Overview" : undefined}
-            className={`flex items-center gap-3 rounded-md py-2 text-sm transition-colors ${sidebarCollapsed ? "justify-center px-2" : "px-3"} ${
-              pathname === "/subhub" ? "bg-sidebar-accent font-medium text-sidebar-primary" : "text-sidebar-foreground hover:bg-sidebar-accent/60"
-            }`}
-          >
-            <Boxes className="size-4" />{!sidebarCollapsed ? "Overview" : null}
-          </Link>
           {visibleNav.map((item) => {
             const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
             return (
