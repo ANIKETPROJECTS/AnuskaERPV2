@@ -47,6 +47,49 @@ function matchesCountFilter(value: number, filter: CountFilter) {
   return value === 0;
 }
 
+function BomViewSwitcher({
+  view,
+  onChange,
+  large = false,
+}: {
+  view: BomView;
+  onChange: (view: BomView) => void;
+  large?: boolean;
+}) {
+  const buttonSize = large
+    ? "inline-flex min-h-11 items-center gap-2 rounded px-4 py-2 text-base font-medium"
+    : "inline-flex min-h-9 items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium";
+
+  return (
+    <div className="flex rounded-md border border-input bg-white p-1" role="group" aria-label="BOM layout">
+      <button
+        type="button"
+        onClick={() => onChange("grid")}
+        aria-pressed={view === "grid"}
+        className={`${buttonSize} ${view === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+      >
+        <LayoutGrid className={large ? "size-4" : "size-3.5"} /> Grid
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("list")}
+        aria-pressed={view === "list"}
+        className={`${buttonSize} ${view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+      >
+        <List className={large ? "size-4" : "size-3.5"} /> List
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("matrix")}
+        aria-pressed={view === "matrix"}
+        className={`${buttonSize} ${view === "matrix" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+      >
+        <Table2 className={large ? "size-4" : "size-3.5"} /> Matrix
+      </button>
+    </div>
+  );
+}
+
 function Bom() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const { user } = useAuth();
@@ -146,80 +189,96 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
   }
 
   const content = (
-      <section className="space-y-6 p-6">
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">Parent assemblies</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Search product names, product codes, companies, or variant codes.</p>
-            </div>
-            <label className="relative block w-full max-w-sm">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                value={productSearch}
-                onChange={(event) => setProductSearch(event.target.value)}
-                placeholder="Search BOM products"
-                aria-label="Search BOM products"
-                className="h-11 w-full rounded-md border border-input bg-card pl-10 pr-3 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-              />
+    <section className={readOnly ? "space-y-5 px-6 py-5" : "space-y-6 p-6"}>
+      <div className="space-y-4">
+        {readOnly ? (
+          <div className="flex flex-wrap items-end gap-4 border-b border-border pb-4">
+            <label className="min-w-[240px] flex-1 text-base font-medium text-muted-foreground">
+              Search
+              <span className="relative mt-1 block">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={productSearch}
+                  onChange={(event) => setProductSearch(event.target.value)}
+                  placeholder="Search BOM products"
+                  aria-label="Search BOM products"
+                  className="h-12 w-full rounded-md border border-input bg-background pl-10 pr-3 text-base font-normal text-foreground outline-none focus:border-primary"
+                />
+              </span>
             </label>
+            <BomViewSwitcher view={view} onChange={setView} large />
           </div>
-          <div className="filter-toolbar rounded-lg border border-border bg-card p-4">
-            <label className="text-sm font-medium">
-              Sort by
-              <select value={sortBy} onChange={(event) => setSortBy(event.target.value as BomSort)} className="mt-1.5 h-11 rounded-md border border-input bg-white px-3 text-base font-normal">
-                <option value="name-asc">Name A–Z</option>
-                <option value="name-desc">Name Z–A</option>
-              </select>
-            </label>
-            <label className="text-sm font-medium">
-              Filter variants
-              <select value={variantFilter} onChange={(event) => setVariantFilter(event.target.value as CountFilter)} className="mt-1.5 h-11 rounded-md border border-input bg-white px-3 text-base font-normal">
-                <option value="all">Any variant count</option>
-                <option value="none">No variants</option>
-              </select>
-            </label>
-            <label className="text-sm font-medium">
-              Filter raw parts
-              <select value={rawPartsFilter} onChange={(event) => setRawPartsFilter(event.target.value as CountFilter)} className="mt-1.5 h-11 rounded-md border border-input bg-white px-3 text-base font-normal">
-                <option value="all">Any raw-part count</option>
-                <option value="none">No raw parts</option>
-              </select>
-            </label>
-            <button type="button" onClick={clearCatalogFilters} className="h-11 rounded-md border border-input px-4 text-sm font-medium text-muted-foreground hover:bg-muted">
-              Clear filters
-            </button>
-            <div className="ml-auto flex flex-wrap items-center gap-4">
-              <div className="flex rounded-md border border-input bg-white p-1" aria-label="BOM layout">
-                <button
-                  type="button"
-                  onClick={() => setView("grid")}
-                  aria-pressed={view === "grid"}
-                  className={`inline-flex min-h-9 items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium ${view === "grid" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
-                >
-                  <LayoutGrid className="size-3.5" /> Grid
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setView("list")}
-                  aria-pressed={view === "list"}
-                  className={`inline-flex min-h-9 items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium ${view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
-                >
-                  <List className="size-3.5" /> List
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setView("matrix")}
-                  aria-pressed={view === "matrix"}
-                  className={`inline-flex min-h-9 items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium ${view === "matrix" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
-                >
-                  <Table2 className="size-3.5" /> Matrix
-                </button>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Parent assemblies</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Search product names, product codes, companies, or variant codes.
+                </p>
               </div>
-              <p className="text-sm text-muted-foreground">{filteredProducts.length} of {products.length} parent assemblies</p>
+              <label className="relative block w-full max-w-sm">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={productSearch}
+                  onChange={(event) => setProductSearch(event.target.value)}
+                  placeholder="Search BOM products"
+                  aria-label="Search BOM products"
+                  className="h-11 w-full rounded-md border border-input bg-card pl-10 pr-3 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+              </label>
             </div>
-          </div>
-        </div>
+            <div className="filter-toolbar rounded-lg border border-border bg-card p-4">
+              <label className="text-sm font-medium">
+                Sort by
+                <select
+                  value={sortBy}
+                  onChange={(event) => setSortBy(event.target.value as BomSort)}
+                  className="mt-1.5 h-11 rounded-md border border-input bg-white px-3 text-base font-normal"
+                >
+                  <option value="name-asc">Name A–Z</option>
+                  <option value="name-desc">Name Z–A</option>
+                </select>
+              </label>
+              <label className="text-sm font-medium">
+                Filter variants
+                <select
+                  value={variantFilter}
+                  onChange={(event) => setVariantFilter(event.target.value as CountFilter)}
+                  className="mt-1.5 h-11 rounded-md border border-input bg-white px-3 text-base font-normal"
+                >
+                  <option value="all">Any variant count</option>
+                  <option value="none">No variants</option>
+                </select>
+              </label>
+              <label className="text-sm font-medium">
+                Filter raw parts
+                <select
+                  value={rawPartsFilter}
+                  onChange={(event) => setRawPartsFilter(event.target.value as CountFilter)}
+                  className="mt-1.5 h-11 rounded-md border border-input bg-white px-3 text-base font-normal"
+                >
+                  <option value="all">Any raw-part count</option>
+                  <option value="none">No raw parts</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                onClick={clearCatalogFilters}
+                className="h-11 rounded-md border border-input px-4 text-sm font-medium text-muted-foreground hover:bg-muted"
+              >
+                Clear filters
+              </button>
+              <div className="ml-auto flex flex-wrap items-center gap-4">
+                <BomViewSwitcher view={view} onChange={setView} />
+                <p className="text-sm text-muted-foreground">
+                  {filteredProducts.length} of {products.length} parent assemblies
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
         {view === "grid" ? (
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
             {filteredProducts.map((product) => (
