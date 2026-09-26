@@ -486,7 +486,16 @@ export function ProcurementPage({
               />
             ) : null}
           </section>
-          {selectedVendor && panel !== "procurement" ? <VendorDetail vendor={selectedVendor} orders={selectedVendorOrders} onClose={() => setSelectedVendorId("")} /> : null}
+          {selectedVendor && panel === "procurement" ? (
+            <VendorDetailsDrawer vendor={selectedVendor} onClose={() => setSelectedVendorId("")} />
+          ) : null}
+          {selectedVendor && panel !== "procurement" ? (
+            <VendorDetail
+              vendor={selectedVendor}
+              orders={selectedVendorOrders}
+              onClose={() => setSelectedVendorId("")}
+            />
+          ) : null}
         </>
       ) : null}
       {activeTab === "needs" ? <HubMaterialNeeds data={data} panel={panel as "admin" | "procurement"} onSaved={async (message) => { setNotice(message); await reload(); }} /> : null}
@@ -1242,7 +1251,7 @@ function VendorTable({
   const showAdminMetrics = panel === "admin";
   const tableClassName = showAdminMetrics
     ? "w-full min-w-[1120px] text-base"
-    : "w-full min-w-[1240px] table-auto text-base";
+    : "w-full min-w-[900px] table-auto text-base";
 
   if (vendors.length === 0) {
     return (
@@ -1269,8 +1278,6 @@ function VendorTable({
               <>
                 <th className="min-w-40 px-4 py-3 font-semibold">Contact person</th>
                 <th className="min-w-36 px-4 py-3 font-semibold">Phone</th>
-                <th className="min-w-52 px-4 py-3 font-semibold">Email</th>
-                <th className="min-w-56 px-4 py-3 font-semibold">Location</th>
               </>
             ) : (
               <th className="px-4 py-3 font-semibold">Contact</th>
@@ -1291,12 +1298,6 @@ function VendorTable({
         <tbody>
           {vendors.map((vendor) => {
             const performance = performanceByVendor.get(vendor.id);
-            const location = [
-              vendor.address,
-              [vendor.city, vendor.state, vendor.pincode].filter(Boolean).join(", "),
-            ]
-              .filter(Boolean)
-              .join(" · ");
             return (
               <tr
                 key={vendor.id}
@@ -1337,8 +1338,6 @@ function VendorTable({
                   <>
                     <td className="px-4 py-4 text-left">{vendor.contactName || "—"}</td>
                     <td className="whitespace-nowrap px-4 py-4 text-left">{vendor.phone || "—"}</td>
-                    <td className="break-words px-4 py-4 text-left">{vendor.email || "—"}</td>
-                    <td className="max-w-64 break-words px-4 py-4 text-left">{location || "—"}</td>
                   </>
                 ) : (
                   <td className="px-4 py-4 text-muted-foreground">
@@ -1382,15 +1381,15 @@ function VendorTable({
                       >
                         <Edit3 aria-hidden="true" className="size-4" />
                       </button>
-                      <Link
-                        to="/procurement-management/vendor-history/$vendorId"
-                        params={{ vendorId: vendor.id }}
-                        title={`View ${vendor.name} purchase history`}
-                        aria-label={`View purchase history for ${vendor.name}`}
+                      <button
+                        type="button"
+                        onClick={() => onSelect(selectedVendorId === vendor.id ? "" : vendor.id)}
+                        title={`View details for ${vendor.name}`}
+                        aria-label={`View details for ${vendor.name}`}
                         className="inline-flex size-10 items-center justify-center rounded-md border border-input text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                       >
                         <Eye aria-hidden="true" className="size-4" />
-                      </Link>
+                      </button>
                     </div>
                   ) : isAdmin ? (
                     <div className="inline-flex gap-1">
@@ -1433,6 +1432,60 @@ function VendorDetail({ vendor, orders, onClose }: { vendor: ProcurementVendor; 
     <SectionHeading title={`${vendor.name} · purchase history`} description={`${orders.length} orders · ${vendor.paymentTerms || "Payment terms not specified"}`} action={<button type="button" onClick={onClose} aria-label="Close vendor history" className="inline-flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"><X className="size-5" /></button>} />
     {orders.length ? <div className="overflow-x-auto border-b border-border"><table className="w-full min-w-[680px] text-base"><thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3 font-semibold">Order</th><th className="px-4 py-3 font-semibold">SubHub</th><th className="px-4 py-3 font-semibold">Material</th><th className="px-4 py-3 text-right font-semibold">Qty</th><th className="px-4 py-3 text-right font-semibold">Amount</th><th className="px-4 py-3 font-semibold">Status</th></tr></thead><tbody>{orders.map((order) => <tr key={order.id} className="border-b border-border/70 last:border-0"><td className="px-4 py-4"><Link to="/po/$id" params={{ id: order.id }} className="font-semibold text-primary hover:underline">{order.orderNumber}</Link><p className="text-sm text-muted-foreground">{formatDate(order.orderDate)}</p></td><td className="px-4 py-4">{order.subhubName}</td><td className="px-4 py-4">{order.materialName}</td><td className="tabular px-4 py-4 text-right">{num(order.quantity)}</td><td className="tabular px-4 py-4 text-right">{inr(order.totalAmount)}</td><td className="px-4 py-4"><Tag size="md" tone={statusTone(order.status)}>{order.status}</Tag></td></tr>)}</tbody></table></div> : <EmptyState icon={<History className="size-7" />} title="No purchase history" description="Orders placed with this vendor will appear here." />}
   </section>;
+}
+
+function VendorDetailsDrawer({
+  vendor,
+  onClose,
+}: {
+  vendor: ProcurementVendor;
+  onClose: () => void;
+}) {
+  const location = [
+    vendor.address,
+    [vendor.city, vendor.state, vendor.pincode].filter(Boolean).join(", "),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const details = [
+    { label: "Contact person", value: vendor.contactName },
+    { label: "Phone", value: vendor.phone },
+    { label: "Email", value: vendor.email },
+    { label: "Location", value: location },
+    {
+      label: "Categories",
+      value: vendor.categories.length ? vendor.categories.join(" · ") : "General materials",
+    },
+    { label: "Notes", value: vendor.notes },
+  ];
+
+  return (
+    <Drawer title={vendor.name} subtitle="Vendor details" onClose={onClose}>
+      <dl className="grid gap-5 sm:grid-cols-2">
+        {details.map(({ label, value }) => (
+          <div
+            key={label}
+            className={label === "Categories" || label === "Notes" ? "sm:col-span-2" : ""}
+          >
+            <dt className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              {label}
+            </dt>
+            <dd className="mt-1 break-words font-medium">{value || "—"}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="mt-8 border-t border-border pt-5">
+        <Link
+          to="/procurement-management/vendor-history/$vendorId"
+          params={{ vendorId: vendor.id }}
+          className="inline-flex min-h-11 items-center gap-2 rounded-md border border-input px-4 font-semibold hover:bg-muted"
+        >
+          <History aria-hidden="true" className="size-4" />
+          Open purchase history
+        </Link>
+      </div>
+    </Drawer>
+  );
 }
 
 function AdminReports({ data }: { data: ProcurementData }) {
