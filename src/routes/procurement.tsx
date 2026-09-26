@@ -27,7 +27,6 @@ import { Panel, Tag } from "@/components/erp/bits";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { TablePagination } from "@/components/erp/TablePagination";
-import { HubBatchBrowser } from "@/components/erp/HubBatchBrowser";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -590,7 +589,6 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
   })), [data.materialNeeds, data.subhubs]);
   const [selectedHubId, setSelectedHubId] = useState<string | null>(null);
   const [orderHub, setOrderHub] = useState<string | null>(null);
-  const [showBatchRegister, setShowBatchRegister] = useState(false);
 
   if (!hubs.length) {
     return <div className="panel p-8 text-center text-sm text-muted-foreground">No active SubHubs are available.</div>;
@@ -621,10 +619,7 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
                 key={hub.id}
                 type="button"
                 aria-label={`View ${hub.name}: ${shortageCount} shortages across ${hub.needs.length} materials`}
-                onClick={() => {
-                  setSelectedHubId(hub.id);
-                  setShowBatchRegister(false);
-                }}
+                onClick={() => setSelectedHubId(hub.id)}
                 className="panel group w-full p-5 text-left transition hover:border-primary/50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -673,10 +668,7 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
       <div className="space-y-4">
         <button
           type="button"
-          onClick={() => {
-            setSelectedHubId(null);
-            setShowBatchRegister(false);
-          }}
+          onClick={() => setSelectedHubId(null)}
           className="inline-flex min-h-9 items-center gap-2 rounded-md px-2 text-sm font-medium text-primary hover:bg-muted"
         >
           <ArrowLeft aria-hidden="true" className="size-4" />
@@ -706,15 +698,6 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
         </section>
 
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            aria-expanded={showBatchRegister}
-            onClick={() => setShowBatchRegister((current) => !current)}
-            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-muted"
-          >
-            <ClipboardList aria-hidden="true" className="size-4" />
-            {showBatchRegister ? "Hide batch register" : "View batch register"}
-          </button>
           <button
             type="button"
             disabled={!shortageCount}
@@ -768,7 +751,6 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
           )}
         </Panel>
 
-        {showBatchRegister ? <HubBatchBrowser hubId={selectedHub.id} panel={panel} /> : null}
       </div>
       {orderHub ? (
         <ShortageOrderForm
