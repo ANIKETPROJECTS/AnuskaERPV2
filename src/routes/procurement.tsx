@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ClipboardList,
   Edit3,
+  Eye,
   Filter,
   History,
   PackagePlus,
@@ -1147,7 +1148,7 @@ function VendorFilters({
   clearFilters: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-end gap-3 border-b border-border p-4">
+    <div className="flex flex-wrap items-end gap-3 p-4">
       <label className="min-w-[240px] flex-1 text-sm font-medium text-muted-foreground">
         Search vendors
         <span className="relative mt-1 block">
@@ -1241,7 +1242,7 @@ function VendorTable({
   const showAdminMetrics = panel === "admin";
   const tableClassName = showAdminMetrics
     ? "w-full min-w-[1120px] text-base"
-    : "w-full min-w-[920px] text-base";
+    : "w-full min-w-[1240px] table-auto text-base";
 
   if (vendors.length === 0) {
     return (
@@ -1263,10 +1264,21 @@ function VendorTable({
       <table className={tableClassName}>
         <thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground">
           <tr>
-            <th className="px-4 py-3 font-semibold">Vendor</th>
-            <th className="px-4 py-3 font-semibold">Contact</th>
-            <th className="px-4 py-3 font-semibold">Categories</th>
-            <th className="px-4 py-3 text-right font-semibold">Orders</th>
+            <th className="min-w-44 px-4 py-3 font-semibold">Vendor</th>
+            {panel === "procurement" ? (
+              <>
+                <th className="min-w-40 px-4 py-3 font-semibold">Contact person</th>
+                <th className="min-w-36 px-4 py-3 font-semibold">Phone</th>
+                <th className="min-w-52 px-4 py-3 font-semibold">Email</th>
+                <th className="min-w-56 px-4 py-3 font-semibold">Location</th>
+              </>
+            ) : (
+              <th className="px-4 py-3 font-semibold">Contact</th>
+            )}
+            <th className="min-w-40 px-4 py-3 font-semibold">Categories</th>
+            {showAdminMetrics ? (
+              <th className="px-4 py-3 text-right font-semibold">Orders</th>
+            ) : null}
             {showAdminMetrics ? (
               <>
                 <th className="px-4 py-3 text-right font-semibold">Spend</th>
@@ -1279,6 +1291,12 @@ function VendorTable({
         <tbody>
           {vendors.map((vendor) => {
             const performance = performanceByVendor.get(vendor.id);
+            const location = [
+              vendor.address,
+              [vendor.city, vendor.state, vendor.pincode].filter(Boolean).join(", "),
+            ]
+              .filter(Boolean)
+              .join(" · ");
             return (
               <tr
                 key={vendor.id}
@@ -1304,33 +1322,42 @@ function VendorTable({
                       {vendor.name}
                     </button>
                   )}
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <Tag size="md" tone={vendor.status === "active" ? "good" : "neutral"}>
-                      {vendor.status}
-                    </Tag>
-                    {showAdminMetrics && vendor.paymentTerms ? (
-                      <span className="text-sm text-muted-foreground">{vendor.paymentTerms}</span>
-                    ) : null}
-                  </div>
+                  {panel === "admin" ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Tag size="md" tone={vendor.status === "active" ? "good" : "neutral"}>
+                        {vendor.status}
+                      </Tag>
+                      {vendor.paymentTerms ? (
+                        <span className="text-sm text-muted-foreground">{vendor.paymentTerms}</span>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </td>
-                <td className="px-4 py-4 text-muted-foreground">
-                  {vendor.contactName || "—"}
-                  <br />
-                  {vendor.phone || vendor.email || "No contact saved"}
-                </td>
+                {panel === "procurement" ? (
+                  <>
+                    <td className="px-4 py-4 text-left">{vendor.contactName || "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-4 text-left">{vendor.phone || "—"}</td>
+                    <td className="break-words px-4 py-4 text-left">{vendor.email || "—"}</td>
+                    <td className="max-w-64 break-words px-4 py-4 text-left">{location || "—"}</td>
+                  </>
+                ) : (
+                  <td className="px-4 py-4 text-muted-foreground">
+                    {vendor.contactName || "—"}
+                    <br />
+                    {vendor.phone || vendor.email || "No contact saved"}
+                  </td>
+                )}
                 <td className="max-w-56 px-4 py-4 text-muted-foreground">
                   {vendor.categories.length ? vendor.categories.join(" · ") : "General materials"}
                 </td>
-                <td className="tabular px-4 py-4 text-right font-semibold">
-                  {performance?.orders ?? 0}
-                  {showAdminMetrics ? (
-                    <p className="text-sm font-normal text-muted-foreground">
-                      {performance?.pendingOrders ?? 0} pending
-                    </p>
-                  ) : null}
-                </td>
                 {showAdminMetrics ? (
                   <>
+                    <td className="tabular px-4 py-4 text-right font-semibold">
+                      {performance?.orders ?? 0}
+                      <p className="text-sm font-normal text-muted-foreground">
+                        {performance?.pendingOrders ?? 0} pending
+                      </p>
+                    </td>
                     <td className="tabular px-4 py-4 text-right">{inr(performance?.spend ?? 0)}</td>
                     <td className="px-4 py-4 text-right">
                       {performance?.onTimeRate === null || performance?.onTimeRate === undefined ? (
@@ -1344,7 +1371,28 @@ function VendorTable({
                   </>
                 ) : null}
                 <td className="px-4 py-4 text-right">
-                  {isAdmin ? (
+                  {panel === "procurement" ? (
+                    <div className="inline-flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onEdit(vendor)}
+                        title={`Edit ${vendor.name}`}
+                        aria-label={`Edit ${vendor.name}`}
+                        className="inline-flex size-10 items-center justify-center rounded-md border border-input text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                      >
+                        <Edit3 aria-hidden="true" className="size-4" />
+                      </button>
+                      <Link
+                        to="/procurement-management/vendor-history/$vendorId"
+                        params={{ vendorId: vendor.id }}
+                        title={`View ${vendor.name} purchase history`}
+                        aria-label={`View purchase history for ${vendor.name}`}
+                        className="inline-flex size-10 items-center justify-center rounded-md border border-input text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                      >
+                        <Eye aria-hidden="true" className="size-4" />
+                      </Link>
+                    </div>
+                  ) : isAdmin ? (
                     <div className="inline-flex gap-1">
                       <button
                         type="button"

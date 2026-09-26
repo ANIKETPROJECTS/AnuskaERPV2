@@ -218,7 +218,7 @@ export function VendorPurchaseHistory({
                     <Link
                       to="/po/$id"
                       params={{ id: order.id }}
-                      search={{ panel: "procurement" }}
+                      search={{ panel: "procurement", vendorHistoryId: vendor.id }}
                       className="font-semibold text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     >
                       {order.orderNumber}

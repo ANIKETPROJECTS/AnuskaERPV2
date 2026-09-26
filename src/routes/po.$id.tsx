@@ -9,7 +9,10 @@ import type { ProcurementStatus } from "@/procurement.server";
 import { z } from "zod";
 
 export const Route = createFileRoute("/po/$id")({
-  validateSearch: z.object({ panel: z.enum(["admin", "subhub", "procurement"]).optional() }),
+  validateSearch: z.object({
+    panel: z.enum(["admin", "subhub", "procurement"]).optional(),
+    vendorHistoryId: z.string().min(1).optional(),
+  }),
   loaderDeps: ({ search }) => ({ panel: search.panel }),
   loader: async ({ params, deps }) => {
     const auth = await getAuthStateFn({ data: deps.panel ? { panel: deps.panel } : {} });
@@ -58,6 +61,7 @@ function PurchaseMissing() {
 
 function PurchaseDetail() {
   const { order } = Route.useLoaderData();
+  const { vendorHistoryId } = Route.useSearch();
   const { user } = useAuth();
   const isSubHub = user?.panel === "subhub";
   const currentIndex = ["Order placed", "Payment done", "Dispatch done", "Delivery done"].indexOf(order.status);
@@ -114,7 +118,11 @@ function PurchaseDetail() {
         <section>
           <DetailSectionHeading
             title="Materials in this order"
-            description={isSubHub ? undefined : `${order.items.length} line${order.items.length === 1 ? "" : "s"} · total quantity ${order.quantity.toLocaleString("en-IN")}`}
+            {...(!isSubHub
+              ? {
+                  description: `${order.items.length} line${order.items.length === 1 ? "" : "s"} · total quantity ${order.quantity.toLocaleString("en-IN")}`,
+                }
+              : {})}
           />
           <div className="divide-y divide-border border-b border-border">
             {order.items.map((item) => <div key={`${item.materialCode}:${item.materialName}`} className="flex items-center gap-4 px-2 py-4 text-base"><div className="min-w-0 flex-1"><p className="truncate font-semibold">{item.materialName}</p><p className="text-sm text-muted-foreground">{item.materialCode}</p></div><div className="text-right"><p className="tabular font-semibold">{item.quantity.toLocaleString("en-IN")} units</p>{!isSubHub ? <p className="tabular text-sm text-muted-foreground">₹{item.totalAmount.toLocaleString("en-IN")}</p> : null}</div></div>)}
@@ -130,7 +138,33 @@ function PurchaseDetail() {
   );
   const title = `Purchase ${order.orderNumber}`;
   const subtitle = `${order.items.length === 1 ? order.materialName : `${order.items.length} materials`} · ${order.vendorName} · ${order.subhubName}`;
-  const actions = <Link to={user?.panel === "procurement" ? "/procurement-management" : "/procurement"} search={user?.panel === "procurement" ? undefined : { panel: user?.panel ?? "admin" }} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold"><ArrowLeft className="size-5" /> Back to procurement</Link>;
+  const backLinkClassName =
+    "inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted";
+  const actions =
+    user?.panel === "procurement" && vendorHistoryId ? (
+      <Link
+        to="/procurement-management/vendor-history/$vendorId"
+        params={{ vendorId: vendorHistoryId }}
+        className={backLinkClassName}
+      >
+        <ArrowLeft className="size-5" />
+        Back to vendor history
+      </Link>
+    ) : user?.panel === "procurement" ? (
+      <Link to="/procurement-management" className={backLinkClassName}>
+        <ArrowLeft className="size-5" />
+        Back to procurement
+      </Link>
+    ) : (
+      <Link
+        to="/procurement"
+        search={{ panel: user?.panel ?? "admin" }}
+        className={backLinkClassName}
+      >
+        <ArrowLeft className="size-5" />
+        Back to procurement
+      </Link>
+    );
   return user?.panel === "subhub" ? (
     <SubHubShell headerTitle={title} actions={actions}>
       <div className="space-y-6 px-6 py-5">{content}</div>
