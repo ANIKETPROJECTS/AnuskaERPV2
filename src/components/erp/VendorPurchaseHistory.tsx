@@ -3,11 +3,8 @@ import { ArrowLeft, ChevronDown, Search, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { Shell } from "@/components/erp/Shell";
 import { TablePagination } from "@/components/erp/TablePagination";
-import { Tag } from "@/components/erp/bits";
 import type { ProcurementOrder, ProcurementStatus, ProcurementVendor } from "@/procurement.server";
 import { PROCUREMENT_STATUSES } from "@/lib/procurement-types";
-
-type HistorySort = "newest" | "oldest" | "delivery" | "quantity";
 
 const PAGE_SIZE = 25;
 
@@ -21,11 +18,14 @@ function formatDate(value: string) {
   }).format(new Date(`${value}T00:00:00Z`));
 }
 
-function getStatusTone(status: ProcurementStatus): "good" | "warn" | "info" | "neutral" {
-  if (status === "Delivery done") return "good";
-  if (status === "Dispatch done") return "info";
-  if (status === "Payment done") return "warn";
-  return "neutral";
+function getStatusClass(status: ProcurementStatus) {
+  const classes: Record<ProcurementStatus, string> = {
+    "Order placed": "bg-slate-700",
+    "Payment done": "bg-blue-700",
+    "Dispatch done": "bg-orange-700",
+    "Delivery done": "bg-emerald-700",
+  };
+  return classes[status];
 }
 
 export function VendorPurchaseHistory({
@@ -40,7 +40,6 @@ export function VendorPurchaseHistory({
   const [statusFilter, setStatusFilter] = useState<ProcurementStatus | "all">("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [sortBy, setSortBy] = useState<HistorySort>("newest");
   const [page, setPage] = useState(1);
 
   const subhubs = useMemo(
@@ -71,26 +70,16 @@ export function VendorPurchaseHistory({
           (!toDate || order.orderDate <= toDate)
         );
       })
-      .sort((a, b) => {
-        if (sortBy === "oldest") return a.orderDate.localeCompare(b.orderDate);
-        if (sortBy === "delivery") return a.expectedDelivery.localeCompare(b.expectedDelivery);
-        if (sortBy === "quantity") return b.quantity - a.quantity;
-        return b.orderDate.localeCompare(a.orderDate);
-      });
-  }, [fromDate, orders, query, sortBy, statusFilter, subhubFilter, toDate]);
+      .sort((a, b) => b.orderDate.localeCompare(a.orderDate));
+  }, [fromDate, orders, query, statusFilter, subhubFilter, toDate]);
 
   useEffect(() => {
     setPage(1);
-  }, [fromDate, query, sortBy, statusFilter, subhubFilter, toDate]);
+  }, [fromDate, query, statusFilter, subhubFilter, toDate]);
 
   const visibleOrders = filteredOrders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const hasFilters = Boolean(
-    query.trim() ||
-    subhubFilter !== "all" ||
-    statusFilter !== "all" ||
-    fromDate ||
-    toDate ||
-    sortBy !== "newest",
+    query.trim() || subhubFilter !== "all" || statusFilter !== "all" || fromDate || toDate,
   );
 
   function clearFilters() {
@@ -99,7 +88,6 @@ export function VendorPurchaseHistory({
     setStatusFilter("all");
     setFromDate("");
     setToDate("");
-    setSortBy("newest");
   }
 
   return (
@@ -195,25 +183,6 @@ export function VendorPurchaseHistory({
               className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal text-foreground"
             />
           </label>
-          <label className="w-full text-sm font-medium text-muted-foreground sm:w-48">
-            Sort by
-            <span className="relative mt-1 block">
-              <select
-                value={sortBy}
-                onChange={(event) => setSortBy(event.target.value as HistorySort)}
-                className="h-11 w-full appearance-none rounded-md border border-input bg-background px-3 pr-9 text-base font-normal text-foreground"
-              >
-                <option value="newest">Newest order</option>
-                <option value="oldest">Oldest order</option>
-                <option value="delivery">Expected delivery</option>
-                <option value="quantity">Largest quantity</option>
-              </select>
-              <ChevronDown
-                aria-hidden="true"
-                className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-            </span>
-          </label>
           {hasFilters ? (
             <button
               type="button"
@@ -227,25 +196,16 @@ export function VendorPurchaseHistory({
         </div>
 
         <div className="overflow-x-auto border-y border-border">
-          <table className="w-full min-w-[940px] table-fixed text-base">
-            <colgroup>
-              <col className="w-[13%]" />
-              <col className="w-[17%]" />
-              <col className="w-[23%]" />
-              <col className="w-[9%]" />
-              <col className="w-[12%]" />
-              <col className="w-[12%]" />
-              <col className="w-[14%]" />
-            </colgroup>
+          <table className="w-full min-w-[1080px] table-auto text-base">
             <thead className="border-b border-border text-left text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-3 py-3">Order</th>
-                <th className="px-3 py-3">SubHub</th>
-                <th className="px-3 py-3">Materials</th>
-                <th className="px-3 py-3 text-right">Qty</th>
-                <th className="px-3 py-3">Ordered</th>
-                <th className="px-3 py-3">Expected</th>
-                <th className="px-3 py-3">Status</th>
+                <th className="min-w-40 px-5 py-4 text-left">Order</th>
+                <th className="min-w-40 px-5 py-4 text-left">SubHub</th>
+                <th className="min-w-64 px-5 py-4 text-left">Materials</th>
+                <th className="min-w-20 px-5 py-4 text-right">Qty</th>
+                <th className="min-w-36 px-5 py-4 text-left">Ordered</th>
+                <th className="min-w-36 px-5 py-4 text-left">Expected</th>
+                <th className="min-w-40 px-5 py-4 text-left">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -254,24 +214,37 @@ export function VendorPurchaseHistory({
                   key={order.id}
                   className="border-b border-border/70 align-middle odd:bg-muted/20 hover:bg-muted/40"
                 >
-                  <td className="break-words px-3 py-4 font-semibold">{order.orderNumber}</td>
-                  <td className="break-words px-3 py-4">{order.subhubName}</td>
-                  <td className="break-words px-3 py-4">
+                  <td className="whitespace-nowrap px-5 py-5">
+                    <Link
+                      to="/po/$id"
+                      params={{ id: order.id }}
+                      search={{ panel: "procurement" }}
+                      className="font-semibold text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    >
+                      {order.orderNumber}
+                    </Link>
+                  </td>
+                  <td className="break-words px-5 py-5 text-left">{order.subhubName}</td>
+                  <td className="min-w-64 break-words px-5 py-5 text-left">
                     {order.items.length
                       ? order.items.map((item) => item.materialName).join(" · ")
                       : order.materialName}
                   </td>
-                  <td className="tabular px-3 py-4 text-right font-semibold">
+                  <td className="tabular whitespace-nowrap px-5 py-5 text-right font-semibold">
                     {order.quantity.toLocaleString("en-IN")}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-4">{formatDate(order.orderDate)}</td>
-                  <td className="whitespace-nowrap px-3 py-4">
+                  <td className="whitespace-nowrap px-5 py-5 text-left">
+                    {formatDate(order.orderDate)}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-5 text-left">
                     {formatDate(order.expectedDelivery)}
                   </td>
-                  <td className="px-3 py-4">
-                    <Tag size="md" tone={getStatusTone(order.status)}>
+                  <td className="px-5 py-5 text-left">
+                    <span
+                      className={`inline-flex min-h-8 items-center rounded-md px-3 py-1 text-sm font-semibold text-white ${getStatusClass(order.status)}`}
+                    >
                       {order.status}
-                    </Tag>
+                    </span>
                   </td>
                 </tr>
               ))}
