@@ -27,6 +27,7 @@ import { Route as SubhubRouteImport } from './routes/subhub'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as BomCodeRouteImport } from './routes/bom.$code'
 import { Route as HrHistoryRouteImport } from './routes/hr.history'
+import { Route as HrReportsRouteImport } from './routes/hr.reports'
 import { Route as HubCodeRouteImport } from './routes/hub.$code'
 import { Route as HubsHubIdRouteImport } from './routes/hubs.$hubId'
 import { Route as InventoryBatchesRouteImport } from './routes/inventory.batches'
@@ -151,6 +152,11 @@ const BomCodeRoute = BomCodeRouteImport.update({
 const HrHistoryRoute = HrHistoryRouteImport.update({
   id: '/history',
   path: '/history',
+  getParentRoute: () => HrRoute,
+} as any)
+const HrReportsRoute = HrReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => HrRoute,
 } as any)
 const HubCodeRoute = HubCodeRouteImport.update({
@@ -358,6 +364,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/bom/$code': typeof BomCodeRoute
   '/hr/history': typeof HrHistoryRoute
+  '/hr/reports': typeof HrReportsRoute
   '/hub/$code': typeof HubCodeRoute
   '/hubs/$hubId': typeof HubsHubIdRoute
   '/inventory/batches': typeof InventoryBatchesRouteWithChildren
@@ -413,6 +420,7 @@ export interface FileRoutesByTo {
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/bom/$code': typeof BomCodeRoute
   '/hr/history': typeof HrHistoryRoute
+  '/hr/reports': typeof HrReportsRoute
   '/hub/$code': typeof HubCodeRoute
   '/hubs/$hubId': typeof HubsHubIdRoute
   '/inventory/batches': typeof InventoryBatchesRouteWithChildren
@@ -469,6 +477,7 @@ export interface FileRoutesById {
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/bom/$code': typeof BomCodeRoute
   '/hr/history': typeof HrHistoryRoute
+  '/hr/reports': typeof HrReportsRoute
   '/hub/$code': typeof HubCodeRoute
   '/hubs/$hubId': typeof HubsHubIdRoute
   '/inventory/batches': typeof InventoryBatchesRouteWithChildren
@@ -526,6 +535,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/bom/$code'
     | '/hr/history'
+    | '/hr/reports'
     | '/hub/$code'
     | '/hubs/$hubId'
     | '/inventory/batches'
@@ -581,6 +591,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/bom/$code'
     | '/hr/history'
+    | '/hr/reports'
     | '/hub/$code'
     | '/hubs/$hubId'
     | '/inventory/batches'
@@ -636,6 +647,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/bom/$code'
     | '/hr/history'
+    | '/hr/reports'
     | '/hub/$code'
     | '/hubs/$hubId'
     | '/inventory/batches'
@@ -823,6 +835,13 @@ declare module '@tanstack/react-router' {
       path: '/history'
       fullPath: '/hr/history'
       preLoaderRoute: typeof HrHistoryRouteImport
+      parentRoute: typeof HrRoute
+    }
+    '/hr/reports': {
+      id: '/hr/reports'
+      path: '/reports'
+      fullPath: '/hr/reports'
+      preLoaderRoute: typeof HrReportsRouteImport
       parentRoute: typeof HrRoute
     }
     '/hub/$code': {
@@ -1085,11 +1104,13 @@ const BomRouteWithChildren = BomRoute._addFileChildren(BomRouteChildren)
 
 interface HrRouteChildren {
   HrHistoryRoute: typeof HrHistoryRoute
+  HrReportsRoute: typeof HrReportsRoute
   HrEmployeeSubhubIdEmployeeIdRoute: typeof HrEmployeeSubhubIdEmployeeIdRoute
 }
 
 const HrRouteChildren: HrRouteChildren = {
   HrHistoryRoute: HrHistoryRoute,
+  HrReportsRoute: HrReportsRoute,
   HrEmployeeSubhubIdEmployeeIdRoute: HrEmployeeSubhubIdEmployeeIdRoute,
 }
 

@@ -7,7 +7,7 @@ import { getAdminHeadcountReportFn } from "@/hr";
 import type { AdminHeadcountReport } from "@/hr.server";
 
 export const Route = createFileRoute("/hr/history")({
-  head: () => ({ meta: [{ title: "Headcount history — Admin · Gadsons ERP" }] }),
+  head: () => ({ meta: [{ title: "Attendance history — Admin · Gadsons ERP" }] }),
   component: AdminHrHistoryPage,
 });
 
@@ -115,15 +115,15 @@ function AdminHrHistoryPage() {
 
   return (
     <Shell
-      title="Headcount history"
+      title="Attendance history"
       subtitle="Read-only daily attendance recorded by each SubHub."
       actions={
         <Link
-          to="/hr"
+          to="/hr/reports"
           className="inline-flex min-h-11 items-center gap-2 rounded-md border border-input bg-white px-4 text-base font-medium hover:bg-muted"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
-          Back to HR report
+          Back to reports
         </Link>
       }
     >
