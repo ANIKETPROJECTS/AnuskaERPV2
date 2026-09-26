@@ -1,5 +1,5 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ArrowLeft, CheckCircle2, Circle, Clock3, Package, Truck } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Circle, Package } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthContext";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/po/$id")({
     return {
       meta: [
         { title },
-        { name: "description", content: `Vendor, quantity, spend and delivery timeline for ${loaderData.order.orderNumber}.` },
+        { name: "description", content: `Vendor, ordered quantity and delivery timeline for ${loaderData.order.orderNumber}.` },
       ],
     };
   },
@@ -64,10 +64,11 @@ function PurchaseDetail() {
   const { vendorHistoryId } = Route.useSearch();
   const { user } = useAuth();
   const isSubHub = user?.panel === "subhub";
-  const currentIndex = ["Order placed", "Payment done", "Dispatch done", "Delivery done"].indexOf(order.status);
+  const visibleStatusSteps: ProcurementStatus[] = ["Order placed", "Dispatch done", "Delivery done"];
+  const currentIndex =
+    order.status === "Payment done" ? 0 : visibleStatusSteps.indexOf(order.status);
   const summaryMetrics = [
     { label: "Quantity", value: order.quantity.toLocaleString("en-IN"), hint: "Units ordered" },
-    ...(!isSubHub ? [{ label: "Order amount", value: `₹${order.totalAmount.toLocaleString("en-IN")}`, hint: `${order.items.length} material line${order.items.length === 1 ? "" : "s"}` }] : []),
     { label: "Status", value: order.status, hint: "Current procurement stage" },
     { label: "Expected delivery", value: formatDate(order.expectedDelivery), hint: `Ordered ${formatDate(order.orderDate)}` },
   ];
@@ -75,7 +76,7 @@ function PurchaseDetail() {
     <div className="space-y-6 text-base">
       <section
         aria-label="Order summary"
-        className={`grid gap-x-8 border-border ${isSubHub ? "-mx-6 border-b grid-cols-1 px-6 sm:grid-cols-2 xl:grid-cols-3" : "border-y grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"}`}
+        className={`grid gap-x-8 border-border grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 ${isSubHub ? "-mx-6 border-b px-6" : "border-y"}`}
       >
         {summaryMetrics.map((metric) => (
           <div key={metric.label} className="py-4">
@@ -89,7 +90,7 @@ function PurchaseDetail() {
       <section>
         <DetailSectionHeading title="Order status history" description="Every transition is stored with the actor and timestamp." />
         <ol className="divide-y divide-border border-b border-border">
-          {(["Order placed", "Payment done", "Dispatch done", "Delivery done"] as ProcurementStatus[]).map((status, index) => {
+          {visibleStatusSteps.map((status, index) => {
             const entry = order.statusHistory.find((item) => item.status === status);
             const done = index <= currentIndex;
             return (
@@ -116,16 +117,9 @@ function PurchaseDetail() {
           </dl>
         </section>
         <section>
-          <DetailSectionHeading
-            title="Materials in this order"
-            {...(!isSubHub
-              ? {
-                  description: `${order.items.length} line${order.items.length === 1 ? "" : "s"} · total quantity ${order.quantity.toLocaleString("en-IN")}`,
-                }
-              : {})}
-          />
+          <DetailSectionHeading title="Materials in this order" />
           <div className="divide-y divide-border border-b border-border">
-            {order.items.map((item) => <div key={`${item.materialCode}:${item.materialName}`} className="flex items-center gap-4 px-2 py-4 text-base"><div className="min-w-0 flex-1"><p className="truncate font-semibold">{item.materialName}</p><p className="text-sm text-muted-foreground">{item.materialCode}</p></div><div className="text-right"><p className="tabular font-semibold">{item.quantity.toLocaleString("en-IN")} units</p>{!isSubHub ? <p className="tabular text-sm text-muted-foreground">₹{item.totalAmount.toLocaleString("en-IN")}</p> : null}</div></div>)}
+            {order.items.map((item) => <div key={`${item.materialCode}:${item.materialName}`} className="flex items-center gap-4 px-2 py-4 text-base"><div className="min-w-0 flex-1"><p className="truncate font-semibold">{item.materialName}</p><p className="text-sm text-muted-foreground">{item.materialCode}</p></div><div className="text-right"><p className="tabular font-semibold">{item.quantity.toLocaleString("en-IN")} units</p></div></div>)}
           </div>
         </section>
         <section className="lg:col-span-2">
@@ -133,7 +127,6 @@ function PurchaseDetail() {
           {order.notes ? <p className="whitespace-pre-wrap border-b border-border py-4 text-base leading-7 text-muted-foreground">{order.notes}</p> : <div className="border-b border-border py-8 text-center"><Package className="mx-auto size-8 text-primary" /><p className="mt-3 text-base text-muted-foreground">No notes were added to this order.</p></div>}
         </section>
       </div>
-      {!isSubHub ? <div className="flex items-center gap-3 border-y border-border py-3 text-base text-muted-foreground"><Clock3 className="size-5 shrink-0" /> Status changes are recorded in the procurement audit trail.<Truck className="ml-auto size-5 shrink-0" /></div> : null}
     </div>
   );
   const title = `Purchase ${order.orderNumber}`;

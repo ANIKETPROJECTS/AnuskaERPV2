@@ -118,6 +118,8 @@ function solidStatusClass(status: ProcurementStatus) {
   return "bg-slate-700";
 }
 
+const ORDER_ACTION_STATUSES = PROCUREMENT_STATUSES.filter((status) => status !== "Payment done");
+
 function Procurement() {
   return <ProcurementPage result={Route.useLoaderData()} />;
 }
@@ -1098,8 +1100,9 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
                   </td>
                   {isAdmin ? (
                     <td className="px-3 py-3 text-right">
-                      <select aria-label={`Change status for ${order.orderNumber}`} value={order.status} onChange={(event) => onStatusChange(order, event.target.value as ProcurementStatus)} className={`h-9 min-w-36 rounded-md border-0 px-2 text-xs font-semibold text-white outline-none focus:ring-2 focus:ring-primary ${solidStatusClass(order.status)}`}>
-                        {PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                      <select aria-label={`Change status for ${order.orderNumber}`} value={order.status === "Payment done" ? "" : order.status} onChange={(event) => onStatusChange(order, event.target.value as ProcurementStatus)} className={`h-9 min-w-36 rounded-md border-0 px-2 text-xs font-semibold text-white outline-none focus:ring-2 focus:ring-primary ${solidStatusClass(order.status)}`}>
+                        {order.status === "Payment done" ? <option value="" disabled>Update status</option> : null}
+                        {ORDER_ACTION_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
                       </select>
                     </td>
                   ) : null}
