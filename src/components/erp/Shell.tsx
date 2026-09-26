@@ -79,8 +79,9 @@ export function Shell({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const router = useRouter();
   const { user } = useAuth();
+  const isProcurementPanel = user?.panel === "procurement";
   const visibleNav =
-    user?.panel === "procurement"
+    isProcurementPanel
       ? procurementPanelNav
       : nav.filter((item) => canAccess(user, item.permission));
   const initials =
@@ -100,7 +101,7 @@ export function Shell({
   return (
     <div className="flex min-h-screen">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
-        <div className="flex items-center gap-3 border-b border-sidebar-border px-4 py-4">
+        <div className="flex h-[65px] shrink-0 items-center gap-3 border-b border-sidebar-border px-4">
           <div className="flex min-w-0 items-center gap-3">
             <img
               src={factoryIcon}
@@ -108,8 +109,12 @@ export function Shell({
               className="size-10 shrink-0 rounded-md bg-white p-1 object-contain"
             />
             <div className="min-w-0 leading-tight">
-              <p className="text-base font-semibold">Gadsons</p>
-              <p className="truncate text-sm text-muted-foreground">Water Purifier Parts ERP</p>
+              <p className="text-base font-semibold">
+                {isProcurementPanel ? "Procurement" : "Gadsons"}
+              </p>
+              {!isProcurementPanel ? (
+                <p className="truncate text-sm text-muted-foreground">Water Purifier Parts ERP</p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -151,9 +156,11 @@ export function Shell({
             </div>
             <div className="min-w-0 flex-1 leading-tight">
               <p className="truncate text-base font-medium">{user?.name}</p>
-              <p className="text-sm capitalize text-muted-foreground">
-                {user?.role === "master_admin" ? "Master Admin" : user?.role} · Secure session
-              </p>
+              {!isProcurementPanel ? (
+                <p className="text-sm capitalize text-muted-foreground">
+                  {user?.role === "master_admin" ? "Master Admin" : user?.role} · Secure session
+                </p>
+              ) : null}
             </div>
             <SignOutButton
               panel={user?.panel === "procurement" ? "Procurement" : "Admin"}
@@ -165,9 +172,15 @@ export function Shell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur">
-          <div className="flex flex-wrap items-center gap-4 px-6 py-4">
+          <div className="flex min-h-[65px] flex-wrap items-center gap-4 px-6 py-0">
             <div className="min-w-0 flex-1">
-              <h1 className="truncate text-xl font-semibold">{title}</h1>
+              <h1
+                className={`truncate font-semibold ${
+                  isProcurementPanel ? "text-lg leading-tight" : "text-xl"
+                }`}
+              >
+                {title}
+              </h1>
               {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
             </div>
             {user?.panel === "admin" ? <NotificationBell panel="admin" /> : null}
