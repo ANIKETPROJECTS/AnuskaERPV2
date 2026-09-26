@@ -934,7 +934,7 @@ function HubTransferDrawer({
     >
       <form className="space-y-5" onSubmit={submit}>
         <div className="rounded-md border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-          Transfers take effect immediately. The available quantity excludes stock needed for the source hub’s current production targets, and every batch movement is recorded.
+          Transfers take effect immediately and can use the source hub’s full available batch-tracked stock, including stock needed for its own production. Each transfer is capped by the destination shortage, and every batch movement is recorded.
         </div>
 
         <label className="block text-sm font-semibold">
@@ -959,7 +959,7 @@ function HubTransferDrawer({
         </label>
 
         {loading ? (
-          <p className="rounded-md border border-border p-4 text-sm text-muted-foreground">Checking live stock and source hub needs…</p>
+            <p className="rounded-md border border-border p-4 text-sm text-muted-foreground">Checking live stock…</p>
         ) : usableSources.length ? (
           <div className="overflow-x-auto rounded-md border border-border">
             <table className="w-full min-w-[560px] text-sm">
@@ -967,7 +967,7 @@ function HubTransferDrawer({
                 <tr>
                   <th className="px-3 py-3">Material</th>
                   <th className="px-3 py-3 text-right">Destination shortage</th>
-                  <th className="px-3 py-3 text-right">Source transferable</th>
+                  <th className="px-3 py-3 text-right">Source stock available</th>
                   <th className="px-3 py-3 text-right">Move</th>
                 </tr>
               </thead>
@@ -985,7 +985,7 @@ function HubTransferDrawer({
                       <td className="tabular px-3 py-3 text-right">
                         <p className="font-medium">{num(material?.transferableQuantity ?? 0)}</p>
                         <p className="text-xs text-muted-foreground">
-                          {num(material?.stockQuantity ?? 0)} in stock · {num(material?.reservedQuantity ?? 0)} needed
+                          {num(material?.stockQuantity ?? 0)} in stock · {num(material?.reservedQuantity ?? 0)} needed for production
                         </p>
                       </td>
                       <td className="px-3 py-3 text-right">
@@ -1009,7 +1009,7 @@ function HubTransferDrawer({
           </div>
         ) : (
           <p className="rounded-md border border-border p-4 text-sm text-muted-foreground">
-            No other active hub has batch-tracked stock above its own current production needs for these materials.
+            No other active hub has batch-tracked stock available for these materials.
           </p>
         )}
 

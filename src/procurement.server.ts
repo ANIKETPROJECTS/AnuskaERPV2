@@ -614,7 +614,7 @@ export async function getHubTransferOptions(input: {
           itemName: stockByCode.get(itemCode)?.name ?? subparts.find((part) => part.code === itemCode)?.name ?? itemCode,
           stockQuantity,
           reservedQuantity,
-          transferableQuantity: Math.max(0, batchTrackedQuantity - reservedQuantity),
+          transferableQuantity: Math.max(0, batchTrackedQuantity),
         };
       });
       return { hubId: hub._id, hubName: getHubDisplayName(hub), materials };
@@ -709,7 +709,7 @@ export async function createHubInventoryTransfer(input: {
       if (item.quantity > sourceAvailability) {
         return {
           ok: false,
-          message: `${source.hubName} can transfer only ${sourceAvailability.toLocaleString("en-IN")} units of ${item.itemCode} without reducing its stock below current production needs.`,
+          message: `${source.hubName} has only ${sourceAvailability.toLocaleString("en-IN")} batch-tracked units of ${item.itemCode} available to transfer.`,
         };
       }
     }
