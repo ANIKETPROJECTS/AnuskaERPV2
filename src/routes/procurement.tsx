@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+  ArrowLeft,
+  ArrowRight,
   Archive,
   CalendarDays,
   Check,
@@ -21,7 +23,7 @@ import type { DateRange } from "react-day-picker";
 import { z } from "zod";
 import type { Panel as ProcurementPanel } from "@/auth.server";
 import { useAuth } from "@/components/auth/AuthContext";
-import { Tag } from "@/components/erp/bits";
+import { Panel, Tag } from "@/components/erp/bits";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { TablePagination } from "@/components/erp/TablePagination";
@@ -402,7 +404,7 @@ export function ProcurementPage({
         </section>
       ) : null}
 
-      {panel !== "subhub" && !(panel === "procurement" && (activeTab === "requests" || activeTab === "vendors" || activeTab === "orders")) ? <div className="flex flex-col gap-3 border-b border-border pb-3 lg:flex-row lg:items-end lg:justify-between">
+      {panel !== "subhub" && !(panel === "procurement" && (activeTab === "requests" || activeTab === "vendors" || activeTab === "orders" || activeTab === "needs")) ? <div className="flex flex-col gap-3 border-b border-border pb-3 lg:flex-row lg:items-end lg:justify-between">
         {panel !== "procurement" ? <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-1" role="tablist" aria-label="Procurement sections">
           <button type="button" role="tab" aria-selected={activeTab === "orders"} onClick={() => setTab("orders")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${activeTab === "orders" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             <ClipboardList className="size-5" /> Order Management
@@ -419,7 +421,7 @@ export function ProcurementPage({
         </div> : null}
         <div className="flex flex-wrap gap-2">
           {canManageProcurement && activeTab === "vendors" && panel !== "procurement" ? <button type="button" onClick={openCreateVendor} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted"><Plus className="size-5" /> Add vendor</button> : null}
-          {activeTab !== "orders" && !(panel === "procurement" && activeTab === "requests") ? <button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-semibold hover:bg-muted disabled:opacity-50"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh</button> : null}
+          {activeTab !== "orders" && activeTab !== "needs" && !(panel === "procurement" && activeTab === "requests") ? <button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-semibold hover:bg-muted disabled:opacity-50"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh</button> : null}
         </div>
       </div> : null}
 
@@ -586,53 +588,202 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
     ...hub,
     needs: data.materialNeeds.filter((need) => need.subhubUserId === hub.id),
   })), [data.materialNeeds, data.subhubs]);
+  const [selectedHubId, setSelectedHubId] = useState<string | null>(null);
   const [orderHub, setOrderHub] = useState<string | null>(null);
-  const [batchHub, setBatchHub] = useState<string | null>(null);
+  const [showBatchRegister, setShowBatchRegister] = useState(false);
 
   if (!hubs.length) {
-    return <section>
-      <SectionHeading title="Hub stock and target material needs" description="Required quantities are calculated from active production targets, reports, hub stock, and outstanding procurement orders." />
-      <p className="border-b border-border py-8 text-center text-base text-muted-foreground">No active SubHubs are available.</p>
-    </section>;
+    return <div className="panel p-8 text-center text-sm text-muted-foreground">No active SubHubs are available.</div>;
   }
 
-  return <>
-    <div className="space-y-4">
-      <div className="border-b border-border pb-3">
-        <SectionHeading title="Hub stock and target material needs" description="Remaining BOM requirements are compared with stock in each SubHub and material already on order." />
-        <p className="mt-3 text-base text-muted-foreground">A shortage is the remaining target requirement minus available stock and undelivered procurement quantities. Use each SubHub’s batch register to review individual items and traceability.</p>
-      </div>
-      {hubs.map((hub) => {
-        const { id: hubId, name: hubName, needs } = hub;
-        const shortageCount = needs.filter((need) => need.shortageQuantity > 0).length;
-        return <section key={hubId} className="border-b border-border pb-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 py-4">
-            <div><h3 className="text-lg font-semibold">{hubName}</h3><p className="mt-1 text-base text-muted-foreground">{needs.length} raw materials · {shortageCount} below required quantity</p></div>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" aria-expanded={batchHub === hubId} onClick={() => setBatchHub(batchHub === hubId ? null : hubId)} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted"><ClipboardList className="size-5" /> {batchHub === hubId ? "Hide batch register" : "Batch register"}</button>
-              <button type="button" disabled={!shortageCount} onClick={() => setOrderHub(hubId)} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50"><PackagePlus className="size-5" /> Create order for shortages</button>
+  const selectedHub = hubs.find((hub) => hub.id === selectedHubId);
+
+  if (!selectedHub) {
+    return (
+      <section aria-label="SubHub stock overview">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold">Choose a hub</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Select a card to review its stock and shortages.</p>
+          </div>
+          <p className="text-xs text-muted-foreground">{num(hubs.length)} hubs</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {hubs.map((hub) => {
+            const shortageCount = hub.needs.filter((need) => need.shortageQuantity > 0).length;
+            const coverageLabel = hub.needs.length === 0
+              ? "No targets"
+              : shortageCount
+                ? `${num(shortageCount)} ${shortageCount === 1 ? "shortage" : "shortages"}`
+                : "All covered";
+            return (
+              <button
+                key={hub.id}
+                type="button"
+                aria-label={`View ${hub.name}: ${shortageCount} shortages across ${hub.needs.length} materials`}
+                onClick={() => {
+                  setSelectedHubId(hub.id);
+                  setShowBatchRegister(false);
+                }}
+                className="panel group w-full p-5 text-left transition hover:border-primary/50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">SubHub</p>
+                    <h3 className="mt-1 truncate text-base font-semibold">{hub.name}</h3>
+                  </div>
+                  <Tag tone={hub.needs.length === 0 ? "neutral" : shortageCount ? "warn" : "good"}>
+                    {coverageLabel}
+                  </Tag>
+                </div>
+                <div className="mt-5 grid grid-cols-2 gap-3 border-t border-border pt-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Materials</p>
+                    <p className="tabular mt-1 text-xl font-semibold">{num(hub.needs.length)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Shortages</p>
+                    <p className={`tabular mt-1 text-xl font-semibold ${shortageCount ? "text-destructive" : "text-success"}`}>{num(shortageCount)}</p>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-sm font-medium text-primary">
+                  <span>View hub details</span>
+                  <ArrowRight aria-hidden="true" className="size-4 transition-transform group-hover:translate-x-0.5" />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
+
+  const shortageCount = selectedHub.needs.filter((need) => need.shortageQuantity > 0).length;
+  const coverageLabel = selectedHub.needs.length === 0
+    ? "No targets"
+    : shortageCount
+      ? `${num(shortageCount)} ${shortageCount === 1 ? "shortage" : "shortages"}`
+      : "All covered";
+  const selectedNeeds = data.materialNeeds.filter(
+    (need) => need.subhubUserId === selectedHub.id && need.shortageQuantity > 0,
+  );
+
+  return (
+    <>
+      <div className="space-y-4">
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedHubId(null);
+            setShowBatchRegister(false);
+          }}
+          className="inline-flex min-h-9 items-center gap-2 rounded-md px-2 text-sm font-medium text-primary hover:bg-muted"
+        >
+          <ArrowLeft aria-hidden="true" className="size-4" />
+          All hubs
+        </button>
+
+        <section className="panel overflow-hidden">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Hub stock & targets</p>
+              <h2 className="mt-1 text-lg font-semibold">{selectedHub.name}</h2>
+            </div>
+            <Tag tone={selectedHub.needs.length === 0 ? "neutral" : shortageCount ? "warn" : "good"}>
+              {coverageLabel}
+            </Tag>
+          </div>
+          <div className="grid gap-4 p-5 sm:grid-cols-2">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Materials tracked</p>
+              <p className="tabular mt-1 text-2xl font-semibold">{num(selectedHub.needs.length)}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Shortages</p>
+              <p className={`tabular mt-1 text-2xl font-semibold ${shortageCount ? "text-destructive" : "text-success"}`}>{num(shortageCount)}</p>
             </div>
           </div>
-          {needs.length ? (
-            <div className="overflow-x-auto border-y border-border">
-              <table className="w-full min-w-[760px] text-base">
-                <thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3 font-semibold">Raw material</th><th className="px-4 py-3 text-right font-semibold">Needed for remaining targets</th><th className="px-4 py-3 text-right font-semibold">Hub stock</th><th className="px-4 py-3 text-right font-semibold">On order</th><th className="px-4 py-3 text-right font-semibold">Additional quantity</th><th className="px-4 py-3 text-right font-semibold">Stock status</th></tr></thead>
-                <tbody>{needs.map((need) => <tr key={need.itemCode} className="border-b border-border/70 last:border-0"><td className="px-4 py-4 font-semibold">{need.itemName}<span className="ml-2 text-sm font-normal text-muted-foreground">{need.itemCode}</span></td><td className="tabular px-4 py-4 text-right">{num(need.requiredQuantity)}</td><td className="tabular px-4 py-4 text-right">{num(need.stockQuantity)}</td><td className="tabular px-4 py-4 text-right">{num(need.onOrderQuantity)}</td><td className={`tabular px-4 py-4 text-right font-semibold ${need.shortageQuantity > 0 ? "text-destructive" : "text-success"}`}>{num(need.shortageQuantity)}</td><td className="px-4 py-4 text-right"><Tag size="md" tone={need.shortageQuantity > 0 ? "warn" : "good"}>{need.shortageQuantity > 0 ? "Low stock" : "Sufficient"}</Tag></td></tr>)}</tbody>
+        </section>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            aria-expanded={showBatchRegister}
+            onClick={() => setShowBatchRegister((current) => !current)}
+            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-muted"
+          >
+            <ClipboardList aria-hidden="true" className="size-4" />
+            {showBatchRegister ? "Hide batch register" : "View batch register"}
+          </button>
+          <button
+            type="button"
+            disabled={!shortageCount}
+            onClick={() => setOrderHub(selectedHub.id)}
+            className="inline-flex min-h-10 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <PackagePlus aria-hidden="true" className="size-4" />
+            Create order for shortages
+          </button>
+        </div>
+
+        <Panel title="Materials for this hub">
+          {selectedHub.needs.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Material</th>
+                    <th className="px-4 py-3 text-right font-semibold">Needed</th>
+                    <th className="px-4 py-3 text-right font-semibold">In stock</th>
+                    <th className="px-4 py-3 text-right font-semibold">Already ordered</th>
+                    <th className="px-4 py-3 text-right font-semibold">Still needed</th>
+                    <th className="px-4 py-3 text-right font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedHub.needs.map((need) => (
+                    <tr key={need.itemCode} className="border-t border-border/70">
+                      <td className="px-4 py-3">
+                        <p className="font-medium">{need.itemName}</p>
+                        <p className="text-xs text-muted-foreground">{need.itemCode}</p>
+                      </td>
+                      <td className="tabular whitespace-nowrap px-4 py-3 text-right">{num(need.requiredQuantity)}</td>
+                      <td className="tabular whitespace-nowrap px-4 py-3 text-right">{num(need.stockQuantity)}</td>
+                      <td className="tabular whitespace-nowrap px-4 py-3 text-right">{num(need.onOrderQuantity)}</td>
+                      <td className={`tabular whitespace-nowrap px-4 py-3 text-right font-semibold ${need.shortageQuantity > 0 ? "text-destructive" : "text-success"}`}>
+                        {num(need.shortageQuantity)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Tag tone={need.shortageQuantity > 0 ? "warn" : "good"}>
+                          {need.shortageQuantity > 0 ? "Shortage" : "Sufficient"}
+                        </Tag>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
               </table>
             </div>
-          ) : <p className="py-5 text-base text-muted-foreground">No active raw-material targets for this SubHub. Its batch register is still available above.</p>}
-          {batchHub === hubId ? <div className="border-t border-border py-4"><HubBatchBrowser hubId={hubId} panel={panel} /></div> : null}
-        </section>;
-      })}
-    </div>
-    {orderHub ? <ShortageOrderForm
-      data={data}
-      needs={data.materialNeeds.filter((need) => need.subhubUserId === orderHub && need.shortageQuantity > 0)}
-      panel={panel}
-      onClose={() => setOrderHub(null)}
-      onSaved={async (message) => { setOrderHub(null); await onSaved(message); }}
-    /> : null}
-  </>;
+          ) : (
+            <p className="p-8 text-center text-sm text-muted-foreground">No active material targets for this hub.</p>
+          )}
+        </Panel>
+
+        {showBatchRegister ? <HubBatchBrowser hubId={selectedHub.id} panel={panel} /> : null}
+      </div>
+      {orderHub ? (
+        <ShortageOrderForm
+          data={data}
+          needs={selectedNeeds}
+          panel={panel}
+          onClose={() => setOrderHub(null)}
+          onSaved={async (message) => {
+            setOrderHub(null);
+            await onSaved(message);
+          }}
+        />
+      ) : null}
+    </>
+  );
 }
 
 function ShortageOrderForm({ data, needs, panel, onClose, onSaved }: { data: ProcurementData; needs: HubMaterialNeed[]; panel: "admin" | "procurement"; onClose: () => void; onSaved: (message: string) => Promise<void> }) {
