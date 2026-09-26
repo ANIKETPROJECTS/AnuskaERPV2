@@ -141,6 +141,12 @@ export function ProcurementPage({
   const [tab, setTab] = useState<Tab>("orders");
   const activeTab = view ?? tab;
   const [query, setQuery] = useState("");
+  const [vendorQuery, setVendorQuery] = useState("");
+  const [vendorStatusFilter, setVendorStatusFilter] = useState<ProcurementVendor["status"] | "all">(
+    "all",
+  );
+  const [vendorCategoryFilter, setVendorCategoryFilter] = useState("all");
+  const [vendorPage, setVendorPage] = useState(1);
   const [vendorFilter, setVendorFilter] = useState("all");
   const [subhubFilter, setSubhubFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<ProcurementStatus | "all">("all");
@@ -228,6 +234,47 @@ export function ProcurementPage({
     const normalized = query.trim().toLowerCase();
     return data.vendors.filter((vendor) => !normalized || [vendor.name, vendor.contactName, vendor.phone, vendor.email, vendor.city, vendor.state, vendor.categories.join(" ")].join(" ").toLowerCase().includes(normalized));
   }, [data.vendors, query]);
+  const vendorCategories = useMemo(() => {
+    const categories = data.vendors.flatMap((vendor) =>
+      vendor.categories.map((category) => category.trim()).filter(Boolean),
+    );
+    return [...new Set(categories)].sort((a, b) => a.localeCompare(b));
+  }, [data.vendors]);
+  const filteredProcurementVendors = useMemo(() => {
+    const normalized = vendorQuery.trim().toLowerCase();
+    return data.vendors
+      .filter((vendor) => {
+        const searchable = [
+          vendor.name,
+          vendor.contactName,
+          vendor.phone,
+          vendor.email,
+          vendor.city,
+          vendor.state,
+          vendor.categories.join(" "),
+        ]
+          .join(" ")
+          .toLowerCase();
+        return (
+          (!normalized || searchable.includes(normalized)) &&
+          (vendorStatusFilter === "all" || vendor.status === vendorStatusFilter) &&
+          (vendorCategoryFilter === "all" || vendor.categories.includes(vendorCategoryFilter))
+        );
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [data.vendors, vendorCategoryFilter, vendorQuery, vendorStatusFilter]);
+  const vendorPageSize = 25;
+  const paginatedProcurementVendors = filteredProcurementVendors.slice(
+    (vendorPage - 1) * vendorPageSize,
+    vendorPage * vendorPageSize,
+  );
+  const hasVendorFilters = Boolean(
+    vendorQuery.trim() || vendorStatusFilter !== "all" || vendorCategoryFilter !== "all",
+  );
+
+  useEffect(() => {
+    setVendorPage(1);
+  }, [vendorCategoryFilter, vendorQuery, vendorStatusFilter]);
 
   const selectedVendor = data.vendors.find((vendor) => vendor.id === selectedVendorId);
   const selectedVendorOrders = selectedVendorId ? data.orders.filter((order) => order.vendorId === selectedVendorId) : [];
@@ -242,6 +289,12 @@ export function ProcurementPage({
     setOrderDate("");
     setFromDate("");
     setToDate("");
+  }
+
+  function clearVendorFilters() {
+    setVendorQuery("");
+    setVendorStatusFilter("all");
+    setVendorCategoryFilter("all");
   }
 
   async function updateOrderStatus(order: ProcurementOrder, status: ProcurementStatus) {
@@ -330,7 +383,7 @@ export function ProcurementPage({
         </section>
       ) : null}
 
-      {panel !== "subhub" && (panel !== "procurement" || activeTab !== "requests") ? <div className="flex flex-col gap-3 border-b border-border pb-3 lg:flex-row lg:items-end lg:justify-between">
+      {panel !== "subhub" && !(panel === "procurement" && (activeTab === "requests" || activeTab === "vendors")) ? <div className="flex flex-col gap-3 border-b border-border pb-3 lg:flex-row lg:items-end lg:justify-between">
         {panel !== "procurement" ? <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-1" role="tablist" aria-label="Procurement sections">
           <button type="button" role="tab" aria-selected={activeTab === "orders"} onClick={() => setTab("orders")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${activeTab === "orders" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             <ClipboardList className="size-5" /> Order Management
@@ -346,7 +399,7 @@ export function ProcurementPage({
           </button> : null}
         </div> : null}
         <div className="flex flex-wrap gap-2">
-          {canManageProcurement && activeTab === "vendors" ? <button type="button" onClick={openCreateVendor} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted"><Plus className="size-5" /> Add vendor</button> : null}
+          {canManageProcurement && activeTab === "vendors" && panel !== "procurement" ? <button type="button" onClick={openCreateVendor} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted"><Plus className="size-5" /> Add vendor</button> : null}
           {canManageProcurement && activeTab === "orders" ? <button type="button" onClick={() => setShowOrderForm(true)} className="rule-header inline-flex min-h-12 items-center gap-2 rounded-md px-4 text-base font-semibold"><PackagePlus className="size-5" /> New procurement order</button> : null}
           {!(panel === "procurement" && activeTab === "requests") ? <button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted disabled:opacity-50"><RefreshCw className={`size-5 ${loading ? "animate-spin" : ""}`} /> Refresh</button> : null}
         </div>
@@ -385,11 +438,54 @@ export function ProcurementPage({
         </>
       ) : activeTab === "vendors" ? (
         <>
-          <section>
-            <SectionHeading title="Vendor directory" description="Create, edit, archive, and review the shared procurement vendor directory." />
-            <VendorTable vendors={visibleVendors} data={data} isAdmin={canManageProcurement} onSelect={setSelectedVendorId} selectedVendorId={selectedVendorId} onEdit={openEditVendor} onRemove={(vendor) => void removeVendor(vendor)} />
+          <section className="space-y-4">
+            {panel !== "procurement" ? (
+              <SectionHeading
+                title="Vendor directory"
+                description="Create, edit, archive, and review the shared procurement vendor directory."
+              />
+            ) : null}
+            {panel === "procurement" ? (
+              <VendorFilters
+                query={vendorQuery}
+                setQuery={setVendorQuery}
+                statusFilter={vendorStatusFilter}
+                setStatusFilter={setVendorStatusFilter}
+                categoryFilter={vendorCategoryFilter}
+                setCategoryFilter={setVendorCategoryFilter}
+                categories={vendorCategories}
+                hasFilters={hasVendorFilters}
+                clearFilters={clearVendorFilters}
+              />
+            ) : null}
+            <VendorTable
+              vendors={panel === "procurement" ? paginatedProcurementVendors : visibleVendors}
+              data={data}
+              panel={panel as "admin" | "procurement"}
+              isAdmin={canManageProcurement}
+              onSelect={setSelectedVendorId}
+              selectedVendorId={selectedVendorId}
+              onEdit={openEditVendor}
+              onRemove={(vendor) => void removeVendor(vendor)}
+              emptyDescription={
+                panel === "procurement" && data.vendors.length > 0
+                  ? "No vendors match these filters. Adjust or clear your filters."
+                  : undefined
+              }
+            />
+            {panel === "procurement" ? (
+              <TablePagination
+                total={filteredProcurementVendors.length}
+                page={vendorPage}
+                pageSize={vendorPageSize}
+                pageSizeOptions={[25]}
+                showPageSizeSelect={false}
+                onPageChange={setVendorPage}
+                onPageSizeChange={() => undefined}
+              />
+            ) : null}
           </section>
-          {selectedVendor ? <VendorDetail vendor={selectedVendor} orders={selectedVendorOrders} onClose={() => setSelectedVendorId("")} /> : null}
+          {selectedVendor && panel !== "procurement" ? <VendorDetail vendor={selectedVendor} orders={selectedVendorOrders} onClose={() => setSelectedVendorId("")} /> : null}
         </>
       ) : null}
       {activeTab === "needs" ? <HubMaterialNeeds data={data} panel={panel as "admin" | "procurement"} onSaved={async (message) => { setNotice(message); await reload(); }} /> : null}
@@ -418,6 +514,17 @@ export function ProcurementPage({
     <Shell
       title={panel === "procurement" ? PROCUREMENT_VIEW_TITLES[activeTab] : "Procurement"}
       subtitle={panel === "procurement" ? undefined : "Live vendor management, purchase orders, and SubHub-wide delivery reporting"}
+      actions={
+        panel === "procurement" && activeTab === "vendors" ? (
+          <button
+            type="button"
+            onClick={openCreateVendor}
+            className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted"
+          >
+            <Plus className="size-5" /> Add vendor
+          </button>
+        ) : undefined
+      }
     >
       {content}
     </Shell>
@@ -1018,9 +1125,259 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
   );
 }
 
-function VendorTable({ vendors, data, isAdmin, onSelect, selectedVendorId, onEdit, onRemove }: { vendors: ProcurementVendor[]; data: ProcurementData; isAdmin: boolean; onSelect: (id: string) => void; selectedVendorId: string; onEdit: (vendor: ProcurementVendor) => void; onRemove: (vendor: ProcurementVendor) => void }) {
+function VendorFilters({
+  query,
+  setQuery,
+  statusFilter,
+  setStatusFilter,
+  categoryFilter,
+  setCategoryFilter,
+  categories,
+  hasFilters,
+  clearFilters,
+}: {
+  query: string;
+  setQuery: (value: string) => void;
+  statusFilter: ProcurementVendor["status"] | "all";
+  setStatusFilter: (value: ProcurementVendor["status"] | "all") => void;
+  categoryFilter: string;
+  setCategoryFilter: (value: string) => void;
+  categories: string[];
+  hasFilters: boolean;
+  clearFilters: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-end gap-3 border-b border-border p-4">
+      <label className="min-w-[240px] flex-1 text-sm font-medium text-muted-foreground">
+        Search vendors
+        <span className="relative mt-1 block">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            aria-label="Search vendors"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Vendor, contact, phone, email or location"
+            className="h-11 w-full rounded-md border border-input bg-background pl-9 pr-3 text-base font-normal text-foreground outline-none focus:border-primary"
+          />
+        </span>
+      </label>
+      <label className="w-full text-sm font-medium text-muted-foreground sm:w-40">
+        Status
+        <span className="relative mt-1 block">
+          <select
+            value={statusFilter}
+            onChange={(event) =>
+              setStatusFilter(event.target.value as ProcurementVendor["status"] | "all")
+            }
+            className="h-11 w-full appearance-none rounded-md border border-input bg-background px-3 pr-9 text-base font-normal text-foreground"
+          >
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="archived">Archived</option>
+          </select>
+          <ChevronDown
+            aria-hidden="true"
+            className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+        </span>
+      </label>
+      <label className="w-full text-sm font-medium text-muted-foreground sm:w-52">
+        Category
+        <span className="relative mt-1 block">
+          <select
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value)}
+            className="h-11 w-full appearance-none rounded-md border border-input bg-background px-3 pr-9 text-base font-normal text-foreground"
+          >
+            <option value="all">All categories</option>
+            {categories.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            aria-hidden="true"
+            className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+        </span>
+      </label>
+      {hasFilters ? (
+        <button
+          type="button"
+          onClick={clearFilters}
+          className="inline-flex h-11 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-semibold text-foreground hover:bg-muted"
+        >
+          <X aria-hidden="true" className="size-4" />
+          Clear filters
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function VendorTable({
+  vendors,
+  data,
+  panel,
+  isAdmin,
+  onSelect,
+  selectedVendorId,
+  onEdit,
+  onRemove,
+  emptyDescription,
+}: {
+  vendors: ProcurementVendor[];
+  data: ProcurementData;
+  panel: "admin" | "procurement";
+  isAdmin: boolean;
+  onSelect: (id: string) => void;
+  selectedVendorId: string;
+  onEdit: (vendor: ProcurementVendor) => void;
+  onRemove: (vendor: ProcurementVendor) => void;
+  emptyDescription?: string;
+}) {
   const performanceByVendor = new Map(data.vendorPerformance.map((item) => [item.vendorId, item]));
-  return vendors.length ? <div className="overflow-x-auto border-y border-border"><table className="w-full min-w-[920px] text-base"><thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3 font-semibold">Vendor</th><th className="px-4 py-3 font-semibold">Contact</th><th className="px-4 py-3 font-semibold">Categories</th><th className="px-4 py-3 text-right font-semibold">Orders</th><th className="px-4 py-3 text-right font-semibold">Spend</th><th className="px-4 py-3 text-right font-semibold">Performance</th><th className="px-4 py-3 text-right font-semibold">Actions</th></tr></thead><tbody>{vendors.map((vendor) => { const performance = performanceByVendor.get(vendor.id); return <tr key={vendor.id} className={`border-b border-border/70 last:border-0 hover:bg-muted/40 ${selectedVendorId === vendor.id ? "bg-primary/5" : ""}`}><td className="px-4 py-4"><button type="button" onClick={() => onSelect(selectedVendorId === vendor.id ? "" : vendor.id)} className="text-left font-semibold hover:text-primary">{vendor.name}</button><div className="mt-2 flex flex-wrap items-center gap-2"><Tag size="md" tone={vendor.status === "active" ? "good" : "neutral"}>{vendor.status}</Tag>{vendor.paymentTerms ? <span className="text-sm text-muted-foreground">{vendor.paymentTerms}</span> : null}</div></td><td className="px-4 py-4 text-muted-foreground">{vendor.contactName || "—"}<br />{vendor.phone || vendor.email || "No contact saved"}</td><td className="max-w-48 px-4 py-4 text-muted-foreground">{vendor.categories.length ? vendor.categories.join(" · ") : "General materials"}</td><td className="tabular px-4 py-4 text-right font-semibold">{performance?.orders ?? 0}<p className="text-sm font-normal text-muted-foreground">{performance?.pendingOrders ?? 0} pending</p></td><td className="tabular px-4 py-4 text-right">{inr(performance?.spend ?? 0)}</td><td className="px-4 py-4 text-right">{performance?.onTimeRate === null || performance?.onTimeRate === undefined ? <span className="text-base text-muted-foreground">No deliveries yet</span> : <Tag size="md" tone={performance.onTimeRate >= 85 ? "good" : "warn"}>{performance.onTimeRate}% on time</Tag>}</td><td className="px-4 py-4 text-right">{isAdmin ? <div className="inline-flex gap-1"><button type="button" onClick={() => onEdit(vendor)} className="inline-flex min-h-10 items-center gap-1 rounded-md border border-input px-3 text-base font-semibold hover:bg-muted"><Edit3 className="size-4" /> Edit</button><button type="button" onClick={() => onRemove(vendor)} className="inline-flex min-h-10 items-center gap-1 rounded-md px-3 text-base font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive"><Archive className="size-4" /> Archive</button></div> : <button type="button" onClick={() => onSelect(vendor.id)} className="text-base font-semibold text-primary hover:underline">View history</button>}</td></tr>; })}</tbody></table></div> : <EmptyState icon={<Store className="size-7" />} title="No vendors found" description={isAdmin ? "Add the first vendor to start placing procurement orders." : "The Master Admin has not added any active vendors yet."} />;
+  const showAdminMetrics = panel === "admin";
+  const tableClassName = showAdminMetrics
+    ? "w-full min-w-[1120px] text-base"
+    : "w-full min-w-[920px] text-base";
+
+  if (vendors.length === 0) {
+    return (
+      <EmptyState
+        icon={<Store className="size-7" />}
+        title="No vendors found"
+        description={
+          emptyDescription ??
+          (isAdmin
+            ? "Add the first vendor to start placing procurement orders."
+            : "The Master Admin has not added any active vendors yet.")
+        }
+      />
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto border-y border-border">
+      <table className={tableClassName}>
+        <thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground">
+          <tr>
+            <th className="px-4 py-3 font-semibold">Vendor</th>
+            <th className="px-4 py-3 font-semibold">Contact</th>
+            <th className="px-4 py-3 font-semibold">Categories</th>
+            <th className="px-4 py-3 text-right font-semibold">Orders</th>
+            {showAdminMetrics ? (
+              <>
+                <th className="px-4 py-3 text-right font-semibold">Spend</th>
+                <th className="px-4 py-3 text-right font-semibold">Performance</th>
+              </>
+            ) : null}
+            <th className="px-4 py-3 text-right font-semibold">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {vendors.map((vendor) => {
+            const performance = performanceByVendor.get(vendor.id);
+            return (
+              <tr
+                key={vendor.id}
+                className={`border-b border-border/70 last:border-0 hover:bg-muted/40 ${
+                  selectedVendorId === vendor.id ? "bg-primary/5" : ""
+                }`}
+              >
+                <td className="px-4 py-4">
+                  {panel === "procurement" ? (
+                    <Link
+                      to="/procurement-management/vendor-history/$vendorId"
+                      params={{ vendorId: vendor.id }}
+                      className="font-semibold text-primary hover:underline"
+                    >
+                      {vendor.name}
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onSelect(selectedVendorId === vendor.id ? "" : vendor.id)}
+                      className="text-left font-semibold hover:text-primary"
+                    >
+                      {vendor.name}
+                    </button>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Tag size="md" tone={vendor.status === "active" ? "good" : "neutral"}>
+                      {vendor.status}
+                    </Tag>
+                    {showAdminMetrics && vendor.paymentTerms ? (
+                      <span className="text-sm text-muted-foreground">{vendor.paymentTerms}</span>
+                    ) : null}
+                  </div>
+                </td>
+                <td className="px-4 py-4 text-muted-foreground">
+                  {vendor.contactName || "—"}
+                  <br />
+                  {vendor.phone || vendor.email || "No contact saved"}
+                </td>
+                <td className="max-w-56 px-4 py-4 text-muted-foreground">
+                  {vendor.categories.length ? vendor.categories.join(" · ") : "General materials"}
+                </td>
+                <td className="tabular px-4 py-4 text-right font-semibold">
+                  {performance?.orders ?? 0}
+                  {showAdminMetrics ? (
+                    <p className="text-sm font-normal text-muted-foreground">
+                      {performance?.pendingOrders ?? 0} pending
+                    </p>
+                  ) : null}
+                </td>
+                {showAdminMetrics ? (
+                  <>
+                    <td className="tabular px-4 py-4 text-right">{inr(performance?.spend ?? 0)}</td>
+                    <td className="px-4 py-4 text-right">
+                      {performance?.onTimeRate === null || performance?.onTimeRate === undefined ? (
+                        <span className="text-base text-muted-foreground">No deliveries yet</span>
+                      ) : (
+                        <Tag size="md" tone={performance.onTimeRate >= 85 ? "good" : "warn"}>
+                          {performance.onTimeRate}% on time
+                        </Tag>
+                      )}
+                    </td>
+                  </>
+                ) : null}
+                <td className="px-4 py-4 text-right">
+                  {isAdmin ? (
+                    <div className="inline-flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onEdit(vendor)}
+                        className="inline-flex min-h-10 items-center gap-1 rounded-md border border-input px-3 text-base font-semibold hover:bg-muted"
+                      >
+                        <Edit3 className="size-4" /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRemove(vendor)}
+                        className="inline-flex min-h-10 items-center gap-1 rounded-md px-3 text-base font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Archive className="size-4" /> Archive
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onSelect(vendor.id)}
+                      className="text-base font-semibold text-primary hover:underline"
+                    >
+                      View history
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function VendorDetail({ vendor, orders, onClose }: { vendor: ProcurementVendor; orders: ProcurementOrder[]; onClose: () => void }) {
@@ -1043,21 +1400,148 @@ function AdminReports({ data }: { data: ProcurementData }) {
   </div>;
 }
 
-function VendorForm({ mode, vendor, panel, onClose, onSaved }: { mode: "create" | "edit"; vendor: ProcurementVendor | null; panel: "admin" | "procurement"; onClose: () => void; onSaved: (message: string) => Promise<void> }) {
-  const [form, setForm] = useState(() => ({ name: vendor?.name ?? "", contactName: vendor?.contactName ?? "", phone: vendor?.phone ?? "", email: vendor?.email ?? "", address: vendor?.address ?? "", city: vendor?.city ?? "", state: vendor?.state ?? "", pincode: vendor?.pincode ?? "", paymentTerms: vendor?.paymentTerms ?? "30 days credit", categories: vendor?.categories.join(", ") ?? "", notes: vendor?.notes ?? "" }));
+function VendorForm({
+  mode,
+  vendor,
+  panel,
+  onClose,
+  onSaved,
+}: {
+  mode: "create" | "edit";
+  vendor: ProcurementVendor | null;
+  panel: "admin" | "procurement";
+  onClose: () => void;
+  onSaved: (message: string) => Promise<void>;
+}) {
+  const [form, setForm] = useState(() => ({
+    name: vendor?.name ?? "",
+    contactName: vendor?.contactName ?? "",
+    phone: vendor?.phone ?? "",
+    email: vendor?.email ?? "",
+    address: vendor?.address ?? "",
+    city: vendor?.city ?? "",
+    state: vendor?.state ?? "",
+    pincode: vendor?.pincode ?? "",
+    paymentTerms: vendor?.paymentTerms ?? (panel === "admin" ? "30 days credit" : ""),
+    categories: vendor?.categories.join(", ") ?? "",
+    notes: vendor?.notes ?? "",
+  }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError("");
-    const data = { ...form, categories: form.categories.split(",").map((value) => value.trim()).filter(Boolean) };
-    const response = mode === "edit" && vendor ? await updateVendorFn({ data: { ...data, id: vendor.id, panel } }) : await createVendorFn({ data: { ...data, panel } });
-    if (!response.ok) setError(response.message);
-    else await onSaved(`${form.name} ${mode === "edit" ? "was updated" : "was added"} successfully.`);
+    const data = {
+      ...form,
+      categories: form.categories
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    };
+    const response =
+      mode === "edit" && vendor
+        ? await updateVendorFn({ data: { ...data, id: vendor.id, panel } })
+        : await createVendorFn({ data: { ...data, panel } });
+    if (!response.ok) {
+      setError(response.message);
+    } else {
+      await onSaved(`${form.name} ${mode === "edit" ? "was updated" : "was added"} successfully.`);
+    }
     setBusy(false);
   }
-  return <Drawer title={mode === "edit" ? "Edit vendor" : "Add vendor"} subtitle="Vendor information is shared with authorized procurement users." onClose={onClose}><form onSubmit={submit} className="space-y-4"><TextField label="Vendor name" value={form.name} required onChange={(value) => setForm({ ...form, name: value })} placeholder="Sanjay Brass Works" /><div className="grid gap-4 sm:grid-cols-2"><TextField label="Contact person" value={form.contactName} onChange={(value) => setForm({ ...form, contactName: value })} /><TextField label="Phone" value={form.phone} onChange={(value) => setForm({ ...form, phone: value })} /><TextField label="Email" type="email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} /><TextField label="Payment terms" value={form.paymentTerms} onChange={(value) => setForm({ ...form, paymentTerms: value })} /><TextField label="City" value={form.city} onChange={(value) => setForm({ ...form, city: value })} /><TextField label="State" value={form.state} onChange={(value) => setForm({ ...form, state: value })} /><TextField label="Pincode" value={form.pincode} onChange={(value) => setForm({ ...form, pincode: value })} /></div><TextField label="Address" value={form.address} onChange={(value) => setForm({ ...form, address: value })} /><TextField label="Categories" value={form.categories} onChange={(value) => setForm({ ...form, categories: value })} placeholder="Brass, fasteners, molded parts" /><label className="block text-sm font-medium">Notes<textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} rows={3} className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary" /></label>{error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}<DrawerActions busy={busy} submitLabel={mode === "edit" ? "Save changes" : "Create vendor"} onClose={onClose} /></form></Drawer>;
+
+  return (
+    <Drawer
+      title={mode === "edit" ? "Edit vendor" : "Add vendor"}
+      subtitle="Vendor information is shared with authorized procurement users."
+      onClose={onClose}
+    >
+      <form onSubmit={(event) => void submit(event)} className="space-y-4">
+        <TextField
+          label="Vendor name"
+          value={form.name}
+          required
+          onChange={(value) => setForm({ ...form, name: value })}
+          placeholder="Sanjay Brass Works"
+        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField
+            label="Contact person"
+            value={form.contactName}
+            onChange={(value) => setForm({ ...form, contactName: value })}
+          />
+          <TextField
+            label="Phone"
+            value={form.phone}
+            onChange={(value) => setForm({ ...form, phone: value })}
+          />
+          <TextField
+            label="Email"
+            type="email"
+            value={form.email}
+            onChange={(value) => setForm({ ...form, email: value })}
+          />
+          {panel === "admin" ? (
+            <TextField
+              label="Payment terms"
+              value={form.paymentTerms}
+              onChange={(value) => setForm({ ...form, paymentTerms: value })}
+            />
+          ) : null}
+          <TextField
+            label="City"
+            value={form.city}
+            onChange={(value) => setForm({ ...form, city: value })}
+          />
+          <TextField
+            label="State"
+            value={form.state}
+            onChange={(value) => setForm({ ...form, state: value })}
+          />
+          <TextField
+            label="Pincode"
+            value={form.pincode}
+            onChange={(value) => setForm({ ...form, pincode: value })}
+          />
+        </div>
+        <TextField
+          label="Address"
+          value={form.address}
+          onChange={(value) => setForm({ ...form, address: value })}
+        />
+        <TextField
+          label="Categories"
+          value={form.categories}
+          onChange={(value) => setForm({ ...form, categories: value })}
+          placeholder="Brass, fasteners, molded parts"
+        />
+        <label className="block text-sm font-medium">
+          Notes
+          <textarea
+            value={form.notes}
+            onChange={(event) => setForm({ ...form, notes: event.target.value })}
+            rows={3}
+            className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+          />
+        </label>
+        {error ? (
+          <p
+            role="alert"
+            className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+          >
+            {error}
+          </p>
+        ) : null}
+        <DrawerActions
+          busy={busy}
+          submitLabel={mode === "edit" ? "Save changes" : "Create vendor"}
+          onClose={onClose}
+        />
+      </form>
+    </Drawer>
+  );
 }
 
 function OrderForm({ data, isAdmin, panel, onClose, onSaved }: { data: ProcurementData; isAdmin: boolean; panel: "admin" | "procurement"; onClose: () => void; onSaved: (message: string) => Promise<void> }) {

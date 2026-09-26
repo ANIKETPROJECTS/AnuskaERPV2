@@ -53,6 +53,7 @@ import { Route as WorkerIdRouteImport } from './routes/worker.$id'
 import { Route as AdminUsersUserIdRouteImport } from './routes/admin.users.$userId'
 import { Route as InventoryBatchesBatchIdRouteImport } from './routes/inventory.batches.$batchId'
 import { Route as InventoryItemsItemCodeRouteImport } from './routes/inventory.items.$itemCode'
+import { Route as ProcurementManagementVendorHistoryVendorIdRouteImport } from './routes/procurement-management.vendor-history.$vendorId'
 import { Route as SubhubBomCodeRouteImport } from './routes/subhub.bom.$code'
 import { Route as SubhubHrHistoryRouteImport } from './routes/subhub.hr.history'
 import { Route as SubhubParentCodeRouteImport } from './routes/subhub.parent.$code'
@@ -286,6 +287,12 @@ const InventoryItemsItemCodeRoute = InventoryItemsItemCodeRouteImport.update({
   path: '/items/$itemCode',
   getParentRoute: () => InventoryRoute,
 } as any)
+const ProcurementManagementVendorHistoryVendorIdRoute =
+  ProcurementManagementVendorHistoryVendorIdRouteImport.update({
+    id: '/vendor-history/$vendorId',
+    path: '/vendor-history/$vendorId',
+    getParentRoute: () => ProcurementManagementRoute,
+  } as any)
 const SubhubBomCodeRoute = SubhubBomCodeRouteImport.update({
   id: '/$code',
   path: '/$code',
@@ -377,6 +384,7 @@ export interface FileRoutesByFullPath {
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
   '/inventory/items/$itemCode': typeof InventoryItemsItemCodeRoute
+  '/procurement-management/vendor-history/$vendorId': typeof ProcurementManagementVendorHistoryVendorIdRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
   '/subhub/hr/history': typeof SubhubHrHistoryRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
@@ -431,6 +439,7 @@ export interface FileRoutesByTo {
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
   '/inventory/items/$itemCode': typeof InventoryItemsItemCodeRoute
+  '/procurement-management/vendor-history/$vendorId': typeof ProcurementManagementVendorHistoryVendorIdRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
   '/subhub/hr/history': typeof SubhubHrHistoryRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
@@ -486,6 +495,7 @@ export interface FileRoutesById {
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
   '/inventory/items/$itemCode': typeof InventoryItemsItemCodeRoute
+  '/procurement-management/vendor-history/$vendorId': typeof ProcurementManagementVendorHistoryVendorIdRoute
   '/subhub/bom/$code': typeof SubhubBomCodeRoute
   '/subhub/hr/history': typeof SubhubHrHistoryRoute
   '/subhub/parent/$code': typeof SubhubParentCodeRoute
@@ -542,6 +552,7 @@ export interface FileRouteTypes {
     | '/admin/users/$userId'
     | '/inventory/batches/$batchId'
     | '/inventory/items/$itemCode'
+    | '/procurement-management/vendor-history/$vendorId'
     | '/subhub/bom/$code'
     | '/subhub/hr/history'
     | '/subhub/parent/$code'
@@ -596,6 +607,7 @@ export interface FileRouteTypes {
     | '/admin/users/$userId'
     | '/inventory/batches/$batchId'
     | '/inventory/items/$itemCode'
+    | '/procurement-management/vendor-history/$vendorId'
     | '/subhub/bom/$code'
     | '/subhub/hr/history'
     | '/subhub/parent/$code'
@@ -650,6 +662,7 @@ export interface FileRouteTypes {
     | '/admin/users/$userId'
     | '/inventory/batches/$batchId'
     | '/inventory/items/$itemCode'
+    | '/procurement-management/vendor-history/$vendorId'
     | '/subhub/bom/$code'
     | '/subhub/hr/history'
     | '/subhub/parent/$code'
@@ -994,6 +1007,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InventoryItemsItemCodeRouteImport
       parentRoute: typeof InventoryRoute
     }
+    '/procurement-management/vendor-history/$vendorId': {
+      id: '/procurement-management/vendor-history/$vendorId'
+      path: '/vendor-history/$vendorId'
+      fullPath: '/procurement-management/vendor-history/$vendorId'
+      preLoaderRoute: typeof ProcurementManagementVendorHistoryVendorIdRouteImport
+      parentRoute: typeof ProcurementManagementRoute
+    }
     '/subhub/bom/$code': {
       id: '/subhub/bom/$code'
       path: '/$code'
@@ -1125,6 +1145,7 @@ interface ProcurementManagementRouteChildren {
   ProcurementManagementItemRequestsRoute: typeof ProcurementManagementItemRequestsRoute
   ProcurementManagementOrdersRoute: typeof ProcurementManagementOrdersRoute
   ProcurementManagementVendorsRoute: typeof ProcurementManagementVendorsRoute
+  ProcurementManagementVendorHistoryVendorIdRoute: typeof ProcurementManagementVendorHistoryVendorIdRoute
 }
 
 const ProcurementManagementRouteChildren: ProcurementManagementRouteChildren = {
@@ -1133,6 +1154,8 @@ const ProcurementManagementRouteChildren: ProcurementManagementRouteChildren = {
     ProcurementManagementItemRequestsRoute,
   ProcurementManagementOrdersRoute: ProcurementManagementOrdersRoute,
   ProcurementManagementVendorsRoute: ProcurementManagementVendorsRoute,
+  ProcurementManagementVendorHistoryVendorIdRoute:
+    ProcurementManagementVendorHistoryVendorIdRoute,
 }
 
 const ProcurementManagementRouteWithChildren =
