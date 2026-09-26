@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, Database, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { Database, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { TablePagination } from "@/components/erp/TablePagination";
 import { Tag } from "@/components/erp/bits";
 import { deleteRawMaterial, useRawMaterials, updateRawMaterial, addRawMaterial, type RawMaterial } from "@/lib/raw-material-store";
+import { useBomProducts } from "@/lib/bom-store";
 type RawMaterialSort = "code-asc" | "code-desc" | "name-asc" | "name-desc" | "material-asc" | "source-asc";
 type SourceFilter = "all" | RawMaterial["source"];
 type PageSize = 10 | 25 | 50 | "all";
@@ -21,17 +22,23 @@ function RawMaterials() {
 
 export function RawMaterialsPage({ readOnly }: { readOnly: boolean }) {
   const materials = useRawMaterials();
+  const products = useBomProducts();
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState<RawMaterialSort>("code-asc");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [materialFilter, setMaterialFilter] = useState("all");
-  const [pageSize, setPageSize] = useState<PageSize>(readOnly ? 25 : 10);
+  const [pageSize, setPageSize] = useState<PageSize>(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [showCreator, setShowCreator] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<RawMaterial | null>(null);
+  const [materialError, setMaterialError] = useState("");
   const materialOptions = useMemo(
     () => [...new Set(materials.map((item) => item.material))].sort((left, right) => left.localeCompare(right)),
     [materials],
+  );
+  const bomMaterialCodes = useMemo(
+    () => new Set(products.flatMap((product) => product.variants.flatMap((variant) => Object.keys(variant.parts)))),
+    [products],
   );
   const filteredMaterials = useMemo(
     () => {
@@ -73,24 +80,45 @@ export function RawMaterialsPage({ readOnly }: { readOnly: boolean }) {
 
   function openCreate() {
     setEditingMaterial(null);
+    setMaterialError("");
     setShowCreator(true);
   }
 
   function openEdit(item: RawMaterial) {
     setEditingMaterial(item);
+    setMaterialError("");
     setShowCreator(true);
   }
 
   function removeMaterial(item: RawMaterial) {
+    if (bomMaterialCodes.has(item.code)) {
+      window.alert("This raw material is still used by a BOM variant. Remove it from the BOM before deleting it.");
+      return;
+    }
     if (!window.confirm(`Delete ${item.name} (${item.code})? This will remove it from the raw-material catalog.`)) return;
     deleteRawMaterial(item.code);
   }
 
   function saveMaterial(item: RawMaterial) {
+    const duplicateCode = materials.some(
+      (material) => material.code.toLowerCase() === item.code.toLowerCase() && material.code !== editingMaterial?.code,
+    );
+    if (duplicateCode) {
+      setMaterialError("A raw material with that code already exists.");
+      return;
+    }
+    if (editingMaterial && bomMaterialCodes.has(editingMaterial.code) && item.code !== editingMaterial.code) {
+      setMaterialError("This code is used in a BOM and cannot be changed.");
+      return;
+    }
     if (editingMaterial) updateRawMaterial(editingMaterial.code, item);
-    else addRawMaterial(item);
+    else if (!addRawMaterial(item)) {
+      setMaterialError("A raw material with that code already exists.");
+      return;
+    }
     setShowCreator(false);
     setEditingMaterial(null);
+    setMaterialError("");
   }
 
   return (
@@ -121,9 +149,9 @@ export function RawMaterialsPage({ readOnly }: { readOnly: boolean }) {
     ) : (
       <Shell
         title="Raw Materials"
-        subtitle="Admin Panel · central raw-part catalog"
+        mainClassName="flex-1 space-y-0 p-0"
         actions={
-          <button type="button" onClick={openCreate} className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium">
+          <button type="button" onClick={openCreate} className="rule-header inline-flex min-h-11 items-center gap-2 rounded-md px-4 py-2 text-base font-medium">
             <Plus className="size-4" /> New raw material
           </button>
         }
@@ -147,6 +175,7 @@ export function RawMaterialsPage({ readOnly }: { readOnly: boolean }) {
           pageCount={pageCount}
           onPageChange={setCurrentPage}
           onClearFilters={clearCatalogFilters}
+          adminStyle
           onEdit={openEdit}
           onDelete={removeMaterial}
         />
@@ -154,9 +183,12 @@ export function RawMaterialsPage({ readOnly }: { readOnly: boolean }) {
           <RawMaterialDrawer
             initial={editingMaterial}
             editing={Boolean(editingMaterial)}
+            error={materialError}
+            codeLocked={Boolean(editingMaterial && bomMaterialCodes.has(editingMaterial.code))}
             onClose={() => {
               setShowCreator(false);
               setEditingMaterial(null);
+              setMaterialError("");
             }}
             onSave={saveMaterial}
           />
@@ -186,6 +218,7 @@ function RawMaterialsContent({
   onPageChange,
   onClearFilters,
   readOnly = false,
+  adminStyle = false,
   onEdit,
   onDelete,
 }: {
@@ -208,10 +241,11 @@ function RawMaterialsContent({
   onPageChange: (value: number) => void;
   onClearFilters: () => void;
   readOnly?: boolean;
+  adminStyle?: boolean;
   onEdit?: (item: RawMaterial) => void;
   onDelete?: (item: RawMaterial) => void;
 }) {
-  if (readOnly) {
+  if (readOnly || adminStyle) {
     return (
       <section className="space-y-5 px-6 py-5">
         <label className="block w-full text-base font-medium text-muted-foreground">
@@ -228,14 +262,15 @@ function RawMaterialsContent({
           </span>
         </label>
         <div className="overflow-x-auto border-y border-border">
-          <table className="w-full min-w-[900px] table-fixed text-base">
+          <table className={`w-full table-fixed text-base ${adminStyle ? "min-w-[1120px]" : "min-w-[900px]"}`}>
             <caption className="sr-only">Raw materials</caption>
             <colgroup>
-              <col className="w-[15%]" />
-              <col className="w-[22%]" />
-              <col className="w-[31%]" />
-              <col className="w-[18%]" />
-              <col className="w-[14%]" />
+              <col className={adminStyle ? "w-[13%]" : "w-[15%]"} />
+              <col className={adminStyle ? "w-[18%]" : "w-[22%]"} />
+              <col className={adminStyle ? "w-[28%]" : "w-[31%]"} />
+              <col className={adminStyle ? "w-[16%]" : "w-[18%]"} />
+              <col className={adminStyle ? "w-[12%]" : "w-[14%]"} />
+              {adminStyle ? <col className="w-[13%]" /> : null}
             </colgroup>
             <thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground">
               <tr>
@@ -254,6 +289,7 @@ function RawMaterialsContent({
                 <th scope="col" className="px-4 py-3 font-semibold">
                   Source
                 </th>
+                {adminStyle ? <th scope="col" className="px-4 py-3 text-right font-semibold">Actions</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -276,12 +312,24 @@ function RawMaterialsContent({
                       {item.source}
                     </Tag>
                   </td>
+                  {adminStyle ? (
+                    <td className="px-4 py-4">
+                      <div className="flex justify-end gap-2">
+                        <button type="button" onClick={() => onEdit?.(item)} aria-label={`Edit ${item.name}`} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-input px-2 text-sm font-medium hover:bg-muted">
+                          <Pencil className="size-3.5" /> Edit
+                        </button>
+                        <button type="button" onClick={() => onDelete?.(item)} aria-label={`Delete ${item.name}`} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-destructive/30 px-2 text-sm font-medium text-destructive hover:bg-destructive/10">
+                          <Trash2 className="size-3.5" /> Delete
+                        </button>
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
               {!filteredMaterials.length ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={adminStyle ? 6 : 5}
                     className="px-4 py-12 text-center text-base text-muted-foreground"
                   >
                     No raw materials match your search.
@@ -440,11 +488,15 @@ function RawMaterialsContent({
 function RawMaterialDrawer({
   initial,
   editing,
+  error,
+  codeLocked,
   onClose,
   onSave,
 }: {
   initial: RawMaterial | null;
   editing: boolean;
+  error: string;
+  codeLocked: boolean;
   onClose: () => void;
   onSave: (item: RawMaterial) => void;
 }) {
@@ -470,11 +522,13 @@ function RawMaterialDrawer({
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1 text-muted-foreground hover:bg-muted"><X className="size-5" /></button>
         </div>
-        <label className="mt-6 block text-base font-medium">Code<input required value={code} onChange={(event) => setCode(event.target.value)} placeholder="GP006-050" className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal outline-none focus:border-primary" /></label>
+        <label className="mt-6 block text-base font-medium">Code<input required disabled={codeLocked} value={code} onChange={(event) => setCode(event.target.value)} placeholder="GP006-050" className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal outline-none focus:border-primary disabled:cursor-not-allowed disabled:bg-muted" /></label>
+        {codeLocked ? <p className="-mt-3 text-sm text-muted-foreground">This code is referenced by a BOM and cannot be changed.</p> : null}
         <label className="mt-4 block text-base font-medium">Name<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Raw part name" className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal outline-none focus:border-primary" /></label>
         <label className="mt-4 block text-base font-medium">Description<textarea required value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Describe the raw material or part" rows={4} className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-base font-normal outline-none focus:border-primary" /></label>
         <label className="mt-4 block text-base font-medium">Material<input required value={material} onChange={(event) => setMaterial(event.target.value)} placeholder="Nylon 66" className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal outline-none focus:border-primary" /></label>
         <label className="mt-4 block text-base font-medium">Source<select value={source} onChange={(event) => setSource(event.target.value as RawMaterial["source"])} className="mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal outline-none focus:border-primary"><option value="Molded">Molded</option><option value="Purchased">Purchased</option><option value="Other">Other</option></select></label>
+        {error ? <p role="alert" className="mt-4 rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}
         <div className="mt-auto flex justify-end gap-3 pt-8"><button type="button" onClick={onClose} className="inline-flex min-h-11 items-center rounded-md border border-input px-4 py-2 text-base font-medium">Cancel</button><button type="submit" className="rule-header inline-flex min-h-11 items-center rounded-md px-4 py-2 text-base font-medium">{editing ? "Save changes" : "Add raw material"}</button></div>
       </form>
     </div>

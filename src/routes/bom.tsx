@@ -1,11 +1,20 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, ImagePlus, LayoutGrid, List, Plus, Search, Table2, Upload, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ImagePlus, LayoutGrid, List, Pencil, Plus, Search, Table2, Trash2, Upload, X } from "lucide-react";
 import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { BomMatrix } from "@/components/erp/BomMatrix";
 import { useAuth } from "@/components/auth/AuthContext";
-import { useBomProducts, addBomProduct, rawPartCount, type BomVariant, type NewProduct } from "@/lib/bom-store";
+import {
+  useBomProducts,
+  addBomProduct,
+  deleteBomProduct,
+  updateBomProduct,
+  rawPartCount,
+  type BomProduct,
+  type BomVariant,
+  type NewProduct,
+} from "@/lib/bom-store";
 import { useRawMaterials, type RawMaterial } from "@/lib/raw-material-store";
 
 export const Route = createFileRoute("/bom")({
@@ -24,8 +33,6 @@ export const Route = createFileRoute("/bom")({
 });
 
 const emptyProduct: NewProduct = { name: "", code: "", description: "", image: "" };
-type BomSort = "name-asc" | "name-desc";
-type CountFilter = "all" | "none";
 type BomView = "grid" | "list" | "matrix";
 
 function requiredMaterialsForVariant(variant: BomVariant, materials: RawMaterial[]) {
@@ -40,11 +47,6 @@ function requiredMaterialsForVariant(variant: BomVariant, materials: RawMaterial
       source: part?.source,
     };
   });
-}
-
-function matchesCountFilter(value: number, filter: CountFilter) {
-  if (filter === "all") return true;
-  return value === 0;
 }
 
 function BomViewSwitcher({
@@ -104,54 +106,48 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
   const products = useBomProducts();
   const materials = useRawMaterials();
   const [productSearch, setProductSearch] = useState("");
-  const [sortBy, setSortBy] = useState<BomSort>("name-asc");
-  const [variantFilter, setVariantFilter] = useState<CountFilter>("all");
-  const [rawPartsFilter, setRawPartsFilter] = useState<CountFilter>("all");
   const [view, setView] = useState<BomView>("grid");
   const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
   const [showProductForm, setShowProductForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<BomProduct | null>(null);
+  const [productToDelete, setProductToDelete] = useState<BomProduct | null>(null);
   const [productForm, setProductForm] = useState(emptyProduct);
   const [productError, setProductError] = useState("");
   const filteredProducts = useMemo(() => {
     const query = productSearch.trim().toLowerCase();
-    const filtered = products.filter((product) => {
-      const matchesSearch =
-        !query ||
-        [product.code, product.name, product.description, ...product.variants.flatMap((variant) => [variant.code, variant.name, variant.company])]
-          .some((value) => value.toLowerCase().includes(query));
-      const variantCount = product.variants.length;
-      const productRawPartCount = rawPartCount(product);
-      return (
-        matchesSearch &&
-        matchesCountFilter(variantCount, variantFilter) &&
-        matchesCountFilter(productRawPartCount, rawPartsFilter)
-      );
-    });
-    return filtered.sort((left, right) => {
-      if (sortBy === "name-asc") return left.name.localeCompare(right.name);
-      return right.name.localeCompare(left.name);
-    });
-  }, [productSearch, products, rawPartsFilter, sortBy, variantFilter]);
-
-  function clearCatalogFilters() {
-    setProductSearch("");
-    setSortBy("name-asc");
-    setVariantFilter("all");
-    setRawPartsFilter("all");
-  }
+    return products.filter((product) =>
+      !query ||
+      [product.code, product.name, product.description, ...product.variants.flatMap((variant) => [variant.code, variant.name, variant.company])]
+        .some((value) => value.toLowerCase().includes(query)),
+    );
+  }, [productSearch, products]);
 
   function toggleProduct(productCode: string) {
     setExpandedProducts((current) => ({ ...current, [productCode]: !current[productCode] }));
   }
 
   function openProductForm() {
+    setEditingProduct(null);
     setProductForm(emptyProduct);
+    setProductError("");
+    setShowProductForm(true);
+  }
+
+  function openEditProduct(product: BomProduct) {
+    setEditingProduct(product);
+    setProductForm({
+      name: product.name,
+      code: product.code,
+      description: product.description,
+      image: product.image,
+    });
     setProductError("");
     setShowProductForm(true);
   }
 
   function closeProductForm() {
     setShowProductForm(false);
+    setEditingProduct(null);
     setProductError("");
   }
 
@@ -180,104 +176,36 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
       setProductError("Enter a product name, code, and description.");
       return;
     }
-    if (products.some((product) => product.code.toLowerCase() === code.toLowerCase())) {
+    if (products.some((product) => product.code.toLowerCase() === code.toLowerCase() && product.code !== editingProduct?.code)) {
       setProductError("That product code is already in use.");
       return;
     }
-    addBomProduct({ name, code, description, image: productForm.image });
+    const input = { name, code, description, image: productForm.image };
+    if (editingProduct) {
+      updateBomProduct(editingProduct.code, input);
+    } else {
+      addBomProduct(input);
+    }
     closeProductForm();
   }
 
   const content = (
-    <section className={readOnly ? "space-y-5 px-6 py-5" : "space-y-6 p-6"}>
-      <div className="space-y-4">
-        {readOnly ? (
-          <div className="flex flex-wrap items-end gap-4 border-b border-border pb-4">
-            <label className="min-w-[240px] flex-1 text-base font-medium text-muted-foreground">
-              Search
-              <span className="relative mt-1 block">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  value={productSearch}
-                  onChange={(event) => setProductSearch(event.target.value)}
-                  placeholder="Search BOM products"
-                  aria-label="Search BOM products"
-                  className="h-12 w-full rounded-md border border-input bg-background pl-10 pr-3 text-base font-normal text-foreground outline-none focus:border-primary"
-                />
-              </span>
-            </label>
-            <BomViewSwitcher view={view} onChange={setView} large />
-          </div>
-        ) : (
-          <>
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold">Parent assemblies</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Search product names, product codes, companies, or variant codes.
-                </p>
-              </div>
-              <label className="relative block w-full max-w-sm">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  value={productSearch}
-                  onChange={(event) => setProductSearch(event.target.value)}
-                  placeholder="Search BOM products"
-                  aria-label="Search BOM products"
-                  className="h-11 w-full rounded-md border border-input bg-card pl-10 pr-3 text-base outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-              </label>
-            </div>
-            <div className="filter-toolbar rounded-lg border border-border bg-card p-4">
-              <label className="text-sm font-medium">
-                Sort by
-                <select
-                  value={sortBy}
-                  onChange={(event) => setSortBy(event.target.value as BomSort)}
-                  className="mt-1.5 h-11 rounded-md border border-input bg-white px-3 text-base font-normal"
-                >
-                  <option value="name-asc">Name A–Z</option>
-                  <option value="name-desc">Name Z–A</option>
-                </select>
-              </label>
-              <label className="text-sm font-medium">
-                Filter variants
-                <select
-                  value={variantFilter}
-                  onChange={(event) => setVariantFilter(event.target.value as CountFilter)}
-                  className="mt-1.5 h-11 rounded-md border border-input bg-white px-3 text-base font-normal"
-                >
-                  <option value="all">Any variant count</option>
-                  <option value="none">No variants</option>
-                </select>
-              </label>
-              <label className="text-sm font-medium">
-                Filter raw parts
-                <select
-                  value={rawPartsFilter}
-                  onChange={(event) => setRawPartsFilter(event.target.value as CountFilter)}
-                  className="mt-1.5 h-11 rounded-md border border-input bg-white px-3 text-base font-normal"
-                >
-                  <option value="all">Any raw-part count</option>
-                  <option value="none">No raw parts</option>
-                </select>
-              </label>
-              <button
-                type="button"
-                onClick={clearCatalogFilters}
-                className="h-11 rounded-md border border-input px-4 text-sm font-medium text-muted-foreground hover:bg-muted"
-              >
-                Clear filters
-              </button>
-              <div className="ml-auto flex flex-wrap items-center gap-4">
-                <BomViewSwitcher view={view} onChange={setView} />
-                <p className="text-sm text-muted-foreground">
-                  {filteredProducts.length} of {products.length} parent assemblies
-                </p>
-              </div>
-            </div>
-          </>
-        )}
+    <section className="space-y-5 px-6 py-5">
+      <div className="flex flex-wrap items-end gap-4 border-b border-border pb-4">
+        <label className="min-w-[240px] flex-1 text-base font-medium text-muted-foreground">
+          Search
+          <span className="relative mt-1 block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={productSearch}
+              onChange={(event) => setProductSearch(event.target.value)}
+              placeholder="Search BOM products"
+              aria-label="Search BOM products"
+              className="h-12 w-full rounded-md border border-input bg-background pl-10 pr-3 text-base font-normal text-foreground outline-none focus:border-primary"
+            />
+          </span>
+        </label>
+        <BomViewSwitcher view={view} onChange={setView} large />
       </div>
         {view === "grid" ? (
           <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
@@ -287,27 +215,31 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                   <img src={product.image} alt={`${product.name} component assembly`} className="h-full w-full object-contain" />
                 </div>
                 <div className="p-4">
-                  <p className={`tabular font-medium uppercase tracking-wide text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>{product.code}</p>
-                  <h2 className={`mt-1 font-semibold ${readOnly ? "text-xl" : "text-lg"}`}>{product.name}</h2>
-                  {!readOnly ? (
-                    <p className="mt-1 min-h-12 text-sm leading-6 text-muted-foreground">{product.description}</p>
-                  ) : null}
-                  <div className={`mt-4 grid grid-cols-2 border-t border-border pt-3 ${readOnly ? "text-base" : "text-sm"}`}>
+                  <p className="tabular text-base font-medium uppercase tracking-wide text-muted-foreground">{product.code}</p>
+                  <h2 className="mt-1 text-xl font-semibold">{product.name}</h2>
+                  <div className="mt-4 grid grid-cols-2 border-t border-border pt-3 text-base">
                     <div>
-                      <p className={`font-medium uppercase tracking-wide text-muted-foreground ${readOnly ? "text-sm" : "text-xs"}`}>Variants</p>
-                      <p className={`mt-1 font-semibold ${readOnly ? "text-lg" : "text-base"}`}>{product.variants.length}</p>
+                      <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Variants</p>
+                      <p className="mt-1 text-lg font-semibold">{product.variants.length}</p>
                     </div>
                     <div>
-                      <p className={`font-medium uppercase tracking-wide text-muted-foreground ${readOnly ? "text-sm" : "text-xs"}`}>Raw parts</p>
-                      <p className={`mt-1 font-semibold ${readOnly ? "text-lg" : "text-base"}`}>{rawPartCount(product)}</p>
+                      <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Raw parts</p>
+                      <p className="mt-1 text-lg font-semibold">{rawPartCount(product)}</p>
                     </div>
                   </div>
+                  {!readOnly ? (
+                    <ProductAdminActions
+                      product={product}
+                      onEdit={openEditProduct}
+                      onDelete={setProductToDelete}
+                    />
+                  ) : null}
                   {readOnly ? (
                     <Link to="/subhub/bom/$code" params={{ code: product.code }} className="mt-4 inline-flex items-center gap-2 text-base font-semibold text-primary hover:underline">
                       Open structure <span aria-hidden="true">→</span>
                     </Link>
                   ) : (
-                    <Link to="/bom/$code" params={{ code: product.code }} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">
+                    <Link to="/bom/$code" params={{ code: product.code }} className="mt-4 inline-flex items-center gap-2 text-base font-semibold text-primary hover:underline">
                       Open structure <span aria-hidden="true">→</span>
                     </Link>
                   )}
@@ -328,14 +260,11 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                         {expanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
                       </span>
                       <span className="min-w-0">
-                        <span className={`tabular block font-medium uppercase tracking-wide text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>{product.code}</span>
+                        <span className="tabular block text-base font-medium uppercase tracking-wide text-muted-foreground">{product.code}</span>
                         <span className="mt-1 block text-lg font-semibold">{product.name}</span>
-                        {!readOnly ? (
-                          <span className="mt-1 block truncate text-sm text-muted-foreground">{product.description}</span>
-                        ) : null}
                       </span>
                     </button>
-                    <div className={`flex flex-wrap items-center gap-4 ${readOnly ? "text-base" : "text-sm"}`}>
+                    <div className="flex flex-wrap items-center gap-4 text-base">
                       <span><span className="text-muted-foreground">Variants</span> <strong className="ml-1">{product.variants.length}</strong></span>
                       <span><span className="text-muted-foreground">Raw parts</span> <strong className="ml-1">{rawPartCount(product)}</strong></span>
                       <span className="font-medium text-primary">{expanded ? "Hide variants" : "View variants"}</span>
@@ -346,10 +275,19 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                       )}
                     </div>
                   </div>
+                  {!readOnly ? (
+                    <div className="px-4 pb-4">
+                      <ProductAdminActions
+                        product={product}
+                        onEdit={openEditProduct}
+                        onDelete={setProductToDelete}
+                      />
+                    </div>
+                  ) : null}
                   {expanded ? (
                     <div className="border-t border-border bg-muted/10 px-4 py-4 sm:px-6">
                       <div className="space-y-3 border-l-2 border-primary/20 pl-4">
-                          <p className={`font-semibold uppercase tracking-[0.1em] text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>Variants and required materials</p>
+                        <p className="text-base font-semibold uppercase tracking-[0.1em] text-muted-foreground">Variants and required materials</p>
                         {!product.variants.length ? (
                           <p className="rounded-md border border-dashed border-border bg-card px-4 py-5 text-sm text-muted-foreground">No variants have been added to this assembly.</p>
                         ) : (
@@ -362,21 +300,21 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                                     <ChevronRight className="size-4 transition-transform group-open:rotate-90" />
                                   </span>
                                   <span className="min-w-0 flex-1">
-                                    <span className={`tabular block font-medium uppercase tracking-wide text-muted-foreground ${readOnly ? "text-sm" : "text-xs"}`}>{variant.code}</span>
+                                    <span className="tabular block text-sm font-medium uppercase tracking-wide text-muted-foreground">{variant.code}</span>
                                     <span className="mt-1 block text-base font-semibold">{variant.name}</span>
-                                    <span className={`mt-1 block text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>{variant.company}</span>
+                                    <span className="mt-1 block text-base text-muted-foreground">{variant.company}</span>
                                   </span>
-                                  <span className={`rounded-full bg-primary/10 px-3 py-1.5 font-medium text-primary ${readOnly ? "text-base" : "text-sm"}`}>{requiredMaterials.length} required materials</span>
+                                  <span className="rounded-full bg-primary/10 px-3 py-1.5 text-base font-medium text-primary">{requiredMaterials.length} required materials</span>
                                 </summary>
                                 <div className="mb-4 ml-4 border-l-2 border-border pl-4">
-                                  <p className={`font-medium text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>Required materials</p>
+                                  <p className="text-base font-medium text-muted-foreground">Required materials</p>
                                   {requiredMaterials.length ? (
                                     <div className="mt-2 space-y-2">
                                       {requiredMaterials.map((material) => (
-                                        <div key={material.code} className={`flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/70 bg-muted/20 px-4 py-3 ${readOnly ? "text-base" : "text-sm"}`}>
+                                        <div key={material.code} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/70 bg-muted/20 px-4 py-3 text-base">
                                           <div className="min-w-0">
                                             <p className="font-semibold">{material.name}</p>
-                                            <p className={`tabular mt-0.5 text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>{material.code} · {material.material}</p>
+                                            <p className="tabular mt-0.5 text-base text-muted-foreground">{material.code} · {material.material}</p>
                                           </div>
                                           <div className="flex flex-wrap items-center gap-3 text-muted-foreground">
                                             <span>Qty <strong className="text-foreground">{material.quantity}</strong></span>
@@ -387,7 +325,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
                                       ))}
                                     </div>
                                   ) : (
-                                    <p className={`mt-2 text-muted-foreground ${readOnly ? "text-base" : "text-sm"}`}>No required materials are defined for this variant.</p>
+                                    <p className="mt-2 text-base text-muted-foreground">No required materials are defined for this variant.</p>
                                   )}
                                 </div>
                               </details>
@@ -406,14 +344,12 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
             products={filteredProducts}
             title="All Float types BOM matrix"
             description="Compare every matching Float type and variant against its required raw materials."
-            largeText={readOnly}
+            largeText
           />
         )}
         {!filteredProducts.length ? (
           <p className="rounded-md border border-dashed border-border px-5 py-12 text-center text-base text-muted-foreground">
-            {readOnly
-              ? "No BOM products match your search."
-              : "No BOM products match the current search and filters."}
+            No BOM products match your search.
           </p>
         ) : null}
       </section>
@@ -426,7 +362,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
   return (
     <Shell
       title="Bills of Materials"
-      subtitle="Parent assemblies and component structures for the Float product line"
+      mainClassName="flex-1 space-y-0 p-0"
       actions={
         <button
           type="button"
@@ -442,6 +378,7 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
       {showProductForm ? (
         <ProductForm
           form={productForm}
+          editing={Boolean(editingProduct)}
           error={productError}
           onChange={setProductForm}
           onImage={handleImage}
@@ -449,12 +386,49 @@ export function BomPage({ readOnly }: { readOnly: boolean }) {
           onClose={closeProductForm}
         />
       ) : null}
+      {productToDelete ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-product-title">
+          <div className="w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-destructive">Delete BOM product</p>
+            <h2 id="delete-product-title" className="mt-2 text-xl font-semibold">Delete {productToDelete.name}?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">This also removes its variants and raw-part quantities. This action cannot be undone.</p>
+            <div className="mt-6 flex justify-end gap-3 border-t border-border pt-4">
+              <button type="button" onClick={() => setProductToDelete(null)} className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted">Cancel</button>
+              <button type="button" onClick={() => { deleteBomProduct(productToDelete.code); setProductToDelete(null); }} className="inline-flex items-center gap-2 rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:opacity-90">
+                <Trash2 className="size-4" /> Delete product
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </Shell>
+  );
+}
+
+function ProductAdminActions({
+  product,
+  onEdit,
+  onDelete,
+}: {
+  product: BomProduct;
+  onEdit: (product: BomProduct) => void;
+  onDelete: (product: BomProduct) => void;
+}) {
+  return (
+    <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-3">
+      <button type="button" onClick={() => onEdit(product)} className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-input px-3 text-sm font-medium text-foreground hover:bg-muted">
+        <Pencil className="size-4" /> Edit
+      </button>
+      <button type="button" onClick={() => onDelete(product)} className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-destructive/30 px-3 text-sm font-medium text-destructive hover:bg-destructive/10">
+        <Trash2 className="size-4" /> Delete
+      </button>
+    </div>
   );
 }
 
 function ProductForm({
   form,
+  editing,
   error,
   onChange,
   onImage,
@@ -462,6 +436,7 @@ function ProductForm({
   onClose,
 }: {
   form: NewProduct;
+  editing: boolean;
   error: string;
   onChange: (value: NewProduct) => void;
   onImage: (event: ChangeEvent<HTMLInputElement>) => void;
@@ -474,8 +449,8 @@ function ProductForm({
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Product master</p>
-            <h2 id="add-product-title" className="mt-2 text-xl font-semibold">Add product</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Add an image and product details to create a new BOM product.</p>
+            <h2 id="add-product-title" className="mt-2 text-xl font-semibold">{editing ? "Edit product" : "Add product"}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{editing ? "Update this BOM product." : "Add an image and product details to create a new BOM product."}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted">
             <X className="size-5" />
@@ -512,12 +487,14 @@ function ProductForm({
             Product code
             <input
               required
+              disabled={editing}
               value={form.code}
               onChange={(event) => onChange({ ...form, code: event.target.value })}
               placeholder="P-PMP"
-              className="tabular mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus:border-primary"
+              className="tabular mt-1.5 h-11 w-full rounded-md border border-input bg-background px-3 text-base outline-none focus:border-primary disabled:cursor-not-allowed disabled:bg-muted"
             />
           </label>
+          {editing ? <p className="-mt-3 text-sm text-muted-foreground">Product code is locked to preserve BOM references.</p> : null}
           <label className="block text-base font-medium">
             Description
             <textarea
@@ -537,7 +514,7 @@ function ProductForm({
             Cancel
           </button>
           <button type="submit" className="rule-header inline-flex min-h-11 items-center rounded-md px-4 py-2 text-base font-medium">
-            Add product
+            {editing ? "Save changes" : "Add product"}
           </button>
         </div>
       </form>

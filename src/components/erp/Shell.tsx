@@ -69,11 +69,13 @@ export function Shell({
   title,
   subtitle,
   actions,
+  mainClassName = "flex-1 space-y-6 p-6",
   children,
 }: {
   title: string;
   subtitle?: string;
   actions?: ReactNode;
+  mainClassName?: string;
   children: ReactNode;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -212,7 +214,7 @@ export function Shell({
           </nav>
         </header>
 
-        <main className="flex-1 space-y-6 p-6">{children}</main>
+        <main className={mainClassName}>{children}</main>
 
         {!isProcurementPanel ? (
           <footer className="border-t border-border px-6 py-4 text-xs text-muted-foreground">

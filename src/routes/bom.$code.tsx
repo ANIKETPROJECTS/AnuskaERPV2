@@ -109,144 +109,6 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
     setEditingVariant(null);
   }
 
-  const content = (
-      <div className="grid gap-6 p-6 xl:grid-cols-[300px_1fr]">
-        <aside className="panel h-fit overflow-hidden">
-          <div className="border-b border-border p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Company BOM variants</p>
-                <p className="mt-1 text-sm text-muted-foreground">{product.variants.length} variants</p>
-              </div>
-              {!readOnly ? (
-                <button
-                  type="button"
-                  onClick={openCreateVariant}
-                  aria-label="Add variant"
-                  className="inline-flex size-10 items-center justify-center rounded-md border border-input text-muted-foreground hover:bg-muted hover:text-foreground"
-                >
-                  <Plus className="size-4" />
-                </button>
-              ) : null}
-            </div>
-            <div className="relative mt-3">
-              <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
-              <input
-                value={variantSearch}
-                onChange={(event) => setVariantSearch(event.target.value)}
-                placeholder="Search variants"
-                aria-label="Search variants"
-                className="h-11 w-full rounded-md border border-input bg-background pl-9 pr-3 text-base outline-none focus:border-primary"
-              />
-            </div>
-          </div>
-          <div className="space-y-2 p-3">
-            {filteredVariants.map((variant) => (
-              <div
-                key={variant.id}
-                className={`rounded-md border p-3 transition ${
-                  variant.id === selectedVariantId ? "border-primary bg-primary/5" : "border-transparent hover:border-border hover:bg-muted/40"
-                }`}
-              >
-                <button type="button" onClick={() => setSelectedVariantId(variant.id)} className="w-full text-left">
-                  <p className="tabular text-xs font-medium uppercase text-muted-foreground">{variant.code}</p>
-                  <p className="mt-1 text-base font-semibold">{variant.name}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{variant.company}</p>
-                </button>
-                {!readOnly ? (
-                  <div className="mt-3 flex justify-end gap-2 border-t border-border/70 pt-2">
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openEditVariant(variant);
-                      }}
-                      aria-label={`Edit ${variant.name}`}
-                      className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-input px-3 text-sm font-medium text-foreground hover:bg-muted"
-                    >
-                      <Pencil className="size-3.5" /> Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setVariantToDelete(variant);
-                      }}
-                      aria-label={`Delete ${variant.name}`}
-                      className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-destructive/30 px-3 text-sm font-medium text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="size-3.5" /> Delete
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ))}
-            {filteredVariants.length === 0 ? (
-              <p className="px-3 py-8 text-center text-base text-muted-foreground">No matching variants.</p>
-            ) : null}
-          </div>
-        </aside>
-
-        <main className="space-y-5">
-          {variantNotice ? (
-            <p role="status" className="rounded-md border border-success/25 bg-success/5 px-4 py-3 text-sm text-success">
-              {variantNotice}
-            </p>
-          ) : null}
-          <div className="panel overflow-hidden">
-            <div className="flex flex-wrap items-center gap-4 border-b border-border px-6 py-5">
-              <img src={product.image} alt={`${product.name} assembly`} className="size-16 rounded-md border border-border bg-white object-contain p-1" />
-              <div className="min-w-0 flex-1">
-                 <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{structureView === "matrix" ? "BOM matrix" : "Raw subparts"}</p>
-                 <h2 className="mt-1 text-xl font-semibold">{structureView === "matrix" ? `${product.name} variants` : selectedVariant?.name ?? "No variant selected"}</h2>
-                <p className="mt-1 text-base text-muted-foreground">
-                   {structureView === "matrix"
-                     ? "Compare every variant against its required raw materials."
-                     : selectedVariant
-                       ? `${selectedVariant.company} · ${selectedVariant.code}`
-                       : "Create a variant-specific BOM to begin."}
-                </p>
-              </div>
-               <div className="flex flex-wrap items-center gap-3">
-                 <div className="flex rounded-md border border-input bg-white p-1" aria-label="Structure view">
-                   <button
-                     type="button"
-                     onClick={() => setStructureView("detail")}
-                     aria-pressed={structureView === "detail"}
-                      className={`min-h-9 rounded px-3 py-1.5 text-sm font-medium ${structureView === "detail" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
-                   >
-                     Detail
-                   </button>
-                   <button
-                     type="button"
-                     onClick={() => setStructureView("matrix")}
-                     aria-pressed={structureView === "matrix"}
-                      className={`inline-flex min-h-9 items-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium ${structureView === "matrix" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
-                   >
-                     <Table2 className="size-3.5" /> Matrix
-                   </button>
-                 </div>
-                 {!readOnly ? (
-                    <button type="button" onClick={openCreateVariant} className="rule-header inline-flex min-h-11 items-center gap-2 rounded-md px-4 py-2 text-base font-medium">
-                     <Plus className="size-4" /> Add variant
-                   </button>
-                 ) : null}
-               </div>
-            </div>
-             {structureView === "matrix" ? (
-               <BomMatrix products={[currentProduct]} title={`${product.name} BOM matrix`} />
-             ) : selectedVariant ? (
-                <PartsTable variant={selectedVariant} materials={materials} />
-             ) : readOnly ? (
-                <p className="p-12 text-center text-base text-muted-foreground">No variant selected.</p>
-             ) : (
-               <EmptyVariantState onAdd={openCreateVariant} />
-             )}
-          </div>
-        </main>
-      </div>
-  );
-
   const subHubContent = (
     <section className="space-y-6 px-6 pb-6">
       <div className="border-b border-border pt-5">
@@ -341,12 +203,31 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
                 <Table2 className="size-4" /> Matrix
               </button>
             </div>
+            {!readOnly ? (
+              <>
+                <button type="button" onClick={openCreateVariant} className="rule-header inline-flex min-h-10 items-center gap-2 rounded-md px-4 py-2 text-base font-medium">
+                  <Plus className="size-4" /> Add variant
+                </button>
+                {selectedVariant ? (
+                  <>
+                    <button type="button" onClick={() => openEditVariant(selectedVariant)} className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-input px-3 text-sm font-medium text-foreground hover:bg-muted">
+                      <Pencil className="size-4" /> Edit
+                    </button>
+                    <button type="button" onClick={() => setVariantToDelete(selectedVariant)} className="inline-flex min-h-10 items-center gap-1.5 rounded-md border border-destructive/30 px-3 text-sm font-medium text-destructive hover:bg-destructive/10">
+                      <Trash2 className="size-4" /> Delete
+                    </button>
+                  </>
+                ) : null}
+              </>
+            ) : null}
           </div>
         </div>
         {structureView === "matrix" ? (
           <BomMatrix products={[currentProduct]} title={`${product.name} BOM matrix`} largeText />
         ) : selectedVariant ? (
           <PartsTable variant={selectedVariant} materials={materials} largeText />
+        ) : !readOnly ? (
+          <EmptyVariantState onAdd={openCreateVariant} />
         ) : (
           <p className="py-12 text-center text-base text-muted-foreground">No variant selected.</p>
         )}
@@ -354,12 +235,8 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
     </section>
   );
 
-  const backLink = readOnly ? (
-    <Link to="/subhub/bom" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-card px-4 py-2 text-base">
-      <ArrowLeft className="size-4" /> Bill of Materials
-    </Link>
-  ) : (
-    <Link to="/bom" className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm">
+  const backLink = (
+    <Link to={readOnly ? "/subhub/bom" : "/bom"} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-card px-4 py-2 text-base">
       <ArrowLeft className="size-4" /> Bill of Materials
     </Link>
   );
@@ -378,10 +255,10 @@ export function BomStructurePage({ code, readOnly }: { code: string; readOnly: b
   return (
     <Shell
       title={`${product.name} structure`}
-      subtitle={`${product.code} · ${product.variants.length} product variants · ${new Set(product.variants.flatMap((variant) => Object.keys(variant.parts))).size} raw parts`}
+      mainClassName="flex-1 space-y-0 p-0"
       actions={backLink}
     >
-      {content}
+      {subHubContent}
       {showVariantForm ? (
         <VariantForm
           productName={product.name}

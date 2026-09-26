@@ -68,6 +68,22 @@ export function addBomProduct(input: NewProduct): BomProduct {
   return product;
 }
 
+export function updateBomProduct(code: string, input: NewProduct): boolean {
+  if (!products.some((product) => product.code === code)) return false;
+  updateProducts((current) =>
+    current.map((product) =>
+      product.code === code ? { ...input, variants: product.variants } : product,
+    ),
+  );
+  return true;
+}
+
+export function deleteBomProduct(code: string): boolean {
+  if (!products.some((product) => product.code === code)) return false;
+  updateProducts((current) => current.filter((product) => product.code !== code));
+  return true;
+}
+
 export function addBomVariant(productCode: string, input: NewVariant): BomVariant | undefined {
   const variant = { ...input, id: createId("variant") };
   updateProducts((current) =>
