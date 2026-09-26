@@ -559,7 +559,6 @@ function ItemRequestsTable({
   panel: "admin" | "procurement";
   onUpdated: (message: string) => Promise<void>;
 }) {
-  const [responses, setResponses] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -568,7 +567,7 @@ function ItemRequestsTable({
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(25);
 
   const factories = useMemo(
     () =>
@@ -588,7 +587,6 @@ function ItemRequestsTable({
           request.quantity,
           request.notes,
           request.status,
-          request.response,
           formatRequestDateTime(request.createdAt),
         ]
           .join(" ")
@@ -625,7 +623,7 @@ function ItemRequestsTable({
     setError("");
     try {
       const result = await updateProcurementItemRequestFn({
-        data: { id: request.id, status, response: responses[request.id] ?? "", panel },
+        data: { id: request.id, status, response: "", panel },
       });
       if (!result.ok) setError(result.message);
       else {
@@ -640,12 +638,6 @@ function ItemRequestsTable({
   }
   return (
     <section>
-      <SectionHeading
-        title="SubHub item requests"
-        description={`${filteredRequests.length} of ${requests.length} ${
-          requests.length === 1 ? "request" : "requests"
-        } · submitted by SubHub teams`}
-      />
       <div className="flex flex-wrap items-end gap-3 border-b border-border p-4">
         <label className="relative min-w-[240px] flex-1 text-sm font-medium text-muted-foreground">
           Search requests
@@ -744,25 +736,23 @@ function ItemRequestsTable({
       ) : null}
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1220px] table-fixed text-base">
+        <table className="w-full min-w-[940px] table-fixed text-base">
           <colgroup>
-            <col className="w-[16%]" />
-            <col className="w-[14%]" />
-            <col className="w-[21%]" />
+            <col className="w-[20%]" />
+            <col className="w-[18%]" />
+            <col className="w-[24%]" />
             <col className="w-[8%]" />
-            <col className="w-[10%]" />
-            <col className="w-[14%]" />
+            <col className="w-[13%]" />
             <col className="w-[17%]" />
           </colgroup>
-          <thead className="border-b border-border text-left text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          <thead className="border-b border-border text-center text-sm font-semibold uppercase tracking-wide text-muted-foreground">
             <tr>
-              <th className="px-4 py-3">Date / time</th>
-              <th className="px-4 py-3">Factory</th>
-              <th className="px-4 py-3">Requirement</th>
-              <th className="px-4 py-3 text-right">Qty</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Response</th>
-              <th className="px-4 py-3">Actions</th>
+              <th className="px-3 py-3">Date / time</th>
+              <th className="px-3 py-3">Factory</th>
+              <th className="px-3 py-3">Requirement</th>
+              <th className="px-3 py-3">Qty</th>
+              <th className="px-3 py-3">Status</th>
+              <th className="px-3 py-3">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -776,70 +766,54 @@ function ItemRequestsTable({
               return (
                 <tr
                   key={request.id}
-                  className="border-b border-border/70 align-top hover:bg-muted/30"
+                  className="border-b border-border/70 align-middle odd:bg-muted/20 hover:bg-muted/40"
                 >
-                  <td className="tabular whitespace-nowrap px-4 py-4 text-sm text-muted-foreground">
+                  <td className="tabular whitespace-nowrap px-3 py-4 text-center text-sm text-muted-foreground">
                     {formatRequestDateTime(request.createdAt)}
                   </td>
-                  <td className="px-4 py-4 font-medium">
+                  <td className="break-words px-3 py-4 text-center font-medium">
                     {request.subhubName || "Unknown factory"}
                   </td>
-                  <td className="px-4 py-4">
-                    <p className="font-semibold">{request.itemName}</p>
-                    <p className="mt-1 break-words text-sm text-muted-foreground">
-                      {request.notes || "No additional details"}
-                    </p>
+                  <td className="px-3 py-4 text-center">
+                    <p className="break-words font-semibold">{request.itemName}</p>
+                    {request.notes ? (
+                      <p className="mt-1 break-words text-sm text-muted-foreground">
+                        {request.notes}
+                      </p>
+                    ) : null}
                   </td>
-                  <td className="tabular px-4 py-4 text-right font-semibold">
+                  <td className="tabular px-3 py-4 text-center font-semibold">
                     {num(request.quantity)}
                   </td>
-                  <td className="px-4 py-4">
+                  <td className="px-3 py-4 text-center">
                     <span
                       className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold text-white ${statusColor}`}
                     >
                       {request.status}
                     </span>
                   </td>
-                  <td className="px-4 py-4 text-sm">
-                    {request.response || (request.status === "Pending" ? "Awaiting review" : "—")}
-                  </td>
-                  <td className="px-4 py-4">
+                  <td className="px-3 py-4 text-center">
                     {request.status === "Pending" ? (
-                      <div className="flex min-w-[190px] flex-col gap-2">
-                        <input
-                          value={responses[request.id] ?? ""}
-                          onChange={(event) =>
-                            setResponses((current) => ({
-                              ...current,
-                              [request.id]: event.target.value,
-                            }))
-                          }
-                          maxLength={500}
-                          aria-label={`Response to ${request.itemName} request`}
-                          placeholder="Response (optional)"
-                          className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
-                        />
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            disabled={busyId === request.id}
-                            onClick={() => void update(request, "Declined")}
-                            className="h-9 rounded-md border border-input bg-white px-3 text-sm font-semibold hover:bg-muted disabled:opacity-50"
-                          >
-                            Decline
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busyId === request.id}
-                            onClick={() => void update(request, "Approved")}
-                            className="h-9 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-                          >
-                            Approve
-                          </button>
-                        </div>
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          disabled={busyId === request.id}
+                          onClick={() => void update(request, "Approved")}
+                          className="h-9 rounded-md bg-primary px-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                        >
+                          {busyId === request.id ? "Saving…" : "Approve"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busyId === request.id}
+                          onClick={() => void update(request, "Declined")}
+                          className="h-9 rounded-md border border-input bg-white px-2 text-sm font-semibold hover:bg-muted disabled:opacity-50"
+                        >
+                          Decline
+                        </button>
                       </div>
                     ) : (
-                      <span className="text-sm text-muted-foreground">Reviewed</span>
+                      <span className="text-sm text-muted-foreground">—</span>
                     )}
                   </td>
                 </tr>
