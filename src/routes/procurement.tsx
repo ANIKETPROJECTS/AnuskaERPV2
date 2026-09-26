@@ -658,11 +658,6 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
   }
 
   const shortageCount = selectedHub.needs.filter((need) => need.shortageQuantity > 0).length;
-  const coverageLabel = selectedHub.needs.length === 0
-    ? "No targets"
-    : shortageCount
-      ? `${num(shortageCount)} ${shortageCount === 1 ? "shortage" : "shortages"}`
-      : "All covered";
   const selectedNeeds = data.materialNeeds.filter(
     (need) => need.subhubUserId === selectedHub.id && need.shortageQuantity > 0,
   );
@@ -686,9 +681,6 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
               <h2 className="mt-1 text-lg font-semibold">{selectedHub.name}</h2>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <Tag tone={selectedHub.needs.length === 0 ? "neutral" : shortageCount ? "warn" : "good"}>
-                {coverageLabel}
-              </Tag>
               {shortageCount > 0 ? (
                 <button
                   type="button"
