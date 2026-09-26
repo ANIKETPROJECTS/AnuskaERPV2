@@ -167,6 +167,10 @@ export function ProcurementPage({
     }
   }, [result]);
 
+  useEffect(() => {
+    if (panel === "procurement" && activeTab === "requests") setNotice("");
+  }, [activeTab, panel]);
+
   async function reload() {
     setLoading(true);
     const response = await getProcurementDataFn({ data: { panel } });
@@ -302,7 +306,14 @@ export function ProcurementPage({
   const content = (
     <div className="space-y-6 text-base">
       {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-base text-destructive">{error}</p> : null}
-      {notice ? <p role="status" className="rounded-md border border-success/25 bg-success/5 px-4 py-3 text-base text-success">{notice}</p> : null}
+      {notice && !(panel === "procurement" && activeTab === "requests") ? (
+        <p
+          role="status"
+          className="rounded-md border border-success/25 bg-success/5 px-4 py-3 text-base text-success"
+        >
+          {notice}
+        </p>
+      ) : null}
 
       {summaryMetrics.length ? (
         <section
@@ -382,7 +393,17 @@ export function ProcurementPage({
         </>
       ) : null}
       {activeTab === "needs" ? <HubMaterialNeeds data={data} panel={panel as "admin" | "procurement"} onSaved={async (message) => { setNotice(message); await reload(); }} /> : null}
-      {activeTab === "requests" ? <ItemRequestsTable requests={data.itemRequests} panel={panel as "admin" | "procurement"} onUpdated={async (message) => { setNotice(message); await reload(); }} /> : null}
+      {activeTab === "requests" ? (
+        <ItemRequestsTable
+          requests={data.itemRequests}
+          panel={panel as "admin" | "procurement"}
+          onUpdated={async (message) => {
+            if (panel === "procurement") setNotice("");
+            else setNotice(message);
+            await reload();
+          }}
+        />
+      ) : null}
 
       {showOrderForm ? <OrderForm data={data} isAdmin={canManageProcurement} panel={panel as "admin" | "procurement"} onClose={() => setShowOrderForm(false)} onSaved={async (message) => { setShowOrderForm(false); setNotice(message); await reload(); }} /> : null}
       {vendorFormMode ? <VendorForm mode={vendorFormMode} vendor={editingVendor} panel={panel as "admin" | "procurement"} onClose={() => setVendorFormMode(null)} onSaved={async (message) => { setVendorFormMode(null); setNotice(message); await reload(); }} /> : null}
