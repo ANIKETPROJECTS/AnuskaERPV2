@@ -136,7 +136,9 @@ export function Shell({
                 }
                 className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-base leading-snug transition-colors ${
                   active
-                    ? "bg-sidebar-accent font-medium text-sidebar-primary"
+                    ? isProcurementPanel
+                      ? "bg-sidebar-primary font-medium text-sidebar-primary-foreground"
+                      : "bg-sidebar-accent font-medium text-sidebar-primary"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/60"
                 }`}
               >
@@ -170,8 +172,8 @@ export function Shell({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur">
-          <div className="flex min-h-[65px] flex-wrap items-center gap-4 px-6 py-0">
+        <header className="sticky top-0 z-20 min-h-[65px] border-b border-border bg-background/85 backdrop-blur">
+          <div className="flex flex-wrap items-center gap-4 px-6 py-0">
             <div className="min-w-0 flex-1">
               <h1
                 className={`truncate font-semibold ${
@@ -198,7 +200,11 @@ export function Shell({
                     : undefined
                 }
                 className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted-foreground"
-                activeProps={{ className: "bg-secondary text-foreground font-medium" }}
+                activeProps={{
+                  className: isProcurementPanel
+                    ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium"
+                    : "bg-secondary text-foreground font-medium",
+                }}
               >
                 {item.label}
               </Link>

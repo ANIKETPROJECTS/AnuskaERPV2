@@ -102,7 +102,7 @@ export function SubHubShell({
                 search={item.permission === "procurement" ? { panel: "subhub" } : undefined}
                 className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-base leading-snug transition-colors ${
                   active
-                    ? "bg-sidebar-accent font-medium text-sidebar-primary"
+                    ? "bg-sidebar-primary font-medium text-sidebar-primary-foreground"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/60"
                 }`}
               >
