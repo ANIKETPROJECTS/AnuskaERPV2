@@ -319,7 +319,7 @@ export function ProcurementPage({
         </section>
       ) : null}
 
-      {panel !== "subhub" ? <div className="flex flex-col gap-3 border-b border-border pb-3 lg:flex-row lg:items-end lg:justify-between">
+      {panel !== "subhub" && (panel !== "procurement" || activeTab !== "requests") ? <div className="flex flex-col gap-3 border-b border-border pb-3 lg:flex-row lg:items-end lg:justify-between">
         {panel !== "procurement" ? <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-1" role="tablist" aria-label="Procurement sections">
           <button type="button" role="tab" aria-selected={activeTab === "orders"} onClick={() => setTab("orders")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${activeTab === "orders" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             <ClipboardList className="size-5" /> Order Management
@@ -337,7 +337,7 @@ export function ProcurementPage({
         <div className="flex flex-wrap gap-2">
           {canManageProcurement && activeTab === "vendors" ? <button type="button" onClick={openCreateVendor} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted"><Plus className="size-5" /> Add vendor</button> : null}
           {canManageProcurement && activeTab === "orders" ? <button type="button" onClick={() => setShowOrderForm(true)} className="rule-header inline-flex min-h-12 items-center gap-2 rounded-md px-4 text-base font-semibold"><PackagePlus className="size-5" /> New procurement order</button> : null}
-          <button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted disabled:opacity-50"><RefreshCw className={`size-5 ${loading ? "animate-spin" : ""}`} /> Refresh</button>
+          {!(panel === "procurement" && activeTab === "requests") ? <button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted disabled:opacity-50"><RefreshCw className={`size-5 ${loading ? "animate-spin" : ""}`} /> Refresh</button> : null}
         </div>
       </div> : null}
 
@@ -550,26 +550,350 @@ function ShortageOrderForm({ data, needs, panel, onClose, onSaved }: { data: Pro
   </Drawer>;
 }
 
-function ItemRequestsTable({ requests, panel, onUpdated }: { requests: ProcurementItemRequest[]; panel: "admin" | "procurement"; onUpdated: (message: string) => Promise<void> }) {
+function ItemRequestsTable({
+  requests,
+  panel,
+  onUpdated,
+}: {
+  requests: ProcurementItemRequest[];
+  panel: "admin" | "procurement";
+  onUpdated: (message: string) => Promise<void>;
+}) {
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [factoryFilter, setFactoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<ProcurementItemRequest["status"] | "all">("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const factories = useMemo(
+    () =>
+      [...new Set(requests.map((request) => request.subhubName.trim()).filter(Boolean))].sort(
+        (a, b) => a.localeCompare(b),
+      ),
+    [requests],
+  );
+  const filteredRequests = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return requests
+      .filter((request) => {
+        const requestDay = requestDateKey(request.createdAt);
+        const searchable = [
+          request.itemName,
+          request.subhubName,
+          request.quantity,
+          request.notes,
+          request.status,
+          request.response,
+          formatRequestDateTime(request.createdAt),
+        ]
+          .join(" ")
+          .toLowerCase();
+        return (
+          (!normalizedQuery || searchable.includes(normalizedQuery)) &&
+          (factoryFilter === "all" || request.subhubName.trim() === factoryFilter) &&
+          (statusFilter === "all" || request.status === statusFilter) &&
+          (!fromDate || (requestDay !== "" && requestDay >= fromDate)) &&
+          (!toDate || (requestDay !== "" && requestDay <= toDate))
+        );
+      })
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [requests, query, factoryFilter, statusFilter, fromDate, toDate]);
+  const visibleRequests = filteredRequests.slice((page - 1) * pageSize, page * pageSize);
+  const hasFilters = Boolean(
+    query.trim() || factoryFilter !== "all" || statusFilter !== "all" || fromDate || toDate,
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, factoryFilter, statusFilter, fromDate, toDate]);
+
+  function clearFilters() {
+    setQuery("");
+    setFactoryFilter("all");
+    setStatusFilter("all");
+    setFromDate("");
+    setToDate("");
+  }
+
   async function update(request: ProcurementItemRequest, status: "Approved" | "Declined") {
     setBusyId(request.id);
     setError("");
-    const result = await updateProcurementItemRequestFn({ data: { id: request.id, status, response: responses[request.id] ?? "", panel } });
-    if (!result.ok) setError(result.message);
-    else await onUpdated(`${request.itemName} request was ${status.toLowerCase()}.`);
-    setBusyId("");
+    try {
+      const result = await updateProcurementItemRequestFn({
+        data: { id: request.id, status, response: responses[request.id] ?? "", panel },
+      });
+      if (!result.ok) setError(result.message);
+      else {
+        setPage(1);
+        await onUpdated(`${request.itemName} request was ${status.toLowerCase()}.`);
+      }
+    } catch {
+      setError("Unable to update this item request. Please try again.");
+    } finally {
+      setBusyId("");
+    }
   }
-  return <section>
-    <SectionHeading title="SubHub item requests" description="Requests submitted by SubHub teams for small supplies, tools, and other items." />
-    {error ? <p role="alert" className="border-b border-border bg-destructive/5 py-3 text-base text-destructive">{error}</p> : null}
-    {requests.length ? <div className="divide-y divide-border border-b border-border">{requests.map((request) => <article key={request.id} className="flex flex-col gap-4 py-5 lg:flex-row lg:items-center">
-      <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-3"><h3 className="text-lg font-semibold">{request.itemName}</h3><Tag size="md" tone={request.status === "Approved" ? "good" : request.status === "Declined" ? "neutral" : "warn"}>{request.status}</Tag></div><p className="mt-1 text-base text-muted-foreground">{request.subhubName} · quantity {num(request.quantity)} · {formatDate(request.createdAt.slice(0, 10))}</p>{request.notes ? <p className="mt-2 text-base text-muted-foreground">{request.notes}</p> : null}{request.response ? <p className="mt-2 text-base">Response: {request.response}</p> : null}</div>
-      {request.status === "Pending" ? <div className="flex flex-col gap-2 sm:flex-row"><input value={responses[request.id] ?? ""} onChange={(event) => setResponses((current) => ({ ...current, [request.id]: event.target.value }))} maxLength={500} aria-label={`Response to ${request.itemName} request`} placeholder="Response (optional)" className="h-12 min-w-52 rounded-md border border-input px-3 text-base" /><button type="button" disabled={busyId === request.id} onClick={() => void update(request, "Declined")} className="min-h-12 rounded-md border border-input px-4 text-base font-semibold hover:bg-muted disabled:opacity-50">Decline</button><button type="button" disabled={busyId === request.id} onClick={() => void update(request, "Approved")} className="min-h-12 rounded-md bg-primary px-4 text-base font-semibold text-primary-foreground disabled:opacity-50">Approve</button></div> : null}
-    </article>)}</div> : <p className="border-b border-border py-8 text-center text-base text-muted-foreground">No SubHub item requests have been submitted.</p>}
-  </section>;
+  return (
+    <section>
+      <SectionHeading
+        title="SubHub item requests"
+        description={`${filteredRequests.length} of ${requests.length} ${
+          requests.length === 1 ? "request" : "requests"
+        } · submitted by SubHub teams`}
+      />
+      <div className="flex flex-wrap items-end gap-3 border-b border-border p-4">
+        <label className="relative min-w-[240px] flex-1 text-sm font-medium text-muted-foreground">
+          Search requests
+          <span className="relative mt-1 block">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              aria-label="Search item requests"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Factory, item, notes or status"
+              className="h-10 w-full rounded-md border border-input pl-9 pr-3 text-base font-normal text-foreground outline-none focus:border-primary"
+            />
+          </span>
+        </label>
+        <label className="w-full text-sm font-medium text-muted-foreground sm:w-44">
+          Factory
+          <span className="relative mt-1 block">
+            <select
+              value={factoryFilter}
+              onChange={(event) => setFactoryFilter(event.target.value)}
+              className="h-10 w-full appearance-none rounded-md border border-input bg-white px-3 pr-9 text-base font-normal text-foreground"
+            >
+              <option value="all">All factories</option>
+              {factories.map((factory) => (
+                <option key={factory} value={factory}>
+                  {factory}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              aria-hidden="true"
+              className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+          </span>
+        </label>
+        <label className="w-full text-sm font-medium text-muted-foreground sm:w-40">
+          Status
+          <span className="relative mt-1 block">
+            <select
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as ProcurementItemRequest["status"] | "all")
+              }
+              className="h-10 w-full appearance-none rounded-md border border-input bg-white px-3 pr-9 text-base font-normal text-foreground"
+            >
+              <option value="all">All statuses</option>
+              <option value="Pending">Pending</option>
+              <option value="Approved">Approved</option>
+              <option value="Declined">Declined</option>
+            </select>
+            <ChevronDown
+              aria-hidden="true"
+              className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+          </span>
+        </label>
+        <label className="w-full text-sm font-medium text-muted-foreground sm:w-44">
+          From date
+          <input
+            type="date"
+            value={fromDate}
+            max={toDate || undefined}
+            onChange={(event) => setFromDate(event.target.value)}
+            className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-base font-normal text-foreground"
+          />
+        </label>
+        <label className="w-full text-sm font-medium text-muted-foreground sm:w-44">
+          To date
+          <input
+            type="date"
+            value={toDate}
+            min={fromDate || undefined}
+            onChange={(event) => setToDate(event.target.value)}
+            className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-base font-normal text-foreground"
+          />
+        </label>
+        {hasFilters ? (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-input bg-white px-3 text-sm font-semibold text-foreground hover:bg-muted"
+          >
+            <X aria-hidden="true" className="size-4" />
+            Clear filters
+          </button>
+        ) : null}
+      </div>
+
+      {error ? (
+        <p
+          role="alert"
+          className="border-b border-border bg-destructive/5 px-4 py-3 text-base text-destructive"
+        >
+          {error}
+        </p>
+      ) : null}
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[1220px] table-fixed text-base">
+          <colgroup>
+            <col className="w-[16%]" />
+            <col className="w-[14%]" />
+            <col className="w-[21%]" />
+            <col className="w-[8%]" />
+            <col className="w-[10%]" />
+            <col className="w-[14%]" />
+            <col className="w-[17%]" />
+          </colgroup>
+          <thead className="border-b border-border text-left text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <tr>
+              <th className="px-4 py-3">Date / time</th>
+              <th className="px-4 py-3">Factory</th>
+              <th className="px-4 py-3">Requirement</th>
+              <th className="px-4 py-3 text-right">Qty</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Response</th>
+              <th className="px-4 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleRequests.map((request) => {
+              const statusColor =
+                request.status === "Approved"
+                  ? "bg-green-700"
+                  : request.status === "Declined"
+                    ? "bg-red-700"
+                    : "bg-amber-700";
+              return (
+                <tr
+                  key={request.id}
+                  className="border-b border-border/70 align-top hover:bg-muted/30"
+                >
+                  <td className="tabular whitespace-nowrap px-4 py-4 text-sm text-muted-foreground">
+                    {formatRequestDateTime(request.createdAt)}
+                  </td>
+                  <td className="px-4 py-4 font-medium">
+                    {request.subhubName || "Unknown factory"}
+                  </td>
+                  <td className="px-4 py-4">
+                    <p className="font-semibold">{request.itemName}</p>
+                    <p className="mt-1 break-words text-sm text-muted-foreground">
+                      {request.notes || "No additional details"}
+                    </p>
+                  </td>
+                  <td className="tabular px-4 py-4 text-right font-semibold">
+                    {num(request.quantity)}
+                  </td>
+                  <td className="px-4 py-4">
+                    <span
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold text-white ${statusColor}`}
+                    >
+                      {request.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-4 text-sm">
+                    {request.response || (request.status === "Pending" ? "Awaiting review" : "—")}
+                  </td>
+                  <td className="px-4 py-4">
+                    {request.status === "Pending" ? (
+                      <div className="flex min-w-[190px] flex-col gap-2">
+                        <input
+                          value={responses[request.id] ?? ""}
+                          onChange={(event) =>
+                            setResponses((current) => ({
+                              ...current,
+                              [request.id]: event.target.value,
+                            }))
+                          }
+                          maxLength={500}
+                          aria-label={`Response to ${request.itemName} request`}
+                          placeholder="Response (optional)"
+                          className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={busyId === request.id}
+                            onClick={() => void update(request, "Declined")}
+                            className="h-9 rounded-md border border-input bg-white px-3 text-sm font-semibold hover:bg-muted disabled:opacity-50"
+                          >
+                            Decline
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busyId === request.id}
+                            onClick={() => void update(request, "Approved")}
+                            className="h-9 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                          >
+                            Approve
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Reviewed</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {filteredRequests.length === 0 ? (
+          <p className="border-b border-border p-8 text-center text-base text-muted-foreground">
+            {requests.length === 0
+              ? "No SubHub item requests have been submitted."
+              : "No item requests match these filters. Adjust or clear your filters."}
+          </p>
+        ) : null}
+      </div>
+      <TablePagination
+        total={filteredRequests.length}
+        page={page}
+        pageSize={pageSize}
+        pageSizeOptions={[10, 25, 50]}
+        showPageSizeSelect={false}
+        onPageChange={setPage}
+        onPageSizeChange={setPageSize}
+      />
+    </section>
+  );
+}
+
+function requestDateKey(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  return `${year}-${month}-${day}`;
+}
+
+function formatRequestDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Kolkata",
+  }).format(date);
 }
 
 function OrderFilters({

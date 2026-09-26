@@ -173,7 +173,7 @@ export function Shell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 min-h-[65px] border-b border-border bg-background/85 backdrop-blur">
-          <div className="flex flex-wrap items-center gap-4 px-6 py-0">
+          <div className="flex min-h-[64px] flex-wrap items-center gap-4 px-6 py-0">
             <div className="min-w-0 flex-1">
               <h1
                 className={`truncate font-semibold ${
@@ -214,9 +214,11 @@ export function Shell({
 
         <main className="flex-1 space-y-6 p-6">{children}</main>
 
-        <footer className="border-t border-border px-6 py-4 text-xs text-muted-foreground">
-          Prototype UI · seeded sample data · Stage 1 scope: Float product line
-        </footer>
+        {!isProcurementPanel ? (
+          <footer className="border-t border-border px-6 py-4 text-xs text-muted-foreground">
+            Prototype UI · seeded sample data · Stage 1 scope: Float product line
+          </footer>
+        ) : null}
       </div>
     </div>
   );
