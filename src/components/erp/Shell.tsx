@@ -80,10 +80,9 @@ export function Shell({
   const router = useRouter();
   const { user } = useAuth();
   const isProcurementPanel = user?.panel === "procurement";
-  const visibleNav =
-    isProcurementPanel
-      ? procurementPanelNav
-      : nav.filter((item) => canAccess(user, item.permission));
+  const visibleNav = isProcurementPanel
+    ? procurementPanelNav
+    : nav.filter((item) => canAccess(user, item.permission));
   const initials =
     user?.name
       .split(" ")
