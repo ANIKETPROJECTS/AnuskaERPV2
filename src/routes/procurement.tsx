@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Archive,
+  CalendarDays,
   Check,
   ChevronDown,
   ClipboardList,
@@ -16,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import type { DateRange } from "react-day-picker";
 import { z } from "zod";
 import type { Panel as ProcurementPanel } from "@/auth.server";
 import { useAuth } from "@/components/auth/AuthContext";
@@ -24,6 +26,8 @@ import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { TablePagination } from "@/components/erp/TablePagination";
 import { HubBatchBrowser } from "@/components/erp/HubBatchBrowser";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   createProcurementOrderFn,
   updateProcurementItemRequestFn,
@@ -96,6 +100,20 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
 }
 
+function dateFromKey(value: string) {
+  if (!value) return undefined;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return undefined;
+  return new Date(year, month - 1, day);
+}
+
+function dateToKey(date: Date | undefined) {
+  if (!date) return "";
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 function inr(value: number) {
   return `₹${Math.round(value).toLocaleString("en-IN")}`;
 }
@@ -119,6 +137,7 @@ function solidStatusClass(status: ProcurementStatus) {
 }
 
 const ORDER_ACTION_STATUSES = PROCUREMENT_STATUSES.filter((status) => status !== "Payment done");
+const ORDER_FILTER_STATUSES = PROCUREMENT_STATUSES.filter((status) => status !== "Payment done");
 
 function Procurement() {
   return <ProcurementPage result={Route.useLoaderData()} />;
@@ -328,16 +347,19 @@ export function ProcurementPage({
       ? []
       : activeTab === "orders"
         ? [
-            { label: "Total orders", value: num(data.orders.length), hint: "All procurement orders" },
             {
               label: "Open orders",
               value: num(data.summary.openOrders),
               hint: `${num(data.summary.unitsOnOrder)} units in progress`,
             },
             {
-              label: "Delivered orders",
-              value: num(data.summary.completedOrders),
-              hint: "Orders marked delivery done",
+              label: "Delayed orders",
+              value: num(
+                data.orders.filter(
+                  (order) => order.status !== "Delivery done" && order.expectedDelivery < today(),
+                ).length,
+              ),
+              hint: "Past expected delivery date",
             },
           ]
         : [
@@ -368,7 +390,7 @@ export function ProcurementPage({
       {summaryMetrics.length ? (
         <section
           aria-label="Procurement summary"
-          className={`grid gap-x-8 border-y border-border grid-cols-1 sm:grid-cols-2 ${activeTab === "orders" ? "xl:grid-cols-3" : "xl:grid-cols-4"}`}
+          className={`grid gap-x-8 border-y border-border grid-cols-1 sm:grid-cols-2 ${activeTab === "orders" ? "xl:grid-cols-2" : "xl:grid-cols-4"}`}
         >
           {summaryMetrics.map((metric) => (
             <div key={metric.label} className="py-4">
@@ -1023,24 +1045,75 @@ function OrderFilters({
   return (
     <div className={panel === "subhub" ? "border-b border-border" : "border-y border-border"}>
       <div className={`filter-toolbar flex flex-wrap items-end gap-2 ${panel === "subhub" ? "pt-2 pb-3" : "py-3 border-t border-border"}`}>
-        <label className="min-w-[220px] flex-1 text-sm font-medium">Search<span className="relative mt-1 block"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="PO, vendor, material, SubHub…" className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm font-normal outline-none focus:border-primary" /></span></label>
+        <label className="min-w-[220px] flex-1 text-xs font-medium">Search<span className="relative mt-1 block"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="PO, vendor, material, SubHub…" className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-xs font-normal outline-none focus:border-primary" /></span></label>
         {panel !== "subhub" ? <SelectFilter label="Vendor" value={vendorFilter} onChange={setVendorFilter}><option value="all">All vendors</option>{vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</SelectFilter> : null}
         {subhubs.length ? <SelectFilter label="SubHub" value={subhubFilter} onChange={setSubhubFilter}><option value="all">All SubHubs</option>{subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.name}</option>)}</SelectFilter> : null}
-        {panel !== "subhub" ? <SelectFilter label="Status" value={statusFilter} onChange={(value) => setStatusFilter(value as ProcurementStatus | "all")}><option value="all">All statuses</option>{PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</SelectFilter> : null}
-        {panel !== "subhub" ? <DateFilter label="From" value={fromDate} onChange={setFromDate} /> : null}
-        {panel !== "subhub" ? <DateFilter label="To" value={toDate} onChange={setToDate} /> : null}
-        {hasFilters ? <button type="button" onClick={clearFilters} className="h-10 shrink-0 rounded-md border border-input bg-background px-3 text-sm font-semibold hover:bg-muted">Clear filters</button> : null}
+        {panel !== "subhub" ? <SelectFilter label="Status" value={statusFilter} onChange={(value) => setStatusFilter(value as ProcurementStatus | "all")}><option value="all">All statuses</option>{ORDER_FILTER_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</SelectFilter> : null}
+        {panel !== "subhub" ? <DateRangeFilter fromDate={fromDate} setFromDate={setFromDate} toDate={toDate} setToDate={setToDate} /> : null}
+        {hasFilters ? <button type="button" onClick={clearFilters} className="h-9 shrink-0 rounded-md border border-input bg-background px-3 text-xs font-semibold hover:bg-muted">Clear filters</button> : null}
       </div>
     </div>
   );
 }
 
 function SelectFilter({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) {
-  return <label className="min-w-36 shrink-0 text-sm font-medium">{label}<select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus:border-primary">{children}</select></label>;
+  return <label className="min-w-36 shrink-0 text-xs font-medium">{label}<select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-xs font-normal outline-none focus:border-primary">{children}</select></label>;
 }
 
-function DateFilter({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="min-w-36 shrink-0 text-sm font-medium">{label}<input type="date" value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus:border-primary" /></label>;
+function DateRangeFilter({
+  fromDate,
+  setFromDate,
+  toDate,
+  setToDate,
+}: {
+  fromDate: string;
+  setFromDate: (value: string) => void;
+  toDate: string;
+  setToDate: (value: string) => void;
+}) {
+  const selected: DateRange | undefined =
+    fromDate || toDate
+      ? { from: dateFromKey(fromDate), to: dateFromKey(toDate) }
+      : undefined;
+  const label =
+    fromDate && toDate
+      ? `${formatDate(fromDate)} – ${formatDate(toDate)}`
+      : fromDate
+        ? `${formatDate(fromDate)} – Select end date`
+        : toDate
+          ? `Through ${formatDate(toDate)}`
+          : "Select date range";
+
+  return (
+    <label className="w-full shrink-0 text-xs font-medium sm:w-52">
+      Order date range
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label="Choose order date range"
+            className="mt-1 flex h-9 w-full items-center gap-2 rounded-md border border-input bg-background px-3 text-left text-xs font-normal outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <CalendarDays aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+            <span className="truncate">{label}</span>
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-auto p-0">
+          <div className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
+            Select a start date, then an end date.
+          </div>
+          <Calendar
+            mode="range"
+            selected={selected}
+            onSelect={(range) => {
+              setFromDate(dateToKey(range?.from));
+              setToDate(dateToKey(range?.to));
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+    </label>
+  );
 }
 
 function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeChange, isAdmin, panel, onStatusChange }: { orders: ProcurementOrder[]; total: number; page: number; pageSize: number; onPageChange: (page: number) => void; onPageSizeChange: (pageSize: number) => void; isAdmin: boolean; panel: "admin" | "subhub" | "procurement"; onStatusChange: (order: ProcurementOrder, status: ProcurementStatus) => void }) {
@@ -1058,7 +1131,6 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
               {isAdmin ? <th className="px-4 py-3 font-semibold">SubHub</th> : null}
               {panel !== "subhub" ? <th className="px-4 py-3 font-semibold">Vendor</th> : null}
               <th className="px-4 py-3 font-semibold">Materials</th>
-              {panel === "subhub" ? <th className="px-4 py-3 font-semibold">Material code</th> : null}
               <th className="px-4 py-3 text-right font-semibold">Qty</th>
               <th className="px-4 py-3 font-semibold">Ordered</th>
               <th className="px-4 py-3 font-semibold">Expected</th>
@@ -1079,19 +1151,12 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
                   {panel !== "subhub" ? <td className="px-3 py-3 font-semibold">{order.vendorName}</td> : null}
                   <td className="px-3 py-3">
                     {order.items.map((item) => (
-                      <p key={`${item.materialCode}:${item.materialName}`} className="font-semibold">
-                        {item.materialName}
-                        {panel !== "subhub" ? <span className="tabular text-xs font-normal text-muted-foreground"> {item.materialCode}</span> : null}
-                      </p>
+                      <div key={`${item.materialCode}:${item.materialName}`} className="mb-1 last:mb-0">
+                        <p className="font-semibold">{item.materialName}</p>
+                        <p className="tabular text-xs font-normal text-muted-foreground">{item.materialCode}</p>
+                      </div>
                     ))}
                   </td>
-                  {panel === "subhub" ? (
-                    <td className="px-3 py-3">
-                      {order.items.map((item) => (
-                        <p key={`${item.materialCode}:${item.materialName}`} className="tabular text-xs text-muted-foreground">{item.materialCode}</p>
-                      ))}
-                    </td>
-                  ) : null}
                   <td className="tabular px-3 py-3 text-right">{num(order.quantity)}</td>
                   <td className="tabular whitespace-nowrap px-3 py-3">{formatDate(order.orderDate)}</td>
                   <td className="tabular whitespace-nowrap px-3 py-3">{formatDate(order.expectedDelivery)}</td>
