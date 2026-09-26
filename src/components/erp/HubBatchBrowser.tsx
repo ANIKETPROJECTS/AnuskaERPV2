@@ -218,7 +218,8 @@ function BatchTraceability({ data, onClose, onOpenBatch }: { data: BatchTraceabi
           <Summary label="Category" value={batch.category} /><Summary label="Source" value={batch.source} />
           <Summary label="Source reference" value={batch.sourceReference || "—"} /><Summary label="Logged" value={formatDate(batch.loggedAt)} />
           <Summary label="Received" value={num(batch.receivedQuantity)} /><Summary label="Produced" value={num(batch.producedQuantity)} />
-          <Summary label="Consumed" value={num(batch.consumedQuantity)} /><Summary label="Defective" value={num(batch.defectiveQuantity)} />
+          <Summary label="Consumed" value={num(batch.consumedQuantity)} /><Summary label="Transferred out" value={num(batch.transferredQuantity ?? 0)} />
+          <Summary label="Defective" value={num(batch.defectiveQuantity)} />
           <Summary label="Available" value={num(batch.availableQuantity)} />
         </dl>
         <div className="border-t border-border p-5">

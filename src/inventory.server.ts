@@ -14,7 +14,7 @@ export type InventoryBatch = {
   id: string; batchCode: string; itemCode: string; itemName: string; category: InventoryCategory;
   source: string; sourceReference: string; sourceMetadata: Record<string, string>;
   receivedQuantity: number; producedQuantity: number; consumedQuantity: number; defectiveQuantity: number;
-  availableQuantity: number; status: "Available" | "Depleted"; loggedAt: string;
+  availableQuantity: number; transferredQuantity?: number; status: "Available" | "Depleted"; loggedAt: string;
 };
 export type BatchMovement = {
   id: string; batchId: string; batchCode: string; itemCode: string; type: BatchMovementType;
@@ -151,7 +151,7 @@ type InventoryMovementDocument = {
   balance: number;
   reason: string;
   notes: string;
-  sourceType?: "manual" | "procurement" | "production" | "float-production" | "quality";
+  sourceType?: "manual" | "procurement" | "production" | "float-production" | "quality" | "transfer";
   sourceId?: string;
   category?: InventoryItemDocument["category"];
   qualityManagementAdjustment?: boolean;
@@ -194,9 +194,10 @@ type QualityLogDocument = {
 
 type InventoryBatchDocument = {
   _id: string; batchCode: string; itemCode: string; itemName: string; category: InventoryCategory;
-  sourceType: "procurement" | "production" | "float-production" | "manual" | "legacy";
+  sourceType: "procurement" | "production" | "float-production" | "manual" | "legacy" | "transfer";
   sourceId: string; sourceMetadata: Record<string, string>; receivedQuantity: number; producedQuantity: number;
-  consumedQuantity: number; defectiveQuantity: number; availableQuantity: number; batchSequence?: number; createdAt: Date; updatedAt: Date;
+  consumedQuantity: number; defectiveQuantity: number; availableQuantity: number; transferredQuantity?: number;
+  batchSequence?: number; createdAt: Date; updatedAt: Date;
 };
 type BatchSequenceDocument = { _id: string; itemCode: string; batchDate: string; nextSequence: number };
 type BatchMovementDocument = {
@@ -206,6 +207,30 @@ type BatchMovementDocument = {
 type BatchLineageDocument = {
   _id: string; sourceEventId: string; parentBatchId: string; childBatchId: string; quantity: number;
   reference: string; createdAt: Date; active?: boolean; revision?: number; supersededAt?: Date;
+};
+type InventoryTransferDocument = {
+  _id: string;
+  signature: string;
+  sourceHubId: string;
+  sourceHubName: string;
+  destinationHubId: string;
+  destinationHubName: string;
+  items: Array<{
+    itemCode: string;
+    itemName: string;
+    quantity: number;
+    batches: Array<{
+      sourceBatchId: string;
+      sourceBatchCode: string;
+      destinationBatchId: string;
+      destinationBatchCode: string;
+      quantity: number;
+    }>;
+  }>;
+  reason: string;
+  createdBy: string;
+  createdByName: string;
+  createdAt: Date;
 };
 
 const batchIndexesPromises = new Map<string, Promise<void>>();
@@ -326,6 +351,7 @@ function serializeBatch(batch: InventoryBatchDocument): InventoryBatch {
     source: batch.sourceType, sourceReference: batch.sourceId, sourceMetadata: batch.sourceMetadata,
     receivedQuantity: batch.receivedQuantity, producedQuantity: batch.producedQuantity, consumedQuantity: batch.consumedQuantity,
     defectiveQuantity: batch.defectiveQuantity, availableQuantity: batch.availableQuantity,
+    transferredQuantity: batch.transferredQuantity ?? 0,
     status: batch.availableQuantity > 0 ? "Available" : "Depleted", loggedAt: batch.createdAt.toISOString(),
   };
 }
@@ -379,7 +405,7 @@ export async function applySourcedBatch(input: {
   if (!existing) {
     const createdAt = new Date();
     const sequence = await reserveBatchSequence(input.db, input.code, createdAt, input.session);
-    const batch: InventoryBatchDocument = { _id: input.sourceId, batchCode: batchCode(input.product, input.code, createdAt, sequence), batchSequence: sequence, itemCode: input.code, itemName: input.product, category: input.category, sourceType: input.sourceType, sourceId: input.sourceId, sourceMetadata: input.metadata ?? {}, receivedQuantity: input.sourceType === "procurement" || input.sourceType === "manual" || input.sourceType === "legacy" ? input.desiredQuantity : 0, producedQuantity: produced, consumedQuantity: 0, defectiveQuantity: 0, availableQuantity: input.desiredQuantity, createdAt, updatedAt: createdAt };
+    const batch: InventoryBatchDocument = { _id: input.sourceId, batchCode: batchCode(input.product, input.code, createdAt, sequence), batchSequence: sequence, itemCode: input.code, itemName: input.product, category: input.category, sourceType: input.sourceType, sourceId: input.sourceId, sourceMetadata: input.metadata ?? {}, receivedQuantity: input.sourceType === "procurement" || input.sourceType === "manual" || input.sourceType === "legacy" || input.sourceType === "transfer" ? input.desiredQuantity : 0, producedQuantity: produced, consumedQuantity: 0, defectiveQuantity: 0, availableQuantity: input.desiredQuantity, transferredQuantity: 0, createdAt, updatedAt: createdAt };
     await batches.insertOne(batch, sessionOptions(input.session));
     const event = { sourceEventId: input.eventKey ?? `${input.sourceId}:initial:${input.desiredQuantity}`, batchId: batch._id, batchCode: batch.batchCode, itemCode: batch.itemCode, type: input.eventType ?? (input.sourceType === "production" || input.sourceType === "float-production" ? "PRODUCTION" as const : "IN" as const), quantityDelta: input.desiredQuantity, balance: input.desiredQuantity, actor: input.actor, reason: input.reason, reference: input.sourceId };
     if (input.session) await writeTransactionalBatchMovement(input.db, event, input.session);
@@ -389,10 +415,10 @@ export async function applySourcedBatch(input: {
   const priorTotal = existing.receivedQuantity + existing.producedQuantity;
   const delta = input.desiredQuantity - priorTotal;
   // A source edit can never erase stock already consumed or rejected.
-  if (input.desiredQuantity < existing.consumedQuantity + existing.defectiveQuantity) throw new Error(`Source ${input.sourceId} cannot be reduced below its allocated quantity.`);
+  if (input.desiredQuantity < existing.consumedQuantity + existing.defectiveQuantity + (existing.transferredQuantity ?? 0)) throw new Error(`Source ${input.sourceId} cannot be reduced below its allocated quantity.`);
   if (delta) {
     const available = existing.availableQuantity + delta;
-    const received = input.sourceType === "procurement" || input.sourceType === "manual" || input.sourceType === "legacy"
+    const received = input.sourceType === "procurement" || input.sourceType === "manual" || input.sourceType === "legacy" || input.sourceType === "transfer"
       ? input.desiredQuantity
       : 0;
     const result = await batches.updateOne({ _id: existing._id, availableQuantity: { $gte: -delta } }, { $set: { receivedQuantity: received, producedQuantity: produced, availableQuantity: available, itemName: input.product, sourceMetadata: input.metadata ?? existing.sourceMetadata, updatedAt: new Date() } }, sessionOptions(input.session));
@@ -1411,6 +1437,284 @@ async function resolveManagedWorkspace(panel: ManagedInventoryPanel, hubId: stri
   const workspaceDb = await getMongoDb(hub.databaseName);
   await syncWorkspaceInventoryForUser(hub, workspaceDb);
   return { ok: true, hub, workspaceDb };
+}
+
+export async function transferManagedHubInventory(input: {
+  panel: "admin" | "procurement";
+  sourceHubId: string;
+  destinationHubId: string;
+  requestId: string;
+  items: Array<{ itemCode: string; quantity: number }>;
+  reason: string;
+}): Promise<{ ok: true; transferId: string } | { ok: false; message: string }> {
+  const staff = await getCurrentUserRecord(input.panel);
+  const authorized = input.panel === "admin"
+    ? staff?.active && staff.panel === "admin" && (staff.role === "master_admin" || staff.role === "admin")
+    : staff?.active && staff.panel === "procurement" && staff.role === "procurement_manager";
+  if (!authorized || !staff) {
+    return { ok: false, message: "Only Master Admin and Procurement users can transfer hub stock." };
+  }
+  if (input.sourceHubId === input.destinationHubId) {
+    return { ok: false, message: "Choose two different hubs for a stock transfer." };
+  }
+  if (!input.items.length || input.items.length > 40) {
+    return { ok: false, message: "Choose between one and forty materials to transfer." };
+  }
+  if (
+    input.items.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1 || !masterPart(item.itemCode)) ||
+    new Set(input.items.map((item) => item.itemCode)).size !== input.items.length
+  ) {
+    return { ok: false, message: "Choose valid materials and whole-number transfer quantities." };
+  }
+  const reason = input.reason.trim();
+  if (reason.length < 3 || reason.length > 200) {
+    return { ok: false, message: "Enter a transfer reason between 3 and 200 characters." };
+  }
+
+  const transferLines = [...input.items].sort((left, right) => left.itemCode.localeCompare(right.itemCode));
+  const signature = createHash("sha256")
+    .update(JSON.stringify({
+      sourceHubId: input.sourceHubId,
+      destinationHubId: input.destinationHubId,
+      items: transferLines,
+      reason,
+    }))
+    .digest("hex");
+  const controlDb = await getControlPlaneDatabase();
+  const transferCollection = controlDb.collection<InventoryTransferDocument>("inventory_transfers");
+
+  try {
+    const existingTransfer = await transferCollection.findOne({ _id: input.requestId });
+    if (existingTransfer) {
+      if (existingTransfer.signature !== signature) {
+        return { ok: false, message: "This transfer request was already used. Refresh and try again." };
+      }
+      return { ok: true, transferId: input.requestId };
+    }
+
+    const hubUsers = await controlDb.collection<UserDocument>("users").find({
+      _id: { $in: [input.sourceHubId, input.destinationHubId] },
+      panel: "subhub",
+      role: "subhub",
+      active: true,
+    }).toArray();
+    const hubById = new Map(hubUsers.map((hub) => [hub._id, hub]));
+    const sourceHub = hubById.get(input.sourceHubId);
+    const destinationHub = hubById.get(input.destinationHubId);
+    if (!sourceHub || !destinationHub) {
+      return { ok: false, message: "The source or destination hub is no longer active." };
+    }
+    if (sourceHub.databaseName === destinationHub.databaseName) {
+      return { ok: false, message: "These hubs do not have separate inventory workspaces." };
+    }
+
+    const sourceDb = await getMongoDb(sourceHub.databaseName);
+    const destinationDb = await getMongoDb(destinationHub.databaseName);
+    await Promise.all([
+      syncWorkspaceInventoryForUser(sourceHub, sourceDb),
+      syncWorkspaceInventoryForUser(destinationHub, destinationDb),
+      ensureBatchIndexes(sourceDb),
+      ensureBatchIndexes(destinationDb),
+    ]);
+
+    const client = await getMongoClient();
+    const session = client.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const prior = await transferCollection.findOne({ _id: input.requestId }, { session });
+        if (prior) {
+          if (prior.signature !== signature) {
+            throw new Error("This transfer request was already used. Refresh and try again.");
+          }
+          return;
+        }
+
+        const codes = transferLines.map((item) => item.itemCode);
+        const [sourceItems, destinationItems, sourceBatches, destinationBatches] = await Promise.all([
+          sourceDb.collection<InventoryItemDocument>("inventory_items")
+            .find({ _id: { $in: codes } }, { session }).toArray(),
+          destinationDb.collection<InventoryItemDocument>("inventory_items")
+            .find({ _id: { $in: codes } }, { session }).toArray(),
+          sourceDb.collection<InventoryBatchDocument>("inventory_batches")
+            .find({ itemCode: { $in: codes }, availableQuantity: { $gt: 0 } }, { session })
+            .sort({ createdAt: 1, _id: 1 }).toArray(),
+          destinationDb.collection<InventoryBatchDocument>("inventory_batches")
+            .find({ itemCode: { $in: codes }, availableQuantity: { $gt: 0 } }, { session }).toArray(),
+        ]);
+        const sourceItemByCode = new Map(sourceItems.map((item) => [item._id, item]));
+        const destinationItemByCode = new Map(destinationItems.map((item) => [item._id, item]));
+        const availableByCode = (batches: InventoryBatchDocument[]) => {
+          const totals = new Map<string, number>();
+          for (const batch of batches) {
+            totals.set(batch.itemCode, (totals.get(batch.itemCode) ?? 0) + batch.availableQuantity);
+          }
+          return totals;
+        };
+        const sourceBatchTotals = availableByCode(sourceBatches);
+        const destinationBatchTotals = availableByCode(destinationBatches);
+
+        for (const line of transferLines) {
+          const sourceItem = sourceItemByCode.get(line.itemCode);
+          const sourceQuantity = sourceItem?.quantity ?? 0;
+          const sourceTracked = sourceBatchTotals.get(line.itemCode) ?? 0;
+          const destinationQuantity = destinationItemByCode.get(line.itemCode)?.quantity ?? 0;
+          const destinationTracked = destinationBatchTotals.get(line.itemCode) ?? 0;
+          if (sourceTracked !== sourceQuantity || destinationTracked !== destinationQuantity) {
+            throw new Error(`Batch records for ${line.itemCode} do not match hub stock. Refresh inventory before transferring.`);
+          }
+          if (!sourceItem || sourceQuantity < line.quantity) {
+            throw new Error(`Only ${sourceQuantity.toLocaleString("en-IN")} units of ${line.itemCode} are currently in the source hub.`);
+          }
+        }
+
+        const sourceName = sourceHub.subhubName ? `${sourceHub.subhubName} · ${sourceHub.name}` : sourceHub.name;
+        const destinationName = destinationHub.subhubName
+          ? `${destinationHub.subhubName} · ${destinationHub.name}`
+          : destinationHub.name;
+        const recordedItems: InventoryTransferDocument["items"] = [];
+
+        for (const line of transferLines) {
+          const sourceItem = sourceItemByCode.get(line.itemCode)!;
+          const destinationItem = destinationItemByCode.get(line.itemCode);
+          const fallbackPart = masterPart(line.itemCode);
+          const itemName = sourceItem.name || fallbackPart?.name || line.itemCode;
+          const category = normalizeInventoryCategory(sourceItem.category);
+          const sourcePlans: Array<{ batch: InventoryBatchDocument; quantity: number }> = [];
+          let remaining = line.quantity;
+          for (const batch of sourceBatches.filter((candidate) => candidate.itemCode === line.itemCode)) {
+            const quantity = Math.min(batch.availableQuantity, remaining);
+            if (quantity > 0) sourcePlans.push({ batch, quantity });
+            remaining -= quantity;
+            if (!remaining) break;
+          }
+          if (remaining) throw new Error(`Batch-attributed stock for ${line.itemCode} changed. Refresh and try again.`);
+
+          const sourceBalance = await applyInventoryDelta({
+            db: sourceDb,
+            code: line.itemCode,
+            product: itemName,
+            category,
+            price: sourceItem.price ?? 0,
+            change: -line.quantity,
+            reason: `Transfer to ${destinationName}`,
+            notes: `${reason} · ${input.requestId}`,
+            updatedBy: staff._id,
+            sourceType: "transfer",
+            sourceId: input.requestId,
+            session,
+            movementId: createHash("sha256").update(`${input.requestId}:source:${line.itemCode}`).digest("hex"),
+          });
+          const destinationBalance = await applyInventoryDelta({
+            db: destinationDb,
+            code: line.itemCode,
+            product: destinationItem?.name || itemName,
+            category: normalizeInventoryCategory(destinationItem?.category ?? category),
+            price: destinationItem?.price ?? sourceItem.price ?? 0,
+            change: line.quantity,
+            reason: `Transfer from ${sourceName}`,
+            notes: `${reason} · ${input.requestId}`,
+            updatedBy: staff._id,
+            sourceType: "transfer",
+            sourceId: input.requestId,
+            session,
+            movementId: createHash("sha256").update(`${input.requestId}:destination:${line.itemCode}`).digest("hex"),
+          });
+
+          const recordedBatches: InventoryTransferDocument["items"][number]["batches"] = [];
+          for (const plan of sourcePlans) {
+            const { batch, quantity } = plan;
+            const changed = await sourceDb.collection<InventoryBatchDocument>("inventory_batches").updateOne(
+              { _id: batch._id, availableQuantity: { $gte: quantity } },
+              {
+                $inc: { availableQuantity: -quantity, transferredQuantity: quantity },
+                $set: { updatedAt: new Date() },
+              },
+              { session },
+            );
+            if (!changed.modifiedCount) {
+              throw new Error(`Batch ${batch.batchCode} changed during the transfer. Refresh and try again.`);
+            }
+            await writeTransactionalBatchMovement(sourceDb, {
+              sourceEventId: `${input.requestId}:out:${line.itemCode}:${batch._id}`,
+              batchId: batch._id,
+              batchCode: batch.batchCode,
+              itemCode: batch.itemCode,
+              type: "OUT",
+              quantityDelta: -quantity,
+              balance: batch.availableQuantity - quantity,
+              actor: staff._id,
+              reason: `Transferred to ${destinationName}`,
+              reference: input.requestId,
+            }, session);
+
+            const destinationSourceId = `transfer:${input.requestId}:${line.itemCode}:${batch._id}`;
+            const receivedBatch = await applySourcedBatch({
+              db: destinationDb,
+              sourceId: destinationSourceId,
+              sourceType: "transfer",
+              code: line.itemCode,
+              product: batch.itemName || itemName,
+              category: batch.category,
+              desiredQuantity: quantity,
+              actor: staff._id,
+              reason: `Transferred from ${sourceName}`,
+              metadata: {
+                transferId: input.requestId,
+                sourceHubId: sourceHub._id,
+                sourceHubName: sourceName,
+                sourceBatchId: batch._id,
+                sourceBatchCode: batch.batchCode,
+              },
+              session,
+              eventKey: `${input.requestId}:in:${line.itemCode}:${batch._id}`,
+              eventType: "IN",
+            });
+            recordedBatches.push({
+              sourceBatchId: batch._id,
+              sourceBatchCode: batch.batchCode,
+              destinationBatchId: receivedBatch._id,
+              destinationBatchCode: receivedBatch.batchCode,
+              quantity,
+            });
+          }
+          recordedItems.push({
+            itemCode: line.itemCode,
+            itemName,
+            quantity: line.quantity,
+            batches: recordedBatches,
+          });
+          if (
+            sourceBalance.nextQuantity !== sourceItem.quantity - line.quantity ||
+            destinationBalance.nextQuantity !== (destinationItem?.quantity ?? 0) + line.quantity
+          ) {
+            throw new Error(`Inventory balances for ${line.itemCode} could not be verified.`);
+          }
+        }
+
+        await transferCollection.insertOne({
+          _id: input.requestId,
+          signature,
+          sourceHubId: sourceHub._id,
+          sourceHubName: sourceName,
+          destinationHubId: destinationHub._id,
+          destinationHubName: destinationName,
+          items: recordedItems,
+          reason,
+          createdBy: staff._id,
+          createdByName: staff.name,
+          createdAt: new Date(),
+        }, { session });
+      });
+      return { ok: true, transferId: input.requestId };
+    } finally {
+      await session.endSession();
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "The hub transfer could not be completed.",
+    };
+  }
 }
 
 export async function getManagedHubBatches(panel: ManagedInventoryPanel, hubId: string): Promise<

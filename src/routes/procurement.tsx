@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
+  ArrowLeftRight,
   ArrowRight,
   Archive,
   CalendarDays,
@@ -30,15 +31,17 @@ import { TablePagination } from "@/components/erp/TablePagination";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  createHubInventoryTransferFn,
   createProcurementOrderFn,
   updateProcurementItemRequestFn,
   createVendorFn,
   deleteOrArchiveVendorFn,
   getProcurementDataFn,
+  getHubTransferOptionsFn,
   updateProcurementOrderStatusFn,
   updateVendorFn,
 } from "@/procurement";
-import type { HubMaterialNeed, ProcurementData, ProcurementItemRequest, ProcurementOrder, ProcurementStatus, ProcurementVendor } from "@/procurement.server";
+import type { HubMaterialNeed, HubTransferSourceOption, ProcurementData, ProcurementItemRequest, ProcurementOrder, ProcurementStatus, ProcurementVendor } from "@/procurement.server";
 import { MISCELLANEOUS_VENDOR_ID, ONE_OFF_MATERIAL_CODE, PROCUREMENT_STATUSES } from "@/lib/procurement-types";
 import { useRawMaterials } from "@/lib/raw-material-store";
 
@@ -589,6 +592,7 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
   })), [data.materialNeeds, data.subhubs]);
   const [selectedHubId, setSelectedHubId] = useState<string | null>(null);
   const [orderHub, setOrderHub] = useState<string | null>(null);
+  const [transferHub, setTransferHub] = useState<string | null>(null);
 
   if (!hubs.length) {
     return <div className="panel p-8 text-center text-sm text-muted-foreground">No active SubHubs are available.</div>;
@@ -681,9 +685,30 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Hub stock & targets</p>
               <h2 className="mt-1 text-lg font-semibold">{selectedHub.name}</h2>
             </div>
-            <Tag tone={selectedHub.needs.length === 0 ? "neutral" : shortageCount ? "warn" : "good"}>
-              {coverageLabel}
-            </Tag>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Tag tone={selectedHub.needs.length === 0 ? "neutral" : shortageCount ? "warn" : "good"}>
+                {coverageLabel}
+              </Tag>
+              {shortageCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setTransferHub(selectedHub.id)}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-semibold hover:bg-muted"
+                >
+                  <ArrowLeftRight aria-hidden="true" className="size-4" />
+                  Transfer stock
+                </button>
+              ) : null}
+              <button
+                type="button"
+                disabled={!shortageCount}
+                onClick={() => setOrderHub(selectedHub.id)}
+                className="inline-flex min-h-10 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <PackagePlus aria-hidden="true" className="size-4" />
+                Create order for shortages
+              </button>
+            </div>
           </div>
           <div className="grid gap-4 p-5 sm:grid-cols-2">
             <div>
@@ -696,18 +721,6 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
             </div>
           </div>
         </section>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={!shortageCount}
-            onClick={() => setOrderHub(selectedHub.id)}
-            className="inline-flex min-h-10 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <PackagePlus aria-hidden="true" className="size-4" />
-            Create order for shortages
-          </button>
-        </div>
 
         <Panel title="Materials for this hub">
           {selectedHub.needs.length ? (
@@ -764,7 +777,275 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
           }}
         />
       ) : null}
+      {transferHub ? (
+        <HubTransferDrawer
+          destinationHubId={transferHub}
+          destinationHubName={selectedHub.name}
+          needs={selectedNeeds}
+          panel={panel}
+          onClose={() => setTransferHub(null)}
+          onSaved={async (message) => {
+            setTransferHub(null);
+            await onSaved(message);
+          }}
+        />
+      ) : null}
     </>
+  );
+}
+
+function buildTransferQuantities(needs: HubMaterialNeed[], source?: HubTransferSourceOption) {
+  return Object.fromEntries(needs.map((need) => {
+    const availability = source?.materials.find((material) => material.itemCode === need.itemCode)?.transferableQuantity ?? 0;
+    const quantity = Math.min(need.shortageQuantity, availability);
+    return [need.itemCode, quantity > 0 ? String(quantity) : ""];
+  }));
+}
+
+function HubTransferDrawer({
+  destinationHubId,
+  destinationHubName,
+  needs,
+  panel,
+  onClose,
+  onSaved,
+}: {
+  destinationHubId: string;
+  destinationHubName: string;
+  needs: HubMaterialNeed[];
+  panel: "admin" | "procurement";
+  onClose: () => void;
+  onSaved: (message: string) => Promise<void>;
+}) {
+  const [sources, setSources] = useState<HubTransferSourceOption[]>([]);
+  const [sourceHubId, setSourceHubId] = useState("");
+  const [quantities, setQuantities] = useState<Record<string, string>>({});
+  const [reason, setReason] = useState("Urgent fulfillment");
+  const [requestId] = useState(() => globalThis.crypto.randomUUID());
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const itemCodeKey = needs.map((need) => need.itemCode).join("|");
+  const selectedSource = sources.find((source) => source.hubId === sourceHubId);
+  const transferQuantity = Object.values(quantities).reduce((sum, value) => sum + (Number(value) || 0), 0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    if (!needs.length) {
+      setSources([]);
+      setSourceHubId("");
+      setQuantities({});
+      setError("No shortages remain for this hub. Refresh the stock view and try again.");
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void getHubTransferOptionsFn({
+      data: {
+        panel,
+        destinationHubId,
+        itemCodes: needs.map((need) => need.itemCode),
+      },
+    })
+      .then((result) => {
+        if (cancelled) return;
+        if (!result.ok) {
+          setSources([]);
+          setSourceHubId("");
+          setError(result.message);
+          return;
+        }
+        setSources(result.sources);
+        const firstSource = result.sources.find((source) =>
+          source.materials.some((material) => material.transferableQuantity > 0),
+        );
+        setSourceHubId(firstSource?.hubId ?? "");
+        setQuantities(buildTransferQuantities(needs, firstSource));
+      })
+      .catch((loadError: unknown) => {
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : "Could not load transfer stock.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [destinationHubId, itemCodeKey, needs, panel]);
+
+  function chooseSource(nextSourceHubId: string) {
+    const nextSource = sources.find((source) => source.hubId === nextSourceHubId);
+    setSourceHubId(nextSourceHubId);
+    setQuantities(buildTransferQuantities(needs, nextSource));
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const items = needs
+      .map((need) => ({ itemCode: need.itemCode, quantity: Number(quantities[need.itemCode]) }))
+      .filter((item) => Number.isInteger(item.quantity) && item.quantity > 0);
+    if (!sourceHubId) {
+      setError("Choose a source hub with transferable stock.");
+      return;
+    }
+    if (!items.length) {
+      setError("Enter at least one positive transfer quantity.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await createHubInventoryTransferFn({
+        data: {
+          panel,
+          sourceHubId,
+          destinationHubId,
+          requestId,
+          items,
+          reason,
+        },
+      });
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      await onSaved(`Transferred ${num(transferQuantity)} units to ${destinationHubName}.`);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "The stock transfer could not be completed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const usableSources = sources.filter((source) =>
+    source.materials.some((material) => material.transferableQuantity > 0),
+  );
+
+  return (
+    <Drawer
+      title={`Transfer stock to ${destinationHubName}`}
+      subtitle="Move batch-tracked materials from another hub to cover this hub’s current shortages."
+      onClose={onClose}
+    >
+      <form className="space-y-5" onSubmit={submit}>
+        <div className="rounded-md border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+          Transfers take effect immediately. The available quantity excludes stock needed for the source hub’s current production targets, and every batch movement is recorded.
+        </div>
+
+        <label className="block text-sm font-semibold">
+          Source hub
+          <select
+            required
+            value={sourceHubId}
+            onChange={(event) => chooseSource(event.target.value)}
+            disabled={loading || !usableSources.length}
+            className="mt-1 block w-full rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">Select a source hub</option>
+            {usableSources.map((source) => {
+              const total = source.materials.reduce((sum, material) => sum + material.transferableQuantity, 0);
+              return (
+                <option key={source.hubId} value={source.hubId}>
+                  {source.hubName} · {num(total)} transferable units
+                </option>
+              );
+            })}
+          </select>
+        </label>
+
+        {loading ? (
+          <p className="rounded-md border border-border p-4 text-sm text-muted-foreground">Checking live stock and source hub needs…</p>
+        ) : usableSources.length ? (
+          <div className="overflow-x-auto rounded-md border border-border">
+            <table className="w-full min-w-[560px] text-sm">
+              <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-3">Material</th>
+                  <th className="px-3 py-3 text-right">Destination shortage</th>
+                  <th className="px-3 py-3 text-right">Source transferable</th>
+                  <th className="px-3 py-3 text-right">Move</th>
+                </tr>
+              </thead>
+              <tbody>
+                {needs.map((need) => {
+                  const material = selectedSource?.materials.find((item) => item.itemCode === need.itemCode);
+                  const maxQuantity = Math.min(need.shortageQuantity, material?.transferableQuantity ?? 0);
+                  return (
+                    <tr key={need.itemCode} className="border-t border-border/70">
+                      <td className="px-3 py-3">
+                        <p className="font-medium">{need.itemName}</p>
+                        <p className="text-xs text-muted-foreground">{need.itemCode}</p>
+                      </td>
+                      <td className="tabular px-3 py-3 text-right">{num(need.shortageQuantity)}</td>
+                      <td className="tabular px-3 py-3 text-right">
+                        <p className="font-medium">{num(material?.transferableQuantity ?? 0)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {num(material?.stockQuantity ?? 0)} in stock · {num(material?.reservedQuantity ?? 0)} needed
+                        </p>
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        <input
+                          type="number"
+                          min="0"
+                          max={maxQuantity}
+                          step="1"
+                          value={quantities[need.itemCode] ?? ""}
+                          onChange={(event) => setQuantities((current) => ({ ...current, [need.itemCode]: event.target.value }))}
+                          disabled={!maxQuantity || busy}
+                          aria-label={`Transfer quantity for ${need.itemName}`}
+                          className="h-10 w-24 rounded-md border border-input bg-background px-2 text-right tabular"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="rounded-md border border-border p-4 text-sm text-muted-foreground">
+            No other active hub has batch-tracked stock above its own current production needs for these materials.
+          </p>
+        )}
+
+        <label className="block text-sm font-semibold">
+          Transfer reason
+          <textarea
+            required
+            minLength={3}
+            maxLength={200}
+            rows={2}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
+        </label>
+
+        <p className="text-sm text-muted-foreground">
+          {num(transferQuantity)} units will move immediately from {selectedSource?.hubName ?? "the selected source hub"} to {destinationHubName}.
+        </p>
+        {error ? <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</p> : null}
+
+        <div className="flex justify-end gap-3 border-t border-border pt-5">
+          <button type="button" onClick={onClose} className="min-h-12 rounded-md border border-input px-4 text-base font-semibold hover:bg-muted">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={busy || loading || !sourceHubId || !transferQuantity || !reason.trim()}
+            className="inline-flex min-h-12 items-center gap-2 rounded-md bg-primary px-4 text-base font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Check aria-hidden="true" className="size-5" />
+            {busy ? "Transferring…" : "Transfer stock now"}
+          </button>
+        </div>
+      </form>
+    </Drawer>
   );
 }
 

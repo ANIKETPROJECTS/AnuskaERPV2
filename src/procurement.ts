@@ -3,9 +3,11 @@ import { z } from "zod";
 import {
   createProcurementOrder,
   createProcurementItemRequest,
+  createHubInventoryTransfer,
   createVendor,
   deleteOrArchiveVendor,
   getProcurementData,
+  getHubTransferOptions,
   getSubhubItemRequestHistory,
   getProcurementOrder,
   updateProcurementOrderStatus,
@@ -90,6 +92,22 @@ const requestStatusSchema = z.object({
   response: z.string().max(500),
   panel: z.enum(["admin", "procurement"]),
 });
+const hubTransferOptionsSchema = z.object({
+  panel: z.enum(["admin", "procurement"]),
+  destinationHubId: z.string().min(1),
+  itemCodes: z.array(z.string().min(1)).min(1).max(40),
+});
+const hubTransferSchema = z.object({
+  panel: z.enum(["admin", "procurement"]),
+  sourceHubId: z.string().min(1),
+  destinationHubId: z.string().min(1),
+  requestId: z.string().uuid(),
+  items: z.array(z.object({
+    itemCode: z.string().min(1),
+    quantity: z.number().int().positive(),
+  })).min(1).max(40),
+  reason: z.string().trim().min(3).max(200),
+});
 
 export const getProcurementDataFn = createServerFn({ method: "GET" })
   .validator(z.object({ panel: z.enum(["admin", "subhub", "procurement"]).optional() }))
@@ -100,6 +118,12 @@ export const getSubhubItemRequestHistoryFn = createServerFn({ method: "GET" }).h
 export const getProcurementManagementDataFn = createServerFn({ method: "GET" }).handler(() =>
   getProcurementData("procurement"),
 );
+export const getHubTransferOptionsFn = createServerFn({ method: "POST" })
+  .validator(hubTransferOptionsSchema)
+  .handler(({ data }) => getHubTransferOptions(data));
+export const createHubInventoryTransferFn = createServerFn({ method: "POST" })
+  .validator(hubTransferSchema)
+  .handler(({ data }) => createHubInventoryTransfer(data));
 export const createVendorFn = createServerFn({ method: "POST" })
   .validator(vendorSchema.extend({ panel: z.enum(["admin", "procurement"]) }))
   .handler(({ data }) => createVendor(data, data.panel));

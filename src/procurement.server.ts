@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Db } from "mongodb";
 import {
   getCurrentUserRecord,
@@ -14,6 +14,7 @@ import {
   PROCUREMENT_STATUSES,
   type ProcurementStatus,
 } from "./lib/procurement-types";
+import { syncWorkspaceInventoryForUser, transferManagedHubInventory } from "./inventory.server";
 import { getMongoDb } from "./mongodb.server";
 
 export { PROCUREMENT_STATUSES };
@@ -527,6 +528,203 @@ async function calculateHubMaterialNeeds(
         right.shortageQuantity - left.shortageQuantity ||
         left.itemName.localeCompare(right.itemName),
     );
+}
+
+export type HubTransferMaterialAvailability = {
+  itemCode: string;
+  itemName: string;
+  stockQuantity: number;
+  reservedQuantity: number;
+  transferableQuantity: number;
+};
+
+export type HubTransferSourceOption = {
+  hubId: string;
+  hubName: string;
+  materials: HubTransferMaterialAvailability[];
+};
+
+async function requireHubTransferManager(panel: "admin" | "procurement") {
+  const user = currentUserRequired(await getCurrentUserRecord(panel), panel);
+  const authorized = panel === "admin"
+    ? user.role === "master_admin" || user.role === "admin"
+    : user.role === "procurement_manager";
+  if (!authorized) throw new Error("Only Master Admin and Procurement users can transfer hub stock.");
+  return user;
+}
+
+function getHubDisplayName(hub: UserDocument) {
+  return hub.subhubName ? `${hub.subhubName} · ${hub.name}` : hub.name;
+}
+
+export async function getHubTransferOptions(input: {
+  panel: "admin" | "procurement";
+  destinationHubId: string;
+  itemCodes: string[];
+}): Promise<{ ok: true; sources: HubTransferSourceOption[] } | { ok: false; message: string }> {
+  try {
+    await requireHubTransferManager(input.panel);
+    const itemCodes = [...new Set(input.itemCodes)];
+    if (!itemCodes.length || itemCodes.length > 40 || itemCodes.some((code) => !subparts.some((part) => part.code === code))) {
+      return { ok: false, message: "Choose valid destination shortage materials." };
+    }
+
+    const db = await getProcurementDb();
+    const activeHubs = await db.collection<UserDocument>("users")
+      .find({ panel: "subhub", role: "subhub", active: true })
+      .sort({ subhubName: 1, name: 1 })
+      .toArray();
+    const destinationHub = activeHubs.find((hub) => hub._id === input.destinationHubId);
+    if (!destinationHub) return { ok: false, message: "The destination hub is no longer active." };
+    const sourceHubs = activeHubs.filter((hub) => hub._id !== input.destinationHubId);
+    await Promise.all([destinationHub, ...sourceHubs].map(async (hub) => {
+      const workspaceDb = await getMongoDb(hub.databaseName);
+      await syncWorkspaceInventoryForUser(hub, workspaceDb);
+    }));
+
+    const sourceIds = sourceHubs.map((hub) => hub._id);
+    const orders = sourceIds.length
+      ? await db.collection<ProcurementOrderDocument>("procurement_orders")
+          .find({ subhubUserId: { $in: sourceIds } })
+          .toArray()
+      : [];
+    const sourceNeeds = await calculateHubMaterialNeeds(db, sourceHubs, orders);
+    const needByHubAndCode = new Map(sourceNeeds.map((need) => [`${need.subhubUserId}:${need.itemCode}`, need]));
+    const sources = await Promise.all(sourceHubs.map(async (hub) => {
+      const workspaceDb = await getMongoDb(hub.databaseName);
+      const [inventoryItems, batches] = await Promise.all([
+        workspaceDb.collection<{ _id: string; name?: string; quantity: number }>("inventory_items")
+          .find({ _id: { $in: itemCodes } })
+          .toArray(),
+        workspaceDb.collection<{ itemCode: string; availableQuantity: number }>("inventory_batches")
+          .find({ itemCode: { $in: itemCodes }, availableQuantity: { $gt: 0 } })
+          .toArray(),
+      ]);
+      const stockByCode = new Map(inventoryItems.map((item) => [item._id, item]));
+      const batchesByCode = new Map<string, number>();
+      for (const batch of batches) {
+        batchesByCode.set(batch.itemCode, (batchesByCode.get(batch.itemCode) ?? 0) + batch.availableQuantity);
+      }
+      const materials = itemCodes.map((itemCode) => {
+        const stockQuantity = stockByCode.get(itemCode)?.quantity ?? 0;
+        const reservedQuantity = needByHubAndCode.get(`${hub._id}:${itemCode}`)?.requiredQuantity ?? 0;
+        const batchTrackedQuantity = Math.min(stockQuantity, batchesByCode.get(itemCode) ?? 0);
+        return {
+          itemCode,
+          itemName: stockByCode.get(itemCode)?.name ?? subparts.find((part) => part.code === itemCode)?.name ?? itemCode,
+          stockQuantity,
+          reservedQuantity,
+          transferableQuantity: Math.max(0, batchTrackedQuantity - reservedQuantity),
+        };
+      });
+      return { hubId: hub._id, hubName: getHubDisplayName(hub), materials };
+    }));
+
+    return { ok: true, sources };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Transfer options could not be loaded." };
+  }
+}
+
+export async function createHubInventoryTransfer(input: {
+  panel: "admin" | "procurement";
+  sourceHubId: string;
+  destinationHubId: string;
+  requestId: string;
+  items: Array<{ itemCode: string; quantity: number }>;
+  reason: string;
+}): Promise<{ ok: true; transferId: string } | { ok: false; message: string }> {
+  try {
+    await requireHubTransferManager(input.panel);
+    if (input.sourceHubId === input.destinationHubId) {
+      return { ok: false, message: "Choose two different hubs for a stock transfer." };
+    }
+    if (
+      !input.items.length ||
+      input.items.length > 40 ||
+      input.items.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1 || !subparts.some((part) => part.code === item.itemCode)) ||
+      new Set(input.items.map((item) => item.itemCode)).size !== input.items.length
+    ) {
+      return { ok: false, message: "Choose valid materials and whole-number transfer quantities." };
+    }
+    const reason = input.reason.trim();
+    if (reason.length < 3 || reason.length > 200) {
+      return { ok: false, message: "Enter a transfer reason between 3 and 200 characters." };
+    }
+
+    const itemCodes = input.items.map((item) => item.itemCode);
+    const transferLines = [...input.items].sort((left, right) => left.itemCode.localeCompare(right.itemCode));
+    const signature = createHash("sha256")
+      .update(JSON.stringify({
+        sourceHubId: input.sourceHubId,
+        destinationHubId: input.destinationHubId,
+        items: transferLines,
+        reason,
+      }))
+      .digest("hex");
+    const db = await getProcurementDb();
+    const priorTransfer = await db.collection<{ _id: string; signature: string }>("inventory_transfers")
+      .findOne({ _id: input.requestId });
+    if (priorTransfer) {
+      return priorTransfer.signature === signature
+        ? { ok: true, transferId: input.requestId }
+        : { ok: false, message: "This transfer request was already used. Refresh and try again." };
+    }
+
+    const options = await getHubTransferOptions({
+      panel: input.panel,
+      destinationHubId: input.destinationHubId,
+      itemCodes,
+    });
+    if (!options.ok) return options;
+    const source = options.sources.find((hub) => hub.hubId === input.sourceHubId);
+    if (!source) return { ok: false, message: "The source hub is no longer active." };
+
+    const hubIds = [input.sourceHubId, input.destinationHubId];
+    const hubs = await db.collection<UserDocument>("users").find({
+      _id: { $in: hubIds },
+      panel: "subhub",
+      role: "subhub",
+      active: true,
+    }).toArray();
+    const hubById = new Map(hubs.map((hub) => [hub._id, hub]));
+    const sourceHub = hubById.get(input.sourceHubId);
+    const destinationHub = hubById.get(input.destinationHubId);
+    if (!sourceHub || !destinationHub) return { ok: false, message: "The source or destination hub is no longer active." };
+    const orders = await db.collection<ProcurementOrderDocument>("procurement_orders")
+      .find({ subhubUserId: { $in: hubIds } })
+      .toArray();
+    const currentNeeds = await calculateHubMaterialNeeds(db, [destinationHub], orders);
+
+    for (const item of input.items) {
+      const destinationNeed = currentNeeds.find((need) => need.itemCode === item.itemCode);
+      const destinationShortage = destinationNeed?.shortageQuantity ?? 0;
+      if (item.quantity > destinationShortage) {
+        return {
+          ok: false,
+          message: `${item.itemCode} has only ${destinationShortage.toLocaleString("en-IN")} units still needed at the destination.`,
+        };
+      }
+      const sourceAvailability = source.materials.find((material) => material.itemCode === item.itemCode)?.transferableQuantity ?? 0;
+      if (item.quantity > sourceAvailability) {
+        return {
+          ok: false,
+          message: `${source.hubName} can transfer only ${sourceAvailability.toLocaleString("en-IN")} units of ${item.itemCode} without reducing its stock below current production needs.`,
+        };
+      }
+    }
+
+    return transferManagedHubInventory({
+      panel: input.panel,
+      sourceHubId: input.sourceHubId,
+      destinationHubId: input.destinationHubId,
+      requestId: input.requestId,
+      items: input.items,
+      reason,
+    });
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "The hub transfer could not be completed." };
+  }
 }
 
 export async function getProcurementData(
