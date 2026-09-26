@@ -6,7 +6,6 @@ import {
   ClipboardList,
   Edit3,
   Eye,
-  Filter,
   History,
   PackagePlus,
   Plus,
@@ -14,8 +13,6 @@ import {
   Search,
   ShoppingCart,
   Store,
-  Truck,
-  Users,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
@@ -47,9 +44,9 @@ export const Route = createFileRoute("/procurement")({
   head: () => ({
     meta: [
       { title: "Procurement — Gadsons ERP" },
-      { name: "description", content: "Live vendor and purchase-order management for every Gadsons SubHub." },
+      { name: "description", content: "Manage vendors, procurement orders, and delivery status across Gadsons SubHubs." },
       { property: "og:title", content: "Procurement — Gadsons ERP" },
-      { property: "og:description", content: "Manage vendors, procurement orders, delivery status and spend." },
+      { property: "og:description", content: "Manage vendors, procurement orders, and delivery status across Gadsons SubHubs." },
     ],
   }),
   component: Procurement,
@@ -76,7 +73,6 @@ const emptyData: ProcurementData = {
 
 export type ProcurementView = "orders" | "vendors" | "needs" | "requests";
 type Tab = ProcurementView;
-type SortKey = "orderDate-desc" | "orderDate-asc" | "delivery-asc" | "amount-desc" | "quantity-desc" | "vendor-asc";
 
 const PROCUREMENT_VIEW_TITLES: Record<ProcurementView, string> = {
   orders: "Order Management",
@@ -151,8 +147,6 @@ export function ProcurementPage({
   const [vendorFilter, setVendorFilter] = useState("all");
   const [subhubFilter, setSubhubFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<ProcurementStatus | "all">("all");
-  const [sortBy, setSortBy] = useState<SortKey>("orderDate-desc");
-  const [orderDate, setOrderDate] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [orderPage, setOrderPage] = useState(1);
@@ -199,25 +193,16 @@ export function ProcurementPage({
         const matchesVendor = vendorFilter === "all" || order.vendorId === vendorFilter;
         const matchesSubhub = subhubFilter === "all" || order.subhubUserId === subhubFilter;
         const matchesStatus = statusFilter === "all" || order.status === statusFilter;
-        const matchesOrderDate = !orderDate || order.orderDate === orderDate;
         const matchesFrom = !fromDate || order.orderDate >= fromDate;
         const matchesTo = !toDate || order.orderDate <= toDate;
-        return matchesQuery && matchesVendor && matchesSubhub && matchesStatus && matchesOrderDate && matchesFrom && matchesTo;
+        return matchesQuery && matchesVendor && matchesSubhub && matchesStatus && matchesFrom && matchesTo;
       })
-      .sort((a, b) => {
-        if (panel === "subhub") return b.orderDate.localeCompare(a.orderDate);
-        if (sortBy === "orderDate-asc") return a.orderDate.localeCompare(b.orderDate);
-        if (sortBy === "delivery-asc") return a.expectedDelivery.localeCompare(b.expectedDelivery);
-        if (sortBy === "amount-desc" && panel !== "subhub") return b.totalAmount - a.totalAmount;
-        if (sortBy === "quantity-desc") return b.quantity - a.quantity;
-        if (sortBy === "vendor-asc") return a.vendorName.localeCompare(b.vendorName);
-        return b.orderDate.localeCompare(a.orderDate);
-      });
-  }, [data.orders, fromDate, orderDate, panel, query, sortBy, statusFilter, subhubFilter, toDate, vendorFilter]);
+      .sort((a, b) => b.orderDate.localeCompare(a.orderDate));
+  }, [data.orders, fromDate, query, statusFilter, subhubFilter, toDate, vendorFilter]);
 
   useEffect(() => {
     setOrderPage(1);
-  }, [fromDate, orderDate, query, sortBy, statusFilter, subhubFilter, toDate, vendorFilter]);
+  }, [fromDate, query, statusFilter, subhubFilter, toDate, vendorFilter]);
 
   useEffect(() => {
     setOrderPageSize(panel === "subhub" ? 25 : 10);
@@ -279,15 +264,13 @@ export function ProcurementPage({
 
   const selectedVendor = data.vendors.find((vendor) => vendor.id === selectedVendorId);
   const selectedVendorOrders = selectedVendorId ? data.orders.filter((order) => order.vendorId === selectedVendorId) : [];
-  const hasFilters = Boolean(query || vendorFilter !== "all" || subhubFilter !== "all" || statusFilter !== "all" || (sortBy !== "orderDate-desc" && !(panel === "subhub" && sortBy === "amount-desc")) || orderDate || fromDate || toDate);
+  const hasFilters = Boolean(query || vendorFilter !== "all" || subhubFilter !== "all" || statusFilter !== "all" || fromDate || toDate);
 
   function clearFilters() {
     setQuery("");
     setVendorFilter("all");
     setSubhubFilter("all");
     setStatusFilter("all");
-    setSortBy("orderDate-desc");
-    setOrderDate("");
     setFromDate("");
     setToDate("");
   }
@@ -338,27 +321,38 @@ export function ProcurementPage({
     setError("");
   }
 
-  const summaryMetrics = panel === "procurement" && activeTab !== "orders" ? [] : [
-    ...(canManageProcurement
-      ? [{ label: "Active vendors", value: num(data.summary.vendorCount), hint: `${data.vendors.length} total records` }]
-      : []),
-    ...(panel !== "subhub"
-      ? [{ label: "Open orders", value: num(data.summary.openOrders), hint: `${num(data.summary.unitsOnOrder)} units in progress` }]
-      : []),
-    ...(panel !== "subhub"
-      ? [{ label: "Committed spend", value: inr(data.summary.committedSpend), hint: "Open procurement orders" }]
-      : []),
-    ...(panel !== "subhub"
-      ? [{
-          label: "On-time delivery",
-          value: data.summary.onTimeRate === null ? "—" : `${data.summary.onTimeRate}%`,
-          hint: `${data.summary.completedOrders} completed orders`,
-        }]
-      : []),
-  ];
+  const summaryMetrics =
+    panel === "subhub" || (panel === "procurement" && activeTab !== "orders")
+      ? []
+      : activeTab === "orders"
+        ? [
+            { label: "Total orders", value: num(data.orders.length), hint: "All procurement orders" },
+            {
+              label: "Open orders",
+              value: num(data.summary.openOrders),
+              hint: `${num(data.summary.unitsOnOrder)} units in progress`,
+            },
+            {
+              label: "Delivered orders",
+              value: num(data.summary.completedOrders),
+              hint: "Orders marked delivery done",
+            },
+          ]
+        : [
+            ...(canManageProcurement
+              ? [{ label: "Active vendors", value: num(data.summary.vendorCount), hint: `${data.vendors.length} total records` }]
+              : []),
+            { label: "Open orders", value: num(data.summary.openOrders), hint: `${num(data.summary.unitsOnOrder)} units in progress` },
+            { label: "Committed spend", value: inr(data.summary.committedSpend), hint: "Open procurement orders" },
+            {
+              label: "On-time delivery",
+              value: data.summary.onTimeRate === null ? "—" : `${data.summary.onTimeRate}%`,
+              hint: `${data.summary.completedOrders} completed orders`,
+            },
+          ];
 
   const content = (
-    <div className="space-y-6 text-base">
+    <div className={`space-y-5 ${activeTab === "orders" ? "text-sm" : "text-base"}`}>
       {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-base text-destructive">{error}</p> : null}
       {notice && !(panel === "procurement" && activeTab === "requests") ? (
         <p
@@ -372,19 +366,19 @@ export function ProcurementPage({
       {summaryMetrics.length ? (
         <section
           aria-label="Procurement summary"
-          className="grid gap-x-8 border-y border-border grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"
+          className={`grid gap-x-8 border-y border-border grid-cols-1 sm:grid-cols-2 ${activeTab === "orders" ? "xl:grid-cols-3" : "xl:grid-cols-4"}`}
         >
           {summaryMetrics.map((metric) => (
             <div key={metric.label} className="py-4">
               <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{metric.label}</p>
               <p className="tabular mt-1 text-3xl font-bold leading-tight">{metric.value}</p>
-              <p className="mt-1 text-base text-muted-foreground">{metric.hint}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{metric.hint}</p>
             </div>
           ))}
         </section>
       ) : null}
 
-      {panel !== "subhub" && !(panel === "procurement" && (activeTab === "requests" || activeTab === "vendors")) ? <div className="flex flex-col gap-3 border-b border-border pb-3 lg:flex-row lg:items-end lg:justify-between">
+      {panel !== "subhub" && !(panel === "procurement" && (activeTab === "requests" || activeTab === "vendors" || activeTab === "orders")) ? <div className="flex flex-col gap-3 border-b border-border pb-3 lg:flex-row lg:items-end lg:justify-between">
         {panel !== "procurement" ? <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-1" role="tablist" aria-label="Procurement sections">
           <button type="button" role="tab" aria-selected={activeTab === "orders"} onClick={() => setTab("orders")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${activeTab === "orders" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             <ClipboardList className="size-5" /> Order Management
@@ -401,8 +395,7 @@ export function ProcurementPage({
         </div> : null}
         <div className="flex flex-wrap gap-2">
           {canManageProcurement && activeTab === "vendors" && panel !== "procurement" ? <button type="button" onClick={openCreateVendor} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted"><Plus className="size-5" /> Add vendor</button> : null}
-          {canManageProcurement && activeTab === "orders" ? <button type="button" onClick={() => setShowOrderForm(true)} className="rule-header inline-flex min-h-12 items-center gap-2 rounded-md px-4 text-base font-semibold"><PackagePlus className="size-5" /> New procurement order</button> : null}
-          {!(panel === "procurement" && activeTab === "requests") ? <button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted disabled:opacity-50"><RefreshCw className={`size-5 ${loading ? "animate-spin" : ""}`} /> Refresh</button> : null}
+          {activeTab !== "orders" && !(panel === "procurement" && activeTab === "requests") ? <button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-semibold hover:bg-muted disabled:opacity-50"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh</button> : null}
         </div>
       </div> : null}
 
@@ -418,10 +411,6 @@ export function ProcurementPage({
             setSubhubFilter={setSubhubFilter}
             statusFilter={statusFilter}
             setStatusFilter={setStatusFilter}
-            sortBy={sortBy}
-            setSortBy={setSortBy}
-            orderDate={orderDate}
-            setOrderDate={setOrderDate}
             fromDate={fromDate}
             setFromDate={setFromDate}
             toDate={toDate}
@@ -432,10 +421,9 @@ export function ProcurementPage({
             clearFilters={clearFilters}
           />
           <section>
-            {panel !== "subhub" ? <SectionHeading title="Procurement orders" description={`${filteredOrders.length} of ${data.orders.length} orders · all order records are stored in MongoDB`} /> : null}
+            {panel !== "subhub" ? <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-base font-semibold">Procurement orders</h2><p className="text-xs text-muted-foreground">{filteredOrders.length} of {data.orders.length} orders</p></div> : null}
             {loading ? <Loading /> : <OrderTable orders={paginatedOrders} total={filteredOrders.length} page={orderPage} pageSize={orderPageSize} onPageChange={setOrderPage} onPageSizeChange={setOrderPageSize} isAdmin={canManageProcurement} panel={panel} onStatusChange={(order, status) => void updateOrderStatus(order, status)} />}
           </section>
-          {canManageProcurement ? <AdminReports data={data} /> : null}
         </>
       ) : activeTab === "vendors" ? (
         <>
@@ -523,9 +511,17 @@ export function ProcurementPage({
   ) : (
     <Shell
       title={panel === "procurement" ? PROCUREMENT_VIEW_TITLES[activeTab] : "Procurement"}
-      subtitle={panel === "procurement" ? undefined : "Live vendor management, purchase orders, and SubHub-wide delivery reporting"}
+      subtitle={panel === "procurement" ? undefined : "Live vendor and purchase-order management across Gadsons SubHubs"}
       actions={
-        panel === "procurement" && activeTab === "vendors" ? (
+        canManageProcurement && activeTab === "orders" ? (
+          <button
+            type="button"
+            onClick={() => setShowOrderForm(true)}
+            className="rule-header inline-flex min-h-10 items-center gap-2 rounded-md px-4 text-sm font-semibold"
+          >
+            <PackagePlus className="size-4" /> New procurement order
+          </button>
+        ) : panel === "procurement" && activeTab === "vendors" ? (
           <button
             type="button"
             onClick={openCreateVendor}
@@ -1009,16 +1005,14 @@ function formatRequestDateTime(value: string) {
 }
 
 function OrderFilters({
-  panel, query, setQuery, vendorFilter, setVendorFilter, subhubFilter, setSubhubFilter, statusFilter, setStatusFilter, sortBy, setSortBy,
-  orderDate, setOrderDate, fromDate, setFromDate, toDate, setToDate, vendors, subhubs, hasFilters, clearFilters,
+  panel, query, setQuery, vendorFilter, setVendorFilter, subhubFilter, setSubhubFilter, statusFilter, setStatusFilter,
+  fromDate, setFromDate, toDate, setToDate, vendors, subhubs, hasFilters, clearFilters,
 }: {
   panel: ProcurementPanel;
   query: string; setQuery: (value: string) => void;
   vendorFilter: string; setVendorFilter: (value: string) => void;
   subhubFilter: string; setSubhubFilter: (value: string) => void;
   statusFilter: ProcurementStatus | "all"; setStatusFilter: (value: ProcurementStatus | "all") => void;
-  sortBy: SortKey; setSortBy: (value: SortKey) => void;
-  orderDate: string; setOrderDate: (value: string) => void;
   fromDate: string; setFromDate: (value: string) => void;
   toDate: string; setToDate: (value: string) => void;
   vendors: ProcurementVendor[]; subhubs: Array<{ id: string; name: string }>;
@@ -1026,28 +1020,25 @@ function OrderFilters({
 }) {
   return (
     <div className={panel === "subhub" ? "border-b border-border" : "border-y border-border"}>
-      {panel !== "subhub" ? <div className="flex items-center gap-3 py-3"><Filter className="size-5 shrink-0 text-primary" /><div><h2 className="text-lg font-semibold">Search and filter orders</h2><p className="mt-1 text-base text-muted-foreground">Use an exact date or a date range; filters can be combined.</p></div></div> : null}
-      <div className={`filter-toolbar flex flex-wrap items-end gap-3 ${panel === "subhub" ? "pt-2 pb-4" : "py-4 border-t border-border"}`}>
-        <label className="min-w-[230px] flex-1 text-base font-medium">Search<span className="relative mt-1 block"><Search className="pointer-events-none absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="PO, vendor, material, SubHub…" className="h-12 w-full rounded-md border border-input bg-background pl-10 pr-3 text-base font-normal outline-none focus:border-primary" /></span></label>
+      <div className={`filter-toolbar flex flex-wrap items-end gap-2 ${panel === "subhub" ? "pt-2 pb-3" : "py-3 border-t border-border"}`}>
+        <label className="min-w-[220px] flex-1 text-sm font-medium">Search<span className="relative mt-1 block"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="PO, vendor, material, SubHub…" className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm font-normal outline-none focus:border-primary" /></span></label>
         {panel !== "subhub" ? <SelectFilter label="Vendor" value={vendorFilter} onChange={setVendorFilter}><option value="all">All vendors</option>{vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}</SelectFilter> : null}
         {subhubs.length ? <SelectFilter label="SubHub" value={subhubFilter} onChange={setSubhubFilter}><option value="all">All SubHubs</option>{subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.name}</option>)}</SelectFilter> : null}
         {panel !== "subhub" ? <SelectFilter label="Status" value={statusFilter} onChange={(value) => setStatusFilter(value as ProcurementStatus | "all")}><option value="all">All statuses</option>{PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</SelectFilter> : null}
-        {panel !== "subhub" ? <SelectFilter label="Sort" value={sortBy} onChange={(value) => setSortBy(value as SortKey)}><option value="orderDate-desc">Newest order date</option><option value="orderDate-asc">Oldest order date</option><option value="delivery-asc">Expected delivery</option><option value="amount-desc">Highest amount</option><option value="quantity-desc">Highest quantity</option><option value="vendor-asc">Vendor A–Z</option></SelectFilter> : null}
-        <DateFilter label="Exact order date" value={orderDate} onChange={setOrderDate} />
         {panel !== "subhub" ? <DateFilter label="From" value={fromDate} onChange={setFromDate} /> : null}
         {panel !== "subhub" ? <DateFilter label="To" value={toDate} onChange={setToDate} /> : null}
-        {hasFilters ? <button type="button" onClick={clearFilters} className="h-12 shrink-0 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted">Clear filters</button> : null}
+        {hasFilters ? <button type="button" onClick={clearFilters} className="h-10 shrink-0 rounded-md border border-input bg-background px-3 text-sm font-semibold hover:bg-muted">Clear filters</button> : null}
       </div>
     </div>
   );
 }
 
 function SelectFilter({ label, value, onChange, children }: { label: string; value: string; onChange: (value: string) => void; children: React.ReactNode }) {
-  return <label className="min-w-36 shrink-0 text-base font-medium">{label}<select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-12 w-full rounded-md border border-input bg-background px-3 text-base font-normal outline-none focus:border-primary">{children}</select></label>;
+  return <label className="min-w-36 shrink-0 text-sm font-medium">{label}<select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus:border-primary">{children}</select></label>;
 }
 
 function DateFilter({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="min-w-40 shrink-0 text-base font-medium">{label}<input type="date" value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-12 w-full rounded-md border border-input bg-background px-3 text-base font-normal outline-none focus:border-primary" /></label>;
+  return <label className="min-w-36 shrink-0 text-sm font-medium">{label}<input type="date" value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus:border-primary" /></label>;
 }
 
 function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeChange, isAdmin, panel, onStatusChange }: { orders: ProcurementOrder[]; total: number; page: number; pageSize: number; onPageChange: (page: number) => void; onPageSizeChange: (pageSize: number) => void; isAdmin: boolean; panel: "admin" | "subhub" | "procurement"; onStatusChange: (order: ProcurementOrder, status: ProcurementStatus) => void }) {
@@ -1058,8 +1049,8 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
   return (
     <>
       <div className="overflow-x-auto border-y border-border">
-        <table className={`w-full text-base ${panel === "subhub" ? "min-w-[820px]" : "min-w-[980px]"}`}>
-          <thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground">
+        <table className={`w-full text-sm ${panel === "subhub" ? "min-w-[760px]" : "min-w-[1120px]"}`}>
+          <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="px-4 py-3 font-semibold">Order</th>
               {isAdmin ? <th className="px-4 py-3 font-semibold">SubHub</th> : null}
@@ -1067,7 +1058,6 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
               <th className="px-4 py-3 font-semibold">Materials</th>
               {panel === "subhub" ? <th className="px-4 py-3 font-semibold">Material code</th> : null}
               <th className="px-4 py-3 text-right font-semibold">Qty</th>
-              {panel !== "subhub" ? <th className="px-4 py-3 text-right font-semibold">Amount</th> : null}
               <th className="px-4 py-3 font-semibold">Ordered</th>
               <th className="px-4 py-3 font-semibold">Expected</th>
               <th className="px-4 py-3 font-semibold">Status</th>
@@ -1079,39 +1069,36 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
               const note = order.notes.trim();
               return (
                 <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
-                  <td className="px-4 py-4">
+                  <td className="px-3 py-3">
                     <Link to="/po/$id" params={{ id: order.id }} search={{ panel }} className="font-semibold text-primary hover:underline">{order.orderNumber}</Link>
-                    {panel !== "subhub" ? <p className="mt-1 text-sm text-muted-foreground">{note || "No notes"}</p> : null}
+                    {panel !== "subhub" ? <p className="mt-1 text-xs text-muted-foreground">{note || "No notes"}</p> : null}
                   </td>
-                  {isAdmin ? <td className="px-4 py-4">{order.subhubName}</td> : null}
-                  {panel !== "subhub" ? <td className="px-4 py-4 font-semibold">{order.vendorName}</td> : null}
-                  <td className="px-4 py-4">
+                  {isAdmin ? <td className="px-3 py-3">{order.subhubName}</td> : null}
+                  {panel !== "subhub" ? <td className="px-3 py-3 font-semibold">{order.vendorName}</td> : null}
+                  <td className="px-3 py-3">
                     {order.items.map((item) => (
                       <p key={`${item.materialCode}:${item.materialName}`} className="font-semibold">
                         {item.materialName}
-                        {panel !== "subhub" ? <span className="tabular text-sm font-normal text-muted-foreground"> {item.materialCode}</span> : null}
+                        {panel !== "subhub" ? <span className="tabular text-xs font-normal text-muted-foreground"> {item.materialCode}</span> : null}
                       </p>
                     ))}
                   </td>
                   {panel === "subhub" ? (
-                    <td className="px-4 py-4">
+                    <td className="px-3 py-3">
                       {order.items.map((item) => (
-                        <p key={`${item.materialCode}:${item.materialName}`} className="tabular text-sm text-muted-foreground">{item.materialCode}</p>
+                        <p key={`${item.materialCode}:${item.materialName}`} className="tabular text-xs text-muted-foreground">{item.materialCode}</p>
                       ))}
                     </td>
                   ) : null}
-                  <td className="tabular px-4 py-4 text-right">{num(order.quantity)}</td>
-                  {panel !== "subhub" ? <td className="tabular px-4 py-4 text-right">{inr(order.totalAmount)}</td> : null}
-                  <td className="tabular whitespace-nowrap px-4 py-4">{formatDate(order.orderDate)}</td>
-                  <td className="tabular whitespace-nowrap px-4 py-4">{formatDate(order.expectedDelivery)}</td>
-                  <td className="px-4 py-4">
-                    {panel === "subhub" ? (
-                      <span className={`inline-flex items-center rounded px-2.5 py-1 text-sm font-semibold text-white ${solidStatusClass(order.status)}`}>{order.status}</span>
-                    ) : <Tag size="md" tone={statusTone(order.status)}>{order.status}</Tag>}
+                  <td className="tabular px-3 py-3 text-right">{num(order.quantity)}</td>
+                  <td className="tabular whitespace-nowrap px-3 py-3">{formatDate(order.orderDate)}</td>
+                  <td className="tabular whitespace-nowrap px-3 py-3">{formatDate(order.expectedDelivery)}</td>
+                  <td className="px-3 py-3">
+                    <span className={`inline-flex items-center rounded px-2 py-1 text-xs font-semibold text-white ${solidStatusClass(order.status)}`}>{order.status}</span>
                   </td>
                   {isAdmin ? (
-                    <td className="px-4 py-4 text-right">
-                      <select aria-label={`Change status for ${order.orderNumber}`} value={order.status} onChange={(event) => onStatusChange(order, event.target.value as ProcurementStatus)} className="h-11 min-w-36 rounded-md border border-input bg-background px-2 text-base font-medium outline-none focus:border-primary">
+                    <td className="px-3 py-3 text-right">
+                      <select aria-label={`Change status for ${order.orderNumber}`} value={order.status} onChange={(event) => onStatusChange(order, event.target.value as ProcurementStatus)} className={`h-9 min-w-36 rounded-md border-0 px-2 text-xs font-semibold text-white outline-none focus:ring-2 focus:ring-primary ${solidStatusClass(order.status)}`}>
                         {PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
                       </select>
                     </td>
@@ -1488,19 +1475,6 @@ function VendorDetailsDrawer({
   );
 }
 
-function AdminReports({ data }: { data: ProcurementData }) {
-  return <div className="grid gap-x-8 gap-y-6 lg:grid-cols-2">
-    <section>
-      <SectionHeading title="SubHub procurement report" description="Spend, quantities, and order status across every active SubHub." />
-      {data.subhubSummary.length ? <div className="overflow-x-auto border-b border-border"><table className="w-full min-w-[580px] text-base"><thead className="border-b border-border text-left text-sm uppercase tracking-wide text-muted-foreground"><tr><th className="px-4 py-3 font-semibold">SubHub</th><th className="px-4 py-3 text-right font-semibold">Orders</th><th className="px-4 py-3 text-right font-semibold">Units</th><th className="px-4 py-3 text-right font-semibold">Spend</th><th className="px-4 py-3 text-right font-semibold">Status</th></tr></thead><tbody>{data.subhubSummary.map((row) => <tr key={row.subhubName} className="border-b border-border/70 last:border-0"><td className="px-4 py-4 font-semibold">{row.subhubName}</td><td className="tabular px-4 py-4 text-right">{row.orders}</td><td className="tabular px-4 py-4 text-right">{num(row.quantity)}</td><td className="tabular px-4 py-4 text-right">{inr(row.spend)}</td><td className="px-4 py-4 text-right text-base text-muted-foreground">{row.pendingOrders} pending · {row.completedOrders} complete</td></tr>)}</tbody></table></div> : <EmptyState icon={<Users className="size-7" />} title="No SubHub orders yet" description="Orders created for SubHubs will be summarized here." />}
-    </section>
-    <section>
-      <SectionHeading title="Vendor performance" description="Order volume, spend and completed-delivery reliability." />
-      {data.vendorPerformance.length ? <ul className="divide-y divide-border border-b border-border">{data.vendorPerformance.map((vendor) => <li key={vendor.vendorId} className="flex items-center gap-4 py-4 text-base"><div className="min-w-0 flex-1"><p className="truncate font-semibold">{vendor.vendorName}</p><p className="mt-1 text-base text-muted-foreground">{vendor.orders} orders · {inr(vendor.spend)} spend</p></div><div className="text-right">{vendor.onTimeRate === null ? <span className="text-base text-muted-foreground">No deliveries</span> : <Tag size="md" tone={vendor.onTimeRate >= 85 ? "good" : "warn"}>{vendor.onTimeRate}% on time</Tag>}<p className="mt-1 text-sm text-muted-foreground">{vendor.pendingOrders} pending</p></div></li>)}</ul> : <EmptyState icon={<Truck className="size-7" />} title="No performance data yet" description="Vendor metrics appear once orders are created." />}
-    </section>
-  </div>;
-}
-
 function VendorForm({
   mode,
   vendor,
@@ -1657,7 +1631,6 @@ function OrderForm({ data, isAdmin, panel, onClose, onSaved }: { data: Procureme
   const [materialCode, setMaterialCode] = useState(materials[0]?.code ?? ONE_OFF_MATERIAL_CODE);
   const [customMaterialName, setCustomMaterialName] = useState("");
   const [quantity, setQuantity] = useState("");
-  const [unitPrice, setUnitPrice] = useState("");
   const [orderDate, setOrderDate] = useState(today());
   const [expectedDelivery, setExpectedDelivery] = useState(dateAfter(7));
   const [notes, setNotes] = useState("");
@@ -1670,9 +1643,8 @@ function OrderForm({ data, isAdmin, panel, onClose, onSaved }: { data: Procureme
     event.preventDefault();
     setError("");
     const parsedQuantity = Number(quantity);
-    const parsedPrice = unitPrice.trim() === "" ? undefined : Number(unitPrice);
-    if (!Number.isInteger(parsedQuantity) || parsedQuantity < 1 || (parsedPrice !== undefined && (!Number.isFinite(parsedPrice) || parsedPrice < 0)) || (parsedPrice === undefined && !isOneOffMaterial)) {
-      setError(isOneOffMaterial ? "Enter a whole-number quantity and a valid unit price, or leave the one-off price blank." : "Enter a whole-number quantity and a valid non-negative unit price.");
+    if (!Number.isInteger(parsedQuantity) || parsedQuantity < 1) {
+      setError("Enter a whole-number quantity.");
       return;
     }
     if (isAdmin && !subhubUserId) {
@@ -1688,7 +1660,7 @@ function OrderForm({ data, isAdmin, panel, onClose, onSaved }: { data: Procureme
       return;
     }
     setBusy(true);
-    const response = await createProcurementOrderFn({ data: { panel, vendorId: addingVendor ? undefined : vendorId || undefined, newVendor: addingVendor ? { name: newVendorName, phone: newVendorPhone, email: newVendorEmail } : isMiscellaneousVendor && miscellaneousVendorName.trim() ? { name: miscellaneousVendorName, categories: ["Miscellaneous"] } : undefined, subhubUserId: isAdmin ? subhubUserId : undefined, materialCode, materialName: isOneOffMaterial ? customMaterialName : selectedMaterial?.name, quantity: parsedQuantity, ...(parsedPrice === undefined ? {} : { unitPrice: parsedPrice }), orderDate, expectedDelivery, notes } });
+    const response = await createProcurementOrderFn({ data: { panel, vendorId: addingVendor ? undefined : vendorId || undefined, newVendor: addingVendor ? { name: newVendorName, phone: newVendorPhone, email: newVendorEmail } : isMiscellaneousVendor && miscellaneousVendorName.trim() ? { name: miscellaneousVendorName, categories: ["Miscellaneous"] } : undefined, subhubUserId: isAdmin ? subhubUserId : undefined, materialCode, materialName: isOneOffMaterial ? customMaterialName : selectedMaterial?.name, quantity: parsedQuantity, orderDate, expectedDelivery, notes } });
     if (!response.ok) setError(response.message);
     else await onSaved(`${response.order.orderNumber} was created successfully.`);
     setBusy(false);
@@ -1746,7 +1718,6 @@ function OrderForm({ data, isAdmin, panel, onClose, onSaved }: { data: Procureme
           <RawMaterialPicker materials={materials} value={materialCode} onChange={setMaterialCode} />
           {isOneOffMaterial ? <TextField label="One-off material name" value={customMaterialName} required onChange={setCustomMaterialName} placeholder="Pair of scissors or duct tape" /> : <div />}
           <TextField label="Quantity" type="number" required value={quantity} onChange={setQuantity} placeholder="1000" />
-          <TextField label={`Unit price (₹)${isOneOffMaterial ? " (optional)" : ""}`} type="number" required={!isOneOffMaterial} value={unitPrice} onChange={setUnitPrice} placeholder={isOneOffMaterial ? "Optional" : "125"} />
           <TextField label="Order date" type="date" required value={orderDate} onChange={setOrderDate} />
           <TextField label="Expected delivery" type="date" required value={expectedDelivery} onChange={setExpectedDelivery} />
         </div>

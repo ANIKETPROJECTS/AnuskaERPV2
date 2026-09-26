@@ -957,8 +957,6 @@ export async function createProcurementOrder(
         };
       if (!Number.isInteger(line.quantity) || line.quantity < 1)
         return { ok: false, message: `Enter a whole-number quantity for ${material.name}.` };
-      if (catalogMaterial && line.unitPrice === undefined)
-        return { ok: false, message: `Enter a unit price for ${material.name}.` };
       const unitPrice = line.unitPrice ?? 0;
       if (!Number.isFinite(unitPrice) || unitPrice < 0)
         return { ok: false, message: `Unit price for ${material.name} cannot be negative.` };
