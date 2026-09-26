@@ -1,18 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ProcurementPage } from "@/routes/procurement";
-import { getProcurementManagementDataFn } from "@/procurement";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/procurement-management")({
-  loader: () => getProcurementManagementDataFn(),
-  head: () => ({
-    meta: [
-      { title: "Procurement Management — Gadsons ERP" },
-      { name: "description", content: "Review SubHub raw-material needs, purchase orders, vendors, and item requests." },
-    ],
-  }),
-  component: ProcurementManagementPage,
+  beforeLoad: ({ location }) => {
+    if (location.pathname === "/procurement-management") {
+      throw redirect({ to: "/procurement-management/orders" });
+    }
+  },
 });
-
-function ProcurementManagementPage() {
-  return <ProcurementPage result={Route.useLoaderData()} />;
-}

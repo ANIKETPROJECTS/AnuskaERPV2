@@ -9,3 +9,4 @@
 - [Live hub detail](live-hub-detail.md) — resolve live hub pages by SubHub user ID, not legacy seeded hub codes.
 - [Inventory read performance](inventory-read-performance.md) — client pagination must use view-scoped server reads and avoid repeating workspace-wide reconciliation on navigation.
 - [HR headcount scope](hr-headcount-scope.md) — keep one immutable total per SubHub per day; no edits or employee-level entries after the first save.
+- [Nested route redirects](tanstack-nested-redirects.md) — parent beforeLoad redirects must match the exact legacy URL or nested pages can loop.

@@ -9,6 +9,8 @@ import {
   Truck,
   Users,
   Database,
+  PackagePlus,
+  Store,
   UserCog,
   UserRoundCog,
   ShieldAlert,
@@ -40,6 +42,29 @@ const nav = [
   },
 ] as const;
 
+const procurementPanelNav = [
+  {
+    to: "/procurement-management/orders",
+    label: "Order Management",
+    icon: ClipboardList,
+  },
+  {
+    to: "/procurement-management/vendors",
+    label: "Vendor Management",
+    icon: Store,
+  },
+  {
+    to: "/procurement-management/hub-stock",
+    label: "Hub stock & targets",
+    icon: PackagePlus,
+  },
+  {
+    to: "/procurement-management/item-requests",
+    label: "Item requests",
+    icon: ClipboardList,
+  },
+] as const;
+
 export function Shell({
   title,
   subtitle,
@@ -54,7 +79,10 @@ export function Shell({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const router = useRouter();
   const { user } = useAuth();
-  const visibleNav = nav.filter((item) => canAccess(user, item.permission));
+  const visibleNav =
+    user?.panel === "procurement"
+      ? procurementPanelNav
+      : nav.filter((item) => canAccess(user, item.permission));
   const initials =
     user?.name
       .split(" ")
@@ -91,18 +119,16 @@ export function Shell({
             Modules
           </p>
           {visibleNav.map((item) => {
-            const destination =
-              user?.panel === "procurement" && item.permission === "procurement"
-                ? "/procurement-management"
-                : item.to;
-            const active =
-              destination === "/" ? pathname === "/" : pathname.startsWith(destination);
+            const destination = item.to;
+            const active = pathname === destination || pathname.startsWith(`${destination}/`);
             return (
               <Link
                 key={item.to}
                 to={destination}
                 search={
-                  item.permission === "procurement" ? { panel: user?.panel ?? "admin" } : undefined
+                  "permission" in item && item.permission === "procurement"
+                    ? { panel: user?.panel ?? "admin" }
+                    : undefined
                 }
                 className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-base leading-snug transition-colors ${
                   active
@@ -151,13 +177,11 @@ export function Shell({
             {visibleNav.map((item) => (
               <Link
                 key={item.to}
-                to={
-                  user?.panel === "procurement" && item.permission === "procurement"
-                    ? "/procurement-management"
-                    : item.to
-                }
+                to={item.to}
                 search={
-                  item.permission === "procurement" && user?.panel !== "procurement"
+                  "permission" in item &&
+                  item.permission === "procurement" &&
+                  user?.panel !== "procurement"
                     ? { panel: user?.panel ?? "admin" }
                     : undefined
                 }

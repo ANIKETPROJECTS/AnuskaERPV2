@@ -37,6 +37,10 @@ import { Route as InventoryQualityHistoryRouteImport } from './routes/inventory.
 import { Route as InventoryRawMaterialsRouteImport } from './routes/inventory.raw-materials'
 import { Route as PartCodeRouteImport } from './routes/part.$code'
 import { Route as PoIdRouteImport } from './routes/po.$id'
+import { Route as ProcurementManagementHubStockRouteImport } from './routes/procurement-management.hub-stock'
+import { Route as ProcurementManagementItemRequestsRouteImport } from './routes/procurement-management.item-requests'
+import { Route as ProcurementManagementOrdersRouteImport } from './routes/procurement-management.orders'
+import { Route as ProcurementManagementVendorsRouteImport } from './routes/procurement-management.vendors'
 import { Route as SkuCodeRouteImport } from './routes/sku.$code'
 import { Route as SubhubBomRouteImport } from './routes/subhub.bom'
 import { Route as SubhubFloatParentRouteImport } from './routes/subhub.float-parent'
@@ -198,6 +202,30 @@ const PoIdRoute = PoIdRouteImport.update({
   path: '/po/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProcurementManagementHubStockRoute =
+  ProcurementManagementHubStockRouteImport.update({
+    id: '/hub-stock',
+    path: '/hub-stock',
+    getParentRoute: () => ProcurementManagementRoute,
+  } as any)
+const ProcurementManagementItemRequestsRoute =
+  ProcurementManagementItemRequestsRouteImport.update({
+    id: '/item-requests',
+    path: '/item-requests',
+    getParentRoute: () => ProcurementManagementRoute,
+  } as any)
+const ProcurementManagementOrdersRoute =
+  ProcurementManagementOrdersRouteImport.update({
+    id: '/orders',
+    path: '/orders',
+    getParentRoute: () => ProcurementManagementRoute,
+  } as any)
+const ProcurementManagementVendorsRoute =
+  ProcurementManagementVendorsRouteImport.update({
+    id: '/vendors',
+    path: '/vendors',
+    getParentRoute: () => ProcurementManagementRoute,
+  } as any)
 const SkuCodeRoute = SkuCodeRouteImport.update({
   id: '/sku/$code',
   path: '/sku/$code',
@@ -313,7 +341,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/orders': typeof OrdersRoute
   '/procurement': typeof ProcurementRoute
-  '/procurement-management': typeof ProcurementManagementRoute
+  '/procurement-management': typeof ProcurementManagementRouteWithChildren
   '/production': typeof ProductionRoute
   '/production-targets': typeof ProductionTargetsRoute
   '/quality-management': typeof QualityManagementRoute
@@ -333,6 +361,10 @@ export interface FileRoutesByFullPath {
   '/inventory/raw-materials': typeof InventoryRawMaterialsRoute
   '/part/$code': typeof PartCodeRoute
   '/po/$id': typeof PoIdRoute
+  '/procurement-management/hub-stock': typeof ProcurementManagementHubStockRoute
+  '/procurement-management/item-requests': typeof ProcurementManagementItemRequestsRoute
+  '/procurement-management/orders': typeof ProcurementManagementOrdersRoute
+  '/procurement-management/vendors': typeof ProcurementManagementVendorsRoute
   '/sku/$code': typeof SkuCodeRoute
   '/subhub/bom': typeof SubhubBomRouteWithChildren
   '/subhub/float-parent': typeof SubhubFloatParentRoute
@@ -363,7 +395,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/orders': typeof OrdersRoute
   '/procurement': typeof ProcurementRoute
-  '/procurement-management': typeof ProcurementManagementRoute
+  '/procurement-management': typeof ProcurementManagementRouteWithChildren
   '/production': typeof ProductionRoute
   '/production-targets': typeof ProductionTargetsRoute
   '/quality-management': typeof QualityManagementRoute
@@ -383,6 +415,10 @@ export interface FileRoutesByTo {
   '/inventory/raw-materials': typeof InventoryRawMaterialsRoute
   '/part/$code': typeof PartCodeRoute
   '/po/$id': typeof PoIdRoute
+  '/procurement-management/hub-stock': typeof ProcurementManagementHubStockRoute
+  '/procurement-management/item-requests': typeof ProcurementManagementItemRequestsRoute
+  '/procurement-management/orders': typeof ProcurementManagementOrdersRoute
+  '/procurement-management/vendors': typeof ProcurementManagementVendorsRoute
   '/sku/$code': typeof SkuCodeRoute
   '/subhub/bom': typeof SubhubBomRouteWithChildren
   '/subhub/float-parent': typeof SubhubFloatParentRoute
@@ -414,7 +450,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/orders': typeof OrdersRoute
   '/procurement': typeof ProcurementRoute
-  '/procurement-management': typeof ProcurementManagementRoute
+  '/procurement-management': typeof ProcurementManagementRouteWithChildren
   '/production': typeof ProductionRoute
   '/production-targets': typeof ProductionTargetsRoute
   '/quality-management': typeof QualityManagementRoute
@@ -434,6 +470,10 @@ export interface FileRoutesById {
   '/inventory/raw-materials': typeof InventoryRawMaterialsRoute
   '/part/$code': typeof PartCodeRoute
   '/po/$id': typeof PoIdRoute
+  '/procurement-management/hub-stock': typeof ProcurementManagementHubStockRoute
+  '/procurement-management/item-requests': typeof ProcurementManagementItemRequestsRoute
+  '/procurement-management/orders': typeof ProcurementManagementOrdersRoute
+  '/procurement-management/vendors': typeof ProcurementManagementVendorsRoute
   '/sku/$code': typeof SkuCodeRoute
   '/subhub/bom': typeof SubhubBomRouteWithChildren
   '/subhub/float-parent': typeof SubhubFloatParentRoute
@@ -486,6 +526,10 @@ export interface FileRouteTypes {
     | '/inventory/raw-materials'
     | '/part/$code'
     | '/po/$id'
+    | '/procurement-management/hub-stock'
+    | '/procurement-management/item-requests'
+    | '/procurement-management/orders'
+    | '/procurement-management/vendors'
     | '/sku/$code'
     | '/subhub/bom'
     | '/subhub/float-parent'
@@ -536,6 +580,10 @@ export interface FileRouteTypes {
     | '/inventory/raw-materials'
     | '/part/$code'
     | '/po/$id'
+    | '/procurement-management/hub-stock'
+    | '/procurement-management/item-requests'
+    | '/procurement-management/orders'
+    | '/procurement-management/vendors'
     | '/sku/$code'
     | '/subhub/bom'
     | '/subhub/float-parent'
@@ -586,6 +634,10 @@ export interface FileRouteTypes {
     | '/inventory/raw-materials'
     | '/part/$code'
     | '/po/$id'
+    | '/procurement-management/hub-stock'
+    | '/procurement-management/item-requests'
+    | '/procurement-management/orders'
+    | '/procurement-management/vendors'
     | '/sku/$code'
     | '/subhub/bom'
     | '/subhub/float-parent'
@@ -617,7 +669,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   OrdersRoute: typeof OrdersRoute
   ProcurementRoute: typeof ProcurementRoute
-  ProcurementManagementRoute: typeof ProcurementManagementRoute
+  ProcurementManagementRoute: typeof ProcurementManagementRouteWithChildren
   ProductionRoute: typeof ProductionRoute
   ProductionTargetsRoute: typeof ProductionTargetsRoute
   QualityManagementRoute: typeof QualityManagementRoute
@@ -830,6 +882,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PoIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/procurement-management/hub-stock': {
+      id: '/procurement-management/hub-stock'
+      path: '/hub-stock'
+      fullPath: '/procurement-management/hub-stock'
+      preLoaderRoute: typeof ProcurementManagementHubStockRouteImport
+      parentRoute: typeof ProcurementManagementRoute
+    }
+    '/procurement-management/item-requests': {
+      id: '/procurement-management/item-requests'
+      path: '/item-requests'
+      fullPath: '/procurement-management/item-requests'
+      preLoaderRoute: typeof ProcurementManagementItemRequestsRouteImport
+      parentRoute: typeof ProcurementManagementRoute
+    }
+    '/procurement-management/orders': {
+      id: '/procurement-management/orders'
+      path: '/orders'
+      fullPath: '/procurement-management/orders'
+      preLoaderRoute: typeof ProcurementManagementOrdersRouteImport
+      parentRoute: typeof ProcurementManagementRoute
+    }
+    '/procurement-management/vendors': {
+      id: '/procurement-management/vendors'
+      path: '/vendors'
+      fullPath: '/procurement-management/vendors'
+      preLoaderRoute: typeof ProcurementManagementVendorsRouteImport
+      parentRoute: typeof ProcurementManagementRoute
+    }
     '/sku/$code': {
       id: '/sku/$code'
       path: '/sku/$code'
@@ -1040,6 +1120,26 @@ const InventoryRouteWithChildren = InventoryRoute._addFileChildren(
   InventoryRouteChildren,
 )
 
+interface ProcurementManagementRouteChildren {
+  ProcurementManagementHubStockRoute: typeof ProcurementManagementHubStockRoute
+  ProcurementManagementItemRequestsRoute: typeof ProcurementManagementItemRequestsRoute
+  ProcurementManagementOrdersRoute: typeof ProcurementManagementOrdersRoute
+  ProcurementManagementVendorsRoute: typeof ProcurementManagementVendorsRoute
+}
+
+const ProcurementManagementRouteChildren: ProcurementManagementRouteChildren = {
+  ProcurementManagementHubStockRoute: ProcurementManagementHubStockRoute,
+  ProcurementManagementItemRequestsRoute:
+    ProcurementManagementItemRequestsRoute,
+  ProcurementManagementOrdersRoute: ProcurementManagementOrdersRoute,
+  ProcurementManagementVendorsRoute: ProcurementManagementVendorsRoute,
+}
+
+const ProcurementManagementRouteWithChildren =
+  ProcurementManagementRoute._addFileChildren(
+    ProcurementManagementRouteChildren,
+  )
+
 interface SubhubBomRouteChildren {
   SubhubBomCodeRoute: typeof SubhubBomCodeRoute
 }
@@ -1137,7 +1237,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   OrdersRoute: OrdersRoute,
   ProcurementRoute: ProcurementRoute,
-  ProcurementManagementRoute: ProcurementManagementRoute,
+  ProcurementManagementRoute: ProcurementManagementRouteWithChildren,
   ProductionRoute: ProductionRoute,
   ProductionTargetsRoute: ProductionTargetsRoute,
   QualityManagementRoute: QualityManagementRoute,

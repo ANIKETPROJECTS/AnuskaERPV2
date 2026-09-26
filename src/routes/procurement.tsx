@@ -73,8 +73,16 @@ const emptyData: ProcurementData = {
   },
 };
 
-type Tab = "orders" | "vendors" | "needs" | "requests";
+export type ProcurementView = "orders" | "vendors" | "needs" | "requests";
+type Tab = ProcurementView;
 type SortKey = "orderDate-desc" | "orderDate-asc" | "delivery-asc" | "amount-desc" | "quantity-desc" | "vendor-asc";
+
+const PROCUREMENT_VIEW_TITLES: Record<ProcurementView, string> = {
+  orders: "Order Management",
+  vendors: "Vendor Management",
+  needs: "Hub stock & targets",
+  requests: "Item requests",
+};
 
 function today() {
   return new Date().toISOString().slice(0, 10);
@@ -119,12 +127,19 @@ function Procurement() {
 
 type ProcurementResult = Awaited<ReturnType<typeof getProcurementDataFn>>;
 
-export function ProcurementPage({ result }: { result: ProcurementResult }) {
+export function ProcurementPage({
+  result,
+  view,
+}: {
+  result: ProcurementResult;
+  view?: ProcurementView;
+}) {
   const auth = useAuth();
   const canManageProcurement = auth.user?.panel === "admin" || auth.user?.panel === "procurement";
   const panel = auth.user?.panel ?? "admin";
   const [data, setData] = useState<ProcurementData>(result.ok ? result.data : emptyData);
   const [tab, setTab] = useState<Tab>("orders");
+  const activeTab = view ?? tab;
   const [query, setQuery] = useState("");
   const [vendorFilter, setVendorFilter] = useState("all");
   const [subhubFilter, setSubhubFilter] = useState("all");
@@ -265,7 +280,7 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
     setError("");
   }
 
-  const summaryMetrics = [
+  const summaryMetrics = panel === "procurement" && activeTab !== "orders" ? [] : [
     ...(canManageProcurement
       ? [{ label: "Active vendors", value: num(data.summary.vendorCount), hint: `${data.vendors.length} total records` }]
       : []),
@@ -305,28 +320,28 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
       ) : null}
 
       {panel !== "subhub" ? <div className="flex flex-col gap-3 border-b border-border pb-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-1" role="tablist" aria-label="Procurement sections">
-          <button type="button" role="tab" aria-selected={tab === "orders"} onClick={() => setTab("orders")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${tab === "orders" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+        {panel !== "procurement" ? <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-1" role="tablist" aria-label="Procurement sections">
+          <button type="button" role="tab" aria-selected={activeTab === "orders"} onClick={() => setTab("orders")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${activeTab === "orders" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             <ClipboardList className="size-5" /> Order Management
           </button>
-          {canManageProcurement ? <button type="button" role="tab" aria-selected={tab === "vendors"} onClick={() => setTab("vendors")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${tab === "vendors" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          {canManageProcurement ? <button type="button" role="tab" aria-selected={activeTab === "vendors"} onClick={() => setTab("vendors")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${activeTab === "vendors" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             <Store className="size-5" /> Vendor Management
           </button> : null}
-          {canManageProcurement ? <button type="button" role="tab" aria-selected={tab === "needs"} onClick={() => setTab("needs")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${tab === "needs" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          {canManageProcurement ? <button type="button" role="tab" aria-selected={activeTab === "needs"} onClick={() => setTab("needs")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${activeTab === "needs" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             <PackagePlus className="size-5" /> Hub stock & targets
           </button> : null}
-          {canManageProcurement ? <button type="button" role="tab" aria-selected={tab === "requests"} onClick={() => setTab("requests")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${tab === "requests" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+          {canManageProcurement ? <button type="button" role="tab" aria-selected={activeTab === "requests"} onClick={() => setTab("requests")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${activeTab === "requests" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             <ClipboardList className="size-5" /> Item requests{data.itemRequests.some((request) => request.status === "Pending") ? ` (${data.itemRequests.filter((request) => request.status === "Pending").length})` : ""}
           </button> : null}
-        </div>
+        </div> : null}
         <div className="flex flex-wrap gap-2">
-          {canManageProcurement && tab === "vendors" ? <button type="button" onClick={openCreateVendor} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted"><Plus className="size-5" /> Add vendor</button> : null}
-          {canManageProcurement && tab === "orders" ? <button type="button" onClick={() => setShowOrderForm(true)} className="rule-header inline-flex min-h-12 items-center gap-2 rounded-md px-4 text-base font-semibold"><PackagePlus className="size-5" /> New procurement order</button> : null}
+          {canManageProcurement && activeTab === "vendors" ? <button type="button" onClick={openCreateVendor} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted"><Plus className="size-5" /> Add vendor</button> : null}
+          {canManageProcurement && activeTab === "orders" ? <button type="button" onClick={() => setShowOrderForm(true)} className="rule-header inline-flex min-h-12 items-center gap-2 rounded-md px-4 text-base font-semibold"><PackagePlus className="size-5" /> New procurement order</button> : null}
           <button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted disabled:opacity-50"><RefreshCw className={`size-5 ${loading ? "animate-spin" : ""}`} /> Refresh</button>
         </div>
       </div> : null}
 
-      {tab === "orders" ? (
+      {activeTab === "orders" ? (
         <>
           <OrderFilters
             panel={panel}
@@ -357,7 +372,7 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
           </section>
           {canManageProcurement ? <AdminReports data={data} /> : null}
         </>
-      ) : tab === "vendors" ? (
+      ) : activeTab === "vendors" ? (
         <>
           <section>
             <SectionHeading title="Vendor directory" description="Create, edit, archive, and review the shared procurement vendor directory." />
@@ -366,8 +381,8 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
           {selectedVendor ? <VendorDetail vendor={selectedVendor} orders={selectedVendorOrders} onClose={() => setSelectedVendorId("")} /> : null}
         </>
       ) : null}
-      {tab === "needs" ? <HubMaterialNeeds data={data} panel={panel as "admin" | "procurement"} onSaved={async (message) => { setNotice(message); await reload(); }} /> : null}
-      {tab === "requests" ? <ItemRequestsTable requests={data.itemRequests} panel={panel as "admin" | "procurement"} onUpdated={async (message) => { setNotice(message); await reload(); }} /> : null}
+      {activeTab === "needs" ? <HubMaterialNeeds data={data} panel={panel as "admin" | "procurement"} onSaved={async (message) => { setNotice(message); await reload(); }} /> : null}
+      {activeTab === "requests" ? <ItemRequestsTable requests={data.itemRequests} panel={panel as "admin" | "procurement"} onUpdated={async (message) => { setNotice(message); await reload(); }} /> : null}
 
       {showOrderForm ? <OrderForm data={data} isAdmin={canManageProcurement} panel={panel as "admin" | "procurement"} onClose={() => setShowOrderForm(false)} onSaved={async (message) => { setShowOrderForm(false); setNotice(message); await reload(); }} /> : null}
       {vendorFormMode ? <VendorForm mode={vendorFormMode} vendor={editingVendor} panel={panel as "admin" | "procurement"} onClose={() => setVendorFormMode(null)} onSaved={async (message) => { setVendorFormMode(null); setNotice(message); await reload(); }} /> : null}
@@ -379,7 +394,10 @@ export function ProcurementPage({ result }: { result: ProcurementResult }) {
       <div className="space-y-6 px-6 py-5">{content}</div>
     </SubHubShell>
   ) : (
-    <Shell title="Procurement" subtitle="Live vendor management, purchase orders, and SubHub-wide delivery reporting">
+    <Shell
+      title={panel === "procurement" ? PROCUREMENT_VIEW_TITLES[activeTab] : "Procurement"}
+      subtitle={panel === "procurement" ? undefined : "Live vendor management, purchase orders, and SubHub-wide delivery reporting"}
+    >
       {content}
     </Shell>
   );
