@@ -1,9 +1,10 @@
 import { RefreshCw, Search, Send } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./_group.css";
 import { PreviewShell } from "./_shared/PreviewShell";
 
 type StockStatus = "shortage" | "low" | "surplus" | "no-target";
+type ViewMode = "matrix" | "list";
 
 type PreviewRow = {
   name: string;
@@ -75,6 +76,12 @@ export function Requested() {
   const [query, setQuery] = useState("");
   const [hub, setHub] = useState("all");
   const [status, setStatus] = useState<StockStatus | "all">("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("matrix");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  useEffect(() => {
+    setPage(1);
+  }, [hub, query, status]);
   const visibleHubs = useMemo(
     () => (hub === "all" ? hubs : hubs.filter((name) => name === hub)),
     [hub],
@@ -95,6 +102,16 @@ export function Requested() {
       });
     });
   }, [query, status, visibleHubs]);
+  const visibleListRows = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return rows.filter((row) => {
+      const matchesQuery = !normalized || `${row.name} ${row.code}`.toLowerCase().includes(normalized);
+      const matchesHub = hub === "all" || row.hub === hub;
+      const matchesStatus = status === "all" || statusFor(row) === status;
+      return matchesQuery && matchesHub && matchesStatus;
+    });
+  }, [hub, query, status]);
+  const pageRows = visibleListRows.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <PreviewShell
@@ -163,13 +180,47 @@ export function Requested() {
         </label>
       </div>
 
-      <div className="flex flex-wrap justify-between gap-2 text-sm text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
         <p>
-          {visibleParts.length} subparts across {visibleHubs.length} SubHubs
+          {viewMode === "matrix"
+            ? `${visibleParts.length} subparts across ${visibleHubs.length} SubHubs`
+            : `${visibleListRows.length} matching part–SubHub rows`}
         </p>
+        <div role="group" aria-label="Shortage view" className="inline-flex rounded-md border border-input p-1">
+          <button
+            type="button"
+            aria-pressed={viewMode === "matrix"}
+            onClick={() => {
+              setPage(1);
+              setViewMode("matrix");
+            }}
+            className={`min-h-9 rounded px-3 text-sm font-medium ${
+              viewMode === "matrix"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            Matrix
+          </button>
+          <button
+            type="button"
+            aria-pressed={viewMode === "list"}
+            onClick={() => {
+              setPage(1);
+              setViewMode("list");
+            }}
+            className={`min-h-9 rounded px-3 text-sm font-medium ${
+              viewMode === "list"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            }`}
+          >
+            List
+          </button>
+        </div>
       </div>
 
-      {visibleParts.length && visibleHubs.length ? (
+      {viewMode === "matrix" && visibleParts.length && visibleHubs.length ? (
         <div className="overflow-x-auto border-y border-border">
           <table className="w-full min-w-[760px] border-collapse text-sm">
             <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -242,6 +293,106 @@ export function Requested() {
             </tbody>
           </table>
         </div>
+      ) : viewMode === "list" && visibleListRows.length ? (
+        <section className="panel overflow-hidden">
+          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-4">
+            <div>
+              <h2 className="text-lg font-semibold">Parts and stock by SubHub</h2>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Showing {(page - 1) * pageSize + 1}–
+                {Math.min(page * pageSize, visibleListRows.length)} of {visibleListRows.length}{" "}
+                matching rows
+              </p>
+            </div>
+          </header>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-base">
+              <thead className="bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th scope="col" className="min-w-56 px-4 py-3 font-semibold">
+                    Subpart name
+                  </th>
+                  <th scope="col" className="min-w-36 px-4 py-3 font-semibold">
+                    Code
+                  </th>
+                  <th scope="col" className="min-w-44 px-4 py-3 font-semibold">
+                    SubHub
+                  </th>
+                  <th scope="col" className="min-w-40 px-4 py-3 text-right font-semibold">
+                    Required quantity
+                  </th>
+                  <th scope="col" className="min-w-32 px-4 py-3 text-right font-semibold">
+                    Current stock
+                  </th>
+                  <th scope="col" className="min-w-48 px-4 py-3 font-semibold">
+                    Stock status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageRows.map((row) => {
+                  const details = statusDetails(row);
+                  return (
+                    <tr
+                      key={`${row.code}-${row.hub}`}
+                      className="border-t border-border/70 hover:bg-muted/30"
+                    >
+                      <td className="whitespace-nowrap px-4 py-4 font-semibold">{row.name}</td>
+                      <td className="tabular whitespace-nowrap px-4 py-4 text-sm">{row.code}</td>
+                      <td className="whitespace-nowrap px-4 py-4">{row.hub}</td>
+                      <td className="tabular px-4 py-4 text-right font-medium">
+                        {row.required.toLocaleString("en-IN")}
+                      </td>
+                      <td className="tabular px-4 py-4 text-right font-semibold">
+                        {row.stock.toLocaleString("en-IN")}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-sm font-semibold ${details.className}`}
+                        >
+                          {details.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between border-t border-border px-4 py-3">
+            <p className="text-sm text-muted-foreground">
+              Showing {(page - 1) * pageSize + 1}–
+              {Math.min(page * pageSize, visibleListRows.length)} of {visibleListRows.length}
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                Page {page} of {Math.ceil(visibleListRows.length / pageSize)}
+              </span>
+              <button
+                type="button"
+                aria-label="Previous page"
+                disabled={page === 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+                className="rounded-md border border-input px-3 py-1.5 text-sm disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                aria-label="Next page"
+                disabled={page >= Math.ceil(visibleListRows.length / pageSize)}
+                onClick={() =>
+                  setPage((current) =>
+                    Math.min(Math.ceil(visibleListRows.length / pageSize), current + 1),
+                  )
+                }
+                className="rounded-md border border-input px-3 py-1.5 text-sm disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </section>
       ) : (
         <p className="py-10 text-center text-base text-muted-foreground">
           No subparts match these filters. Try another SubHub or stock status.

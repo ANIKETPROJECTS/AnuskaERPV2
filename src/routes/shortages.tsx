@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { RefreshCw, Search, Send, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
+import { TablePagination } from "@/components/erp/TablePagination";
 import { getShortageDataFn } from "@/shortages";
 import type { ShortageData } from "@/shortages.server";
 
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/shortages")({
 });
 
 type StockStatus = "shortage" | "low" | "surplus" | "no-target";
+type ViewMode = "matrix" | "list";
 
 function getStockStatus(requirement: number, stock: number): StockStatus {
   if (requirement <= 0) return "no-target";
@@ -60,6 +62,9 @@ function Shortages() {
   const [query, setQuery] = useState("");
   const [hubFilter, setHubFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<StockStatus | "all">("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("matrix");
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
 
   useEffect(() => {
     if (result.ok) {
@@ -69,6 +74,10 @@ function Shortages() {
       setError(result.message);
     }
   }, [result]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [data.hubs, data.rows, hubFilter, query, statusFilter, viewMode]);
 
   async function load() {
     setLoading(true);
@@ -101,8 +110,29 @@ function Shortages() {
     });
   }, [data.rows, query, statusFilter, visibleHubs]);
 
+  const visibleListRows = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return data.rows.flatMap((part) => {
+      const matchesQuery =
+        !normalized || `${part.name} ${part.code}`.toLowerCase().includes(normalized);
+      if (!matchesQuery) return [];
+
+      return visibleHubs.flatMap((hub) => {
+        const cell = part.cells[hub.id];
+        if (!cell) return [];
+        const status = getStockStatus(cell.requirement, cell.stock);
+        if (statusFilter !== "all" && status !== statusFilter) return [];
+        return [{ part, hub, cell, status }];
+      });
+    });
+  }, [data.rows, query, statusFilter, visibleHubs]);
+
   const hasFilters = Boolean(query.trim() || hubFilter !== "all" || statusFilter !== "all");
   const formatNumber = (value: number) => value.toLocaleString("en-IN");
+  const pageRows = visibleListRows.slice((page - 1) * pageSize, page * pageSize);
+  const firstVisibleRow = visibleListRows.length ? (page - 1) * pageSize + 1 : 0;
+  const lastVisibleRow = Math.min(page * pageSize, visibleListRows.length);
+  const totalHubRows = data.rows.length * (hubFilter === "all" ? data.hubs.length : 1);
 
   return (
     <Shell
@@ -208,15 +238,50 @@ function Shortages() {
           {formatNumber(visibleParts.length)} subparts across {formatNumber(visibleHubs.length)}{" "}
           SubHubs
         </p>
-        {loading ? <p aria-live="polite">Refreshing…</p> : null}
+        <div className="flex flex-wrap items-center gap-3">
+          {loading ? <p aria-live="polite">Refreshing…</p> : null}
+          <div
+            role="group"
+            aria-label="Shortage view"
+            className="inline-flex rounded-md border border-input p-1"
+          >
+            <button
+              type="button"
+              aria-pressed={viewMode === "matrix"}
+              onClick={() => setViewMode("matrix")}
+              className={`min-h-9 rounded px-3 text-sm font-medium ${
+                viewMode === "matrix"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              Matrix
+            </button>
+            <button
+              type="button"
+              aria-pressed={viewMode === "list"}
+              onClick={() => setViewMode("list")}
+              className={`min-h-9 rounded px-3 text-sm font-medium ${
+                viewMode === "list"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              List
+            </button>
+          </div>
+        </div>
       </div>
 
-      <section aria-label="Shortage matrix" className="min-w-0">
+      <section
+        aria-label={viewMode === "matrix" ? "Shortage matrix" : "Shortage list"}
+        className="min-w-0"
+      >
         {loading && !data.rows.length ? (
           <p className="py-10 text-center text-base text-muted-foreground" aria-live="polite">
             Loading shortage details…
           </p>
-        ) : visibleParts.length && visibleHubs.length ? (
+        ) : viewMode === "matrix" && visibleParts.length && visibleHubs.length ? (
           <div className="overflow-x-auto border-y border-border">
             <table className="w-full min-w-[760px] border-collapse text-sm">
               <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -296,6 +361,90 @@ function Shortages() {
               </tbody>
             </table>
           </div>
+        ) : viewMode === "list" && visibleListRows.length ? (
+          <section className="panel overflow-hidden">
+            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-4">
+              <div>
+                <h2 className="text-lg font-semibold">Parts and stock by SubHub</h2>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  Showing {formatNumber(firstVisibleRow)}–{formatNumber(lastVisibleRow)} of{" "}
+                  {formatNumber(visibleListRows.length)} matching rows (
+                  {formatNumber(totalHubRows)} total)
+                </p>
+              </div>
+            </header>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[980px] text-base">
+                <thead className="bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="min-w-56 px-4 py-3 font-semibold">
+                      Subpart name
+                    </th>
+                    <th scope="col" className="min-w-36 px-4 py-3 font-semibold">
+                      Code
+                    </th>
+                    <th scope="col" className="min-w-44 px-4 py-3 font-semibold">
+                      SubHub
+                    </th>
+                    <th scope="col" className="min-w-40 px-4 py-3 text-right font-semibold">
+                      <span className="block">Required quantity</span>
+                      <span className="mt-0.5 block text-xs font-normal normal-case tracking-normal">
+                        open targets
+                      </span>
+                    </th>
+                    <th scope="col" className="min-w-32 px-4 py-3 text-right font-semibold">
+                      Current stock
+                    </th>
+                    <th scope="col" className="min-w-48 px-4 py-3 font-semibold">
+                      Stock status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map(({ part, hub, cell, status }) => (
+                    <tr
+                      key={`${part.code}-${hub.id}`}
+                      className="border-t border-border/70 hover:bg-muted/30"
+                    >
+                      <td className="whitespace-nowrap px-4 py-4 font-semibold">{part.name}</td>
+                      <td className="tabular whitespace-nowrap px-4 py-4 text-sm">
+                        <Link
+                          to="/part/$code"
+                          params={{ code: part.code }}
+                          className="text-primary underline-offset-2 hover:underline"
+                        >
+                          {part.code}
+                        </Link>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4">{hub.name}</td>
+                      <td className="tabular px-4 py-4 text-right font-medium">
+                        {formatNumber(cell.requirement)}
+                      </td>
+                      <td className="tabular px-4 py-4 text-right font-semibold">
+                        {formatNumber(cell.stock)}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-sm font-semibold ${statusStyles[status]}`}
+                          title={`Required ${formatNumber(cell.requirement)} · current stock ${formatNumber(cell.stock)}`}
+                        >
+                          {getStatusLabel(status, cell.requirement, cell.stock, formatNumber)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <TablePagination
+              total={visibleListRows.length}
+              page={page}
+              pageSize={pageSize}
+              showPageSizeSelect={false}
+              onPageChange={setPage}
+              onPageSizeChange={() => undefined}
+            />
+          </section>
         ) : (
           <p className="py-10 text-center text-base text-muted-foreground">
             {data.hubs.length === 0
