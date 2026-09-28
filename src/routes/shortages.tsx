@@ -130,9 +130,6 @@ function Shortages() {
   const hasFilters = Boolean(query.trim() || hubFilter !== "all" || statusFilter !== "all");
   const formatNumber = (value: number) => value.toLocaleString("en-IN");
   const pageRows = visibleListRows.slice((page - 1) * pageSize, page * pageSize);
-  const firstVisibleRow = visibleListRows.length ? (page - 1) * pageSize + 1 : 0;
-  const lastVisibleRow = Math.min(page * pageSize, visibleListRows.length);
-  const totalHubRows = data.rows.length * (hubFilter === "all" ? data.hubs.length : 1);
 
   return (
     <Shell
@@ -169,8 +166,8 @@ function Shortages() {
         </p>
       ) : null}
       <section aria-label="Shortage filters" className="space-y-4 border-b border-border pb-5">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="min-w-[240px] flex-1 text-sm font-medium text-muted-foreground">
+        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1.4fr)_minmax(145px,0.85fr)_minmax(145px,0.85fr)_auto]">
+          <label className="min-w-0 text-sm font-medium text-muted-foreground">
             Search subpart name or code
             <span className="relative mt-1 block">
               <Search
@@ -186,7 +183,7 @@ function Shortages() {
               />
             </span>
           </label>
-          <label className="w-full text-sm font-medium text-muted-foreground sm:w-64">
+          <label className="min-w-0 text-sm font-medium text-muted-foreground">
             SubHub
             <select
               aria-label="Filter by SubHub"
@@ -202,7 +199,7 @@ function Shortages() {
               ))}
             </select>
           </label>
-          <label className="w-full text-sm font-medium text-muted-foreground sm:w-64">
+          <label className="min-w-0 text-sm font-medium text-muted-foreground">
             Stock status
             <select
               aria-label="Filter by stock status"
@@ -217,6 +214,38 @@ function Shortages() {
               <option value="no-target">No open target</option>
             </select>
           </label>
+          <div className="flex justify-end">
+            <div
+              role="group"
+              aria-label="Shortage view"
+              className="inline-flex rounded-md border border-input p-1"
+            >
+              <button
+                type="button"
+                aria-pressed={viewMode === "matrix"}
+                onClick={() => setViewMode("matrix")}
+                className={`min-h-9 rounded px-3 text-sm font-medium ${
+                  viewMode === "matrix"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                Matrix
+              </button>
+              <button
+                type="button"
+                aria-pressed={viewMode === "list"}
+                onClick={() => setViewMode("list")}
+                className={`min-h-9 rounded px-3 text-sm font-medium ${
+                  viewMode === "list"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                List
+              </button>
+            </div>
+          </div>
           {hasFilters ? (
             <button
               type="button"
@@ -231,38 +260,6 @@ function Shortages() {
               Clear filters
             </button>
           ) : null}
-        </div>
-        <div className="flex items-center justify-end">
-          <div
-            role="group"
-            aria-label="Shortage view"
-            className="inline-flex rounded-md border border-input p-1"
-          >
-            <button
-              type="button"
-              aria-pressed={viewMode === "matrix"}
-              onClick={() => setViewMode("matrix")}
-              className={`min-h-9 rounded px-3 text-sm font-medium ${
-                viewMode === "matrix"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              Matrix
-            </button>
-            <button
-              type="button"
-              aria-pressed={viewMode === "list"}
-              onClick={() => setViewMode("list")}
-              className={`min-h-9 rounded px-3 text-sm font-medium ${
-                viewMode === "list"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              List
-            </button>
-          </div>
         </div>
       </section>
       {loading ? (
@@ -361,16 +358,6 @@ function Shortages() {
           </div>
         ) : viewMode === "list" && visibleListRows.length ? (
           <section className="overflow-hidden border-y border-border">
-            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-4">
-              <div>
-                <h2 className="text-lg font-semibold">Parts and stock by SubHub</h2>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  Showing {formatNumber(firstVisibleRow)}–{formatNumber(lastVisibleRow)} of{" "}
-                  {formatNumber(visibleListRows.length)} matching rows ({formatNumber(totalHubRows)}{" "}
-                  total)
-                </p>
-              </div>
-            </header>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[980px] text-base">
                 <thead className="bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
@@ -385,10 +372,7 @@ function Shortages() {
                       SubHub
                     </th>
                     <th scope="col" className="min-w-40 px-4 py-3 text-right font-semibold">
-                      <span className="block">Required quantity</span>
-                      <span className="mt-0.5 block text-xs font-normal normal-case tracking-normal">
-                        open targets
-                      </span>
+                      Required quantity
                     </th>
                     <th scope="col" className="min-w-32 px-4 py-3 text-right font-semibold">
                       Current stock
