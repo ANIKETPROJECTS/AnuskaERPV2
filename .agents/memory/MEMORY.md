@@ -1,7 +1,7 @@
 - [Replit Vite preview hosts](replit-vite-preview-hosts.md) — allow generated `*.replit.dev` hosts in Vite for proxied preview access.
 - [TanStack Node server output](tanstack-node-server-entry.md) — keep Nitro's default server entry; custom server wrappers can collide with generated SSR modules.
 - [MongoDB workspace names](mongodb-workspace-name-limit.md) — keep per-user database names under MongoDB's 38-byte limit while retaining the full user ID in control data.
-- [Panel-isolated sessions](panel-isolated-sessions.md) — keep Admin and SubHub identities in separate server-side sessions and authenticate operations by expected panel.
+- [Panel-isolated sessions](panel-isolated-sessions.md) — isolate panel sessions and revoke stale tokens after account, credential, or panel changes.
 - [Hub capacity model](hub-capacity-model.md) — capacity uses active open target units; explicit Admin assignments stay selected and overloads are flagged, not silently rerouted.
 - [Server-only module boundaries](server-only-boundaries.md) — keep shared constants out of modules that import server-only auth or database APIs.
 - [Batch inventory traceability](batch-inventory-traceability.md) — batch and aggregate stock must move atomically; production uses FIFO with explicit split overrides.

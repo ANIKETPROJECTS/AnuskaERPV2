@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Eye, KeyRound, Pencil, Plus, Power, PowerOff, Search, ShieldCheck, Trash2, X } from "lucide-react";
+import { Eye, Power, PowerOff, Plus, Search, ShieldCheck } from "lucide-react";
 import {
   createManagedUserFn,
   deleteManagedUserFn,
@@ -10,99 +10,30 @@ import {
 import type { AccessSection, Panel, PublicUser } from "@/auth.server";
 import { useAuth } from "@/components/auth/AuthContext";
 import { HubModuleNav } from "@/components/erp/HubModuleNav";
+import { ManagedUserForm } from "@/components/erp/ManagedUserForm";
 import { Shell } from "@/components/erp/Shell";
-
-const permissionGroups: Array<{ label: string; panel: Panel; items: Array<{ value: AccessSection; label: string }> }> = [
-  {
-    label: "Admin Panel",
-    panel: "admin",
-    items: [
-      { value: "dashboard", label: "Dashboard" },
-      { value: "bom", label: "Bill of Materials" },
-      { value: "raw-materials", label: "Raw Materials" },
-      { value: "orders", label: "Orders & Targets" },
-      { value: "hubs", label: "Hubs & Stock" },
-      { value: "shortages", label: "Shortages" },
-      { value: "procurement", label: "Procurement" },
-      { value: "production", label: "Production & Workforce" },
-      { value: "hr", label: "HR & Attendance" },
-    ],
-  },
-  {
-    label: "SubHub Panel",
-    panel: "subhub",
-    items: [
-      { value: "inventory", label: "Inventory Management" },
-      { value: "hub-manager", label: "Hub Manager" },
-      { value: "hub-reports", label: "Hub Reports" },
-      { value: "item-requests", label: "Request items" },
-      { value: "hr", label: "HR & Attendance" },
-      { value: "bom", label: "Bill of Materials (view only)" },
-      { value: "raw-materials", label: "Raw Materials (view only)" },
-      { value: "procurement", label: "Procurement" },
-    ],
-  },
-  {
-    label: "Procurement Management Panel",
-    panel: "procurement",
-    items: [{ value: "procurement", label: "Procurement Management" }],
-  },
-];
-
-const adminDefaults: AccessSection[] = permissionGroups[0]?.items.map((item) => item.value) ?? [];
-const subhubDefaults: AccessSection[] = permissionGroups[1]?.items.map((item) => item.value) ?? [];
-const procurementDefaults: AccessSection[] = permissionGroups[2]?.items.map((item) => item.value) ?? [];
+import {
+  emptyManagedUserForm,
+  isStandardAccess,
+  panelLabel,
+  permissionsForPanel,
+  type ManagedUserFormState,
+} from "@/lib/user-management";
 
 export const Route = createFileRoute("/admin/users")({
   loader: () => listUsersFn(),
   head: () => ({
     meta: [
       { title: "User Management — Float ERP" },
-      { name: "description", content: "Manage Float ERP panel users and section permissions." },
+      { name: "description", content: "Manage account access for Admin, SubHub, and Procurement workspaces." },
     ],
   }),
   component: UserManagement,
 });
 
-type UserFormState = {
-  name: string;
-  email: string;
-  password: string;
-  panel: Panel;
-  subhubName: string;
-  permissions: AccessSection[];
-  accessMode: "standard" | "custom";
-};
-
 type PanelFilter = "all" | Panel;
 type StatusFilter = "all" | "active" | "inactive";
-
-function permissionsForPanel(panel: Panel): AccessSection[] {
-  return permissionGroups.find((group) => group.panel === panel)?.items.map((item) => item.value) ?? [];
-}
-
-function usesStandardAccess(panel: Panel, permissions: AccessSection[]) {
-  const standard = permissionsForPanel(panel);
-  return standard.length === permissions.length && standard.every((item) => permissions.includes(item));
-}
-
-function panelLabel(panel: Panel) {
-  if (panel === "admin") return "Admin";
-  if (panel === "subhub") return "SubHub";
-  return "Procurement";
-}
-
-function emptyForm(): UserFormState {
-  return {
-    name: "",
-    email: "",
-    password: "",
-    panel: "subhub",
-    subhubName: "",
-    permissions: subhubDefaults,
-    accessMode: "standard",
-  };
-}
+const pageSize = 20;
 
 function UserManagement() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -115,43 +46,69 @@ function UserManagementPage() {
   const router = useRouter();
   const result = Route.useLoaderData();
   const [users, setUsers] = useState<PublicUser[]>(result.users);
-  const [editingUser, setEditingUser] = useState<PublicUser | null>(null);
-  const [showCreator, setShowCreator] = useState(false);
-  const [closingUserForm, setClosingUserForm] = useState(false);
-  const [form, setForm] = useState<UserFormState>(emptyForm);
-  const [message, setMessage] = useState("");
-  const [notice, setNotice] = useState("");
-  const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [panelFilter, setPanelFilter] = useState<PanelFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [page, setPage] = useState(0);
+  const [formOpen, setFormOpen] = useState(false);
+  const [formUser, setFormUser] = useState<PublicUser | null>(null);
+  const [form, setForm] = useState<ManagedUserFormState>(emptyManagedUserForm);
+  const [message, setMessage] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  useEffect(() => setUsers(result.users), [result.users]);
+  useEffect(() => {
+    setUsers(result.users);
+    setPage(0);
+    if (!result.ok) setMessage(result.message);
+  }, [result]);
 
-  const activeUsers = useMemo(() => users.filter((user) => user.active).length, [users]);
-  const deactivatedUsers = users.length - activeUsers;
+  useEffect(() => setPage(0), [query, panelFilter, statusFilter]);
+
+  const activeCount = users.filter((user) => user.active).length;
+  const inactiveCount = users.length - activeCount;
+  const panelCounts = useMemo(() => ({
+    admin: users.filter((user) => user.panel === "admin").length,
+    subhub: users.filter((user) => user.panel === "subhub").length,
+    procurement: users.filter((user) => user.panel === "procurement").length,
+  }), [users]);
+
   const filteredUsers = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return users
       .filter((user) => {
-        const searchable = [user.name, user.email, user.subhubName ?? "", user.databaseName].join(" ").toLowerCase();
-        const matchesQuery = !normalizedQuery || searchable.includes(normalizedQuery);
         const matchesPanel = panelFilter === "all" || user.panel === panelFilter;
-        const matchesStatus = statusFilter === "all" || (statusFilter === "active" ? user.active : !user.active);
-        return matchesQuery && matchesPanel && matchesStatus;
+        const matchesStatus =
+          statusFilter === "all" ||
+          (statusFilter === "active" ? user.active : !user.active);
+        const searchable = [user.name, user.email, user.subhubName ?? ""].join(" ").toLowerCase();
+        return matchesPanel && matchesStatus && (!normalizedQuery || searchable.includes(normalizedQuery));
       })
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [panelFilter, query, statusFilter, users]);
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [users, query, panelFilter, statusFilter]);
 
+  const pageCount = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const visibleUsers = filteredUsers.slice(page * pageSize, (page + 1) * pageSize);
+  const panelItems: Array<{ id: PanelFilter; label: string }> = [
+    { id: "all", label: `All accounts (${users.length})` },
+    { id: "admin", label: `Admin (${panelCounts.admin})` },
+    { id: "subhub", label: `SubHub (${panelCounts.subhub})` },
+    { id: "procurement", label: `Procurement (${panelCounts.procurement})` },
+  ];
+  const statusCounts = users.filter((user) => panelFilter === "all" || user.panel === panelFilter);
+  const selectedActiveCount = statusCounts.filter((user) => user.active).length;
+  const selectedInactiveCount = statusCounts.length - selectedActiveCount;
   const hasFilters = Boolean(query.trim()) || panelFilter !== "all" || statusFilter !== "all";
 
   if (auth.user?.role !== "master_admin") {
     return (
-      <Shell title="User Management" subtitle="Admin Panel access control">
+      <Shell title="User Management" subtitle="Manage account access">
         <div className="panel mx-auto max-w-2xl p-8 text-center">
           <ShieldCheck className="mx-auto size-8 text-muted-foreground" />
-          <h1 className="mt-4 text-lg font-semibold">Master Admin access required</h1>
-          <p className="mt-2 text-sm text-muted-foreground">User Management is reserved for the Master Admin.</p>
+          <h2 className="mt-4 text-xl font-semibold">Master Admin access required</h2>
+          <p className="mt-2 text-base text-muted-foreground">
+            Only the Master Admin can add accounts or change access.
+          </p>
         </div>
       </Shell>
     );
@@ -160,18 +117,15 @@ function UserManagementPage() {
   function openCreate() {
     setMessage("");
     setNotice("");
-    setEditingUser(null);
-    setClosingUserForm(false);
-    setForm(emptyForm());
-    setShowCreator(true);
+    setFormUser(null);
+    setForm(emptyManagedUserForm());
+    setFormOpen(true);
   }
 
   function openEdit(user: PublicUser) {
     setMessage("");
     setNotice("");
-    setShowCreator(false);
-    setEditingUser(user);
-    setClosingUserForm(false);
+    setFormUser(user);
     setForm({
       name: user.name,
       email: user.email,
@@ -179,23 +133,25 @@ function UserManagementPage() {
       panel: user.panel,
       subhubName: user.subhubName ?? "",
       permissions: user.permissions,
-      accessMode: usesStandardAccess(user.panel, user.permissions) ? "standard" : "custom",
+      accessMode: isStandardAccess(user.panel, user.permissions) ? "standard" : "custom",
     });
+    setFormOpen(true);
   }
 
-  function closeUserForm() {
-    setClosingUserForm(true);
+  function closeForm() {
+    if (busy) return;
+    setFormOpen(false);
+    setFormUser(null);
     setMessage("");
   }
 
-  function finishClosingUserForm() {
-    setClosingUserForm(false);
-    setShowCreator(false);
-    setEditingUser(null);
-    setForm(emptyForm());
-  }
-
   function changePanel(panel: Panel) {
+    if (
+      formUser &&
+      form.panel !== panel &&
+      formUser.panel !== panel &&
+      !window.confirm(`Change ${formUser.name}'s panel from ${panelLabel(formUser.panel)} to ${panelLabel(panel)}? This changes their sign-in workspace and available menu.`)
+    ) return;
     setForm((current) => ({
       ...current,
       panel,
@@ -225,19 +181,24 @@ function UserManagementPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (form.accessMode === "custom" && form.permissions.length === 0) {
+      setMessage("Choose at least one section, or use standard access.");
+      return;
+    }
     setBusy(true);
     setMessage("");
+    setNotice("");
     try {
-      const response = editingUser
+      const response = formUser
         ? await updateManagedUserFn({
             data: {
-              id: editingUser.id,
+              id: formUser.id,
               name: form.name,
               email: form.email,
               panel: form.panel,
               subhubName: form.panel === "subhub" ? form.subhubName : undefined,
               permissions: form.permissions,
-              active: editingUser.active,
+              active: formUser.active,
               password: form.password || undefined,
             },
           })
@@ -255,16 +216,16 @@ function UserManagementPage() {
         setMessage(response.message);
         return;
       }
-      setUsers((current) =>
-        editingUser
-          ? current.map((user) => (user.id === response.user.id ? response.user : user))
-          : [response.user, ...current],
-      );
-      setNotice(editingUser ? `${response.user.name} was updated.` : `${response.user.name} was added.`);
-      closeUserForm();
+      setUsers((current) => formUser
+        ? current.map((user) => user.id === response.user.id ? response.user : user)
+        : [response.user, ...current]);
+      setPage(0);
+      setNotice(formUser ? `${response.user.name}'s account was updated.` : `${response.user.name}'s account was created.`);
+      setFormOpen(false);
+      setFormUser(null);
       await router.invalidate();
     } catch {
-      setMessage("The user could not be saved. Please try again.");
+      setMessage("The account could not be saved. Check the details and try again.");
     } finally {
       setBusy(false);
     }
@@ -272,10 +233,11 @@ function UserManagementPage() {
 
   async function removeUser(user: PublicUser) {
     if (!window.confirm(
-      `Permanently delete ${user.name}?\n\nThis removes their sign-in, workspace database, and assigned production orders. This cannot be undone.\n\nChoose Cancel to keep their data and deactivate the account instead.`,
+      `Permanently delete ${user.name}?\n\nThis removes their account, workspace data, and assigned production orders. It cannot be undone.\n\nChoose Cancel to keep the data and deactivate the account instead.`,
     )) return;
     setBusy(true);
     setMessage("");
+    setNotice("");
     try {
       const response = await deleteManagedUserFn({ data: { id: user.id } });
       if (!response.ok) {
@@ -283,15 +245,13 @@ function UserManagementPage() {
         return;
       }
       setUsers((current) => current.filter((item) => item.id !== user.id));
-      setNotice(`${user.name} was permanently deleted.`);
-      if (editingUser?.id === user.id) {
-        setClosingUserForm(true);
-        setShowCreator(false);
-        setEditingUser(null);
-      }
+      setPage(0);
+      setFormOpen(false);
+      setFormUser(null);
+      setNotice(`${user.name}'s account was permanently deleted.`);
       await router.invalidate();
     } catch {
-      setMessage("The user could not be deleted. Please try again.");
+      setMessage("The account could not be deleted. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -323,10 +283,10 @@ function UserManagementPage() {
       setUsers((current) => current.map((item) => item.id === user.id ? response.user : item));
       setNotice(active
         ? `${user.name} can sign in again.`
-        : `${user.name} is deactivated. Their data and workspace are unchanged.`);
+        : `${user.name} is deactivated. Their workspace and records are kept.`);
       await router.invalidate();
     } catch {
-      setMessage(`The account status for ${user.name} could not be changed. Please try again.`);
+      setMessage(`The status for ${user.name}'s account could not be changed. Please try again.`);
     } finally {
       setBusy(false);
     }
@@ -335,439 +295,254 @@ function UserManagementPage() {
   return (
     <Shell
       title="User Management"
-      subtitle="Control who can enter each panel and which operational sections they can use."
+      subtitle="Add people, choose their workspace, and control account access."
       actions={
         <button
           type="button"
           onClick={openCreate}
-          className="rule-header inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium"
+          disabled={busy}
+          className="rule-header inline-flex min-h-10 items-center gap-2 rounded-md px-4 text-base font-semibold"
         >
-          <Plus className="size-4" /> Add user
+          <Plus className="size-4" />
+          Add account
         </button>
       }
-    >
-      <div className="space-y-6">
-
-      {message ? (
-        <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-          {message}
-        </p>
-      ) : null}
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Summary label="Total users" value={users.length.toString()} icon={<UserCog className="size-4" />} />
-        <Summary label="Active accounts" value={activeUsers.toString()} icon={<Check className="size-4" />} />
-        <Summary
-          label="Isolated workspaces"
-          value={users.length.toString()}
-          icon={<Database className="size-4" />}
+      headerNav={
+        <HubModuleNav<PanelFilter>
+          active={panelFilter}
+          ariaLabel="Filter accounts by workspace"
+          idPrefix="user-management"
+          items={panelItems}
+          onSelect={setPanelFilter}
         />
-      </div>
+      }
+    >
+      <div className="space-y-5">
+        <p className="text-base text-muted-foreground">
+          {users.length} accounts · {activeCount} active · {inactiveCount} deactivated
+          <span className="ml-2">Choose standard access unless someone needs fewer sections.</span>
+        </p>
 
-      <div className="panel overflow-hidden">
-        <div className="border-b border-border px-5 py-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+        {message && !formOpen ? (
+          <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-base text-destructive">
+            {message}
+          </p>
+        ) : null}
+        {notice ? (
+          <p role="status" className="rounded-md border border-success/25 bg-success/5 px-4 py-3 text-base text-success">
+            {notice}
+          </p>
+        ) : null}
+
+        <section className="panel overflow-hidden" aria-label="Accounts">
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border px-5 py-4">
             <div>
-              <h2 className="font-semibold">Panel users</h2>
+              <h2 className="text-lg font-semibold">
+                {panelFilter === "all" ? "All accounts" : `${panelLabel(panelFilter)} accounts`}
+              </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Every account is provisioned with an isolated MongoDB workspace.
+                Showing {filteredUsers.length} account{filteredUsers.length === 1 ? "" : "s"}.
+                Deactivating keeps the account's data; deletion permanently removes it.
               </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Showing {filteredUsers.length} of {users.length}
-            </p>
-          </div>
-        </div>
-        <div className="filter-toolbar border-b border-border bg-muted/10 px-5 py-4">
-          <label className="min-w-[220px] flex-1 text-xs font-medium">
-            Search users
-            <span className="relative mt-1.5 block">
-              <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Name, email, factory, or workspace"
-                aria-label="Search users"
-                className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm font-normal outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-              />
-            </span>
-          </label>
-          <label className="text-xs font-medium">
-            Panel
-            <select
-              value={panelFilter}
-              onChange={(event) => setPanelFilter(event.target.value as PanelFilter)}
-              aria-label="Filter by panel"
-              className="mt-1.5 h-9 min-w-36 rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus:border-primary"
-            >
-              <option value="all">All panels</option>
-              <option value="admin">Admin Panel</option>
-              <option value="subhub">SubHub Panel</option>
-              <option value="procurement">Procurement Management</option>
-            </select>
-          </label>
-          <label className="text-xs font-medium">
-            Status
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-              aria-label="Filter by account status"
-              className="mt-1.5 h-9 min-w-32 rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus:border-primary"
-            >
-              <option value="all">All statuses</option>
-              <option value="active">Active</option>
-              <option value="inactive">Deactivated</option>
-            </select>
-          </label>
-          <label className="text-xs font-medium">
-            Sort by
-            <select
-              value={sortBy}
-              onChange={(event) => setSortBy(event.target.value as UserSort)}
-              aria-label="Sort users"
-              className="mt-1.5 h-9 min-w-40 rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus:border-primary"
-            >
-              <option value="name-asc">Name A–Z</option>
-              <option value="name-desc">Name Z–A</option>
-              <option value="panel">Panel</option>
-              <option value="status">Account status</option>
-            </select>
-          </label>
-          {hasFilters ? (
-            <button
-              type="button"
-              onClick={() => {
-                setQuery("");
-                setPanelFilter("all");
-                setStatusFilter("all");
-                setSortBy("name-asc");
-              }}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-muted"
-            >
-              Clear
-            </button>
-          ) : null}
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[780px] text-sm">
-            <thead className="border-b border-border bg-muted/20 text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-5 py-3 font-medium">User</th>
-                <th className="px-5 py-3 font-medium">Panel</th>
-                <th className="px-5 py-3 font-medium">Access sections</th>
-                <th className="px-5 py-3 font-medium">Workspace</th>
-                <th className="px-5 py-3 text-right font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="border-b border-border/70 last:border-0">
-                  <td className="px-5 py-4">
-                    <p className="font-medium">{user.name}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{user.email}</p>
-                    {user.panel === "subhub" && user.subhubName ? (
-                      <p className="mt-1 text-xs text-primary">Factory: {user.subhubName}</p>
-                    ) : null}
-                    {user.role === "master_admin" ? (
-                      <span className="mt-2 inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-                        Master Admin
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="px-5 py-4">
-                    <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium capitalize">{user.panel}</span>
-                    <p className={`mt-2 text-xs ${user.active ? "text-success" : "text-muted-foreground"}`}>
-                      {user.active ? "Active" : "Deactivated"}
-                    </p>
-                  </td>
-                  <td className="max-w-[240px] px-5 py-4 text-xs leading-5 text-muted-foreground">
-                    {user.role === "master_admin" ? "All sections" : user.permissions.map((item) => labelFor(item)).join(" · ")}
-                  </td>
-                  <td className="px-5 py-4">
-                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Database className="size-3.5" />
-                      {user.databaseName}
-                    </span>
-                    <p className="mt-1 text-[11px] text-success">Provisioned</p>
-                  </td>
-                  <td className="px-5 py-4 text-right">
-                    {user.role === "master_admin" ? (
-                      <span className="text-xs text-muted-foreground">Protected</span>
-                    ) : (
-                      <div className="inline-flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => openEdit(user)}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-                          aria-label={`Edit ${user.name}`}
-                          title="Edit user"
-                        >
-                          <Pencil className="size-3.5" /> Edit
-                        </button>
-                        <Link
-                          to="/admin/users/$userId"
-                          params={{ userId: user.id }}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-input px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-                          aria-label={`View ${user.name}`}
-                          title="View SubHub details"
-                        >
-                          <Eye className="size-3.5" /> View
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={() => void removeUser(user)}
-                          disabled={busy}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-transparent px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:border-destructive/20 hover:bg-destructive/10 hover:text-destructive"
-                          aria-label={`Delete ${user.name}`}
-                          title="Delete user"
-                        >
-                          <Trash2 className="size-3.5" /> Delete
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by account status">
+              {([
+                { id: "all", label: `All (${statusCounts.length})` },
+                { id: "active", label: `Active (${selectedActiveCount})` },
+                { id: "inactive", label: `Deactivated (${selectedInactiveCount})` },
+              ] as const).map((status) => (
+                <button
+                  key={status.id}
+                  type="button"
+                  aria-pressed={statusFilter === status.id}
+                  onClick={() => setStatusFilter(status.id)}
+                  className={`min-h-10 rounded-md border px-3 text-sm font-medium ${
+                    statusFilter === status.id
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-input text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  {status.label}
+                </button>
               ))}
-              {filteredUsers.length === 0 ? (
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 border-b border-border bg-muted/10 px-5 py-4">
+            <label className="min-w-[240px] flex-1 text-sm font-medium">
+              Search accounts
+              <span className="relative mt-1.5 block">
+                <Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Name, email, or SubHub"
+                  aria-label="Search accounts by name, email, or SubHub"
+                  className="min-h-11 w-full rounded-md border border-input bg-background pl-9 pr-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </span>
+            </label>
+            {hasFilters ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  setPanelFilter("all");
+                  setStatusFilter("all");
+                }}
+                className="min-h-11 rounded-md border border-input bg-background px-4 text-base font-medium hover:bg-muted"
+              >
+                Clear filters
+              </button>
+            ) : null}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[840px] text-base">
+              <thead className="border-b border-border bg-muted/20 text-left text-sm uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <td colSpan={5} className="px-5 py-12 text-center">
-                    <p className="font-medium">No users match these filters</p>
-                    <p className="mt-1 text-sm text-muted-foreground">Try a different search or clear the filters.</p>
-                  </td>
+                  <th scope="col" className="px-5 py-3 font-semibold">Account</th>
+                  <th scope="col" className="px-5 py-3 font-semibold">Workspace</th>
+                  <th scope="col" className="px-5 py-3 font-semibold">Section access</th>
+                  <th scope="col" className="px-5 py-3 font-semibold">Status</th>
+                  <th scope="col" className="px-5 py-3 text-right font-semibold">Actions</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {visibleUsers.map((user) => (
+                  <tr key={user.id} className={user.active ? "hover:bg-muted/20" : "bg-muted/20"}>
+                    <th scope="row" className="px-5 py-4 text-left font-semibold">
+                      <span className="block">{user.name}</span>
+                      <span className="mt-1 block text-sm font-normal text-muted-foreground">{user.email}</span>
+                      {user.panel === "subhub" && user.subhubName ? (
+                        <span className="mt-1 block text-sm font-normal text-muted-foreground">{user.subhubName}</span>
+                      ) : null}
+                    </th>
+                    <td className="px-5 py-4">
+                      <span className="inline-flex rounded-full bg-secondary px-3 py-1 text-sm font-medium">
+                        {panelLabel(user.panel)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-muted-foreground">
+                      {user.role === "master_admin"
+                        ? "Master Admin"
+                        : isStandardAccess(user.panel, user.permissions)
+                          ? "Standard access"
+                          : `Custom · ${user.permissions.length} sections`}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className={`inline-flex rounded-full px-3 py-1 text-sm font-medium ${
+                        user.active ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"
+                      }`}>
+                        {user.active ? "Active" : "Deactivated"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      {user.role === "master_admin" ? (
+                        <span className="text-sm text-muted-foreground">Protected account</span>
+                      ) : (
+                        <div className="inline-flex flex-wrap justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEdit(user)}
+                            disabled={busy}
+                            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted disabled:opacity-50"
+                          >
+                            Edit
+                          </button>
+                          {user.panel === "subhub" ? (
+                            <Link
+                              to="/admin/users/$userId"
+                              params={{ userId: user.id }}
+                              className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted"
+                            >
+                              <Eye className="size-4" />
+                              Details
+                            </Link>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => void setUserActive(user, !user.active)}
+                            disabled={busy}
+                            className={`inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm font-medium disabled:opacity-50 ${
+                              user.active
+                                ? "border-input text-muted-foreground hover:bg-muted"
+                                : "border-success/30 text-success hover:bg-success/5"
+                            }`}
+                          >
+                            {user.active ? <PowerOff className="size-4" /> : <Power className="size-4" />}
+                            {user.active ? "Deactivate" : "Reactivate"}
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-12 text-center">
+                      <p className="text-base font-semibold">
+                        {users.length === 0 ? "No accounts yet" : "No accounts match these filters"}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {users.length === 0
+                          ? "Add an account to give someone access to a workspace."
+                          : "Try another search or clear the filters."}
+                      </p>
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+
+          {filteredUsers.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3">
+              <p className="text-sm text-muted-foreground">
+                Showing {page * pageSize + 1}–{Math.min(filteredUsers.length, (page + 1) * pageSize)} of {filteredUsers.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={page === 0}
+                  onClick={() => setPage((current) => Math.max(0, current - 1))}
+                  className="min-h-10 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <span className="min-w-24 text-center text-sm text-muted-foreground">
+                  Page {page + 1} of {pageCount}
+                </span>
+                <button
+                  type="button"
+                  disabled={page + 1 >= pageCount}
+                  onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}
+                  className="min-h-10 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </section>
       </div>
 
-      {showCreator || editingUser || closingUserForm ? (
-        <UserForm
-          editing={Boolean(editingUser)}
-          closing={closingUserForm}
+      {formOpen ? (
+        <ManagedUserForm
+          user={formUser}
           form={form}
           busy={busy}
           error={message}
           onChange={setForm}
           onPanelChange={changePanel}
+          onAccessModeChange={changeAccessMode}
           onTogglePermission={togglePermission}
           onSubmit={submit}
-          onClose={closeUserForm}
-          onClosed={finishClosingUserForm}
+          onClose={closeForm}
+          onDelete={formUser ? () => void removeUser(formUser) : () => undefined}
         />
       ) : null}
-      </div>
     </Shell>
-  );
-}
-
-function labelFor(value: AccessSection): string {
-  return permissionGroups.flatMap((group) => group.items).find((item) => item.value === value)?.label ?? value;
-}
-
-function Summary({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
-  return (
-    <div className="panel flex items-center gap-3 p-4">
-      <div className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary">{icon}</div>
-      <div>
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="mt-1 text-2xl font-semibold">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function UserForm({
-  editing,
-  closing,
-  form,
-  busy,
-  error,
-  onChange,
-  onPanelChange,
-  onTogglePermission,
-  onSubmit,
-  onClose,
-  onClosed,
-}: {
-  editing: boolean;
-  closing: boolean;
-  form: UserFormState;
-  busy: boolean;
-  error: string;
-  onChange: (value: UserFormState) => void;
-  onPanelChange: (panel: Panel) => void;
-  onTogglePermission: (permission: AccessSection) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  onClose: () => void;
-  onClosed: () => void;
-}) {
-  return (
-    <div
-      className={`fixed inset-0 z-40 flex justify-end bg-black/20 ${
-        closing ? "user-drawer-backdrop-exit" : "user-drawer-backdrop-enter"
-      }`}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="user-form-title"
-    >
-      <form
-        onSubmit={onSubmit}
-        onAnimationEnd={(event) => {
-          if (closing && event.animationName === "user-drawer-exit") onClosed();
-        }}
-        className={`flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-border bg-card p-6 shadow-xl ${
-          closing ? "user-drawer-exit" : "user-drawer-enter"
-        }`}
-      >
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Access control</p>
-            <h2 id="user-form-title" className="mt-2 text-xl font-semibold">{editing ? "Edit user" : "Add panel user"}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {editing ? "Update identity, access, status, or credentials." : "Provision a panel account and isolated workspace."}
-            </p>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted">
-            <X className="size-5" />
-          </button>
-        </div>
-
-        <div className="mt-7 space-y-4">
-          <label className="block text-sm font-medium">
-            Full name
-            <input
-              required
-              autoComplete="name"
-              value={form.name}
-              onChange={(event) => onChange({ ...form, name: event.target.value })}
-              placeholder="Hub manager name"
-              className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary"
-            />
-          </label>
-          <label className="block text-sm font-medium">
-            Email address
-            <input
-              required
-              type="email"
-              autoComplete="email"
-              value={form.email}
-              onChange={(event) => onChange({ ...form, email: event.target.value })}
-              placeholder="person@company.com"
-              className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary"
-            />
-          </label>
-          <label className="block text-sm font-medium">
-            {editing ? "New password (optional)" : "Initial password"}
-            <span className="relative mt-1.5 block">
-              <KeyRound className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" />
-              <input
-                required={!editing}
-                type="password"
-                autoComplete={editing ? "new-password" : "new-password"}
-                minLength={8}
-                value={form.password}
-                onChange={(event) => onChange({ ...form, password: event.target.value })}
-                placeholder={editing ? "Leave blank to keep current password" : "At least 8 characters"}
-                className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"
-              />
-            </span>
-            {editing ? (
-              <span className="mt-1 block text-xs font-normal text-muted-foreground">
-                Leave blank to keep the current password. A new password must be at least 8 characters.
-              </span>
-            ) : null}
-          </label>
-          <div>
-            <p className="text-sm font-medium">Panel</p>
-            <div className="mt-2 grid gap-3 sm:grid-cols-3">
-              {(["admin", "subhub", "procurement"] as const).map((panel) => (
-                <button
-                  key={panel}
-                  type="button"
-                  onClick={() => onPanelChange(panel)}
-                  className={`rounded-md border px-4 py-3 text-left transition ${
-                    form.panel === panel ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-input hover:bg-muted"
-                  }`}
-                >
-                  <p className="text-sm font-medium">{panel === "admin" ? "Admin Panel" : panel === "subhub" ? "SubHub Panel" : "Procurement Management"}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {panel === "admin" ? "Master data and administration" : panel === "subhub" ? "Hub operations and reporting" : "Hub needs, purchase orders, and vendors"}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
-          {form.panel === "subhub" ? (
-            <label className="block text-sm font-medium">
-              SubHub name
-              <span className="mt-1 block text-xs font-normal text-muted-foreground">
-                This name identifies the factory or hub shown in the SubHub workspace.
-              </span>
-              <input
-                required
-                value={form.subhubName}
-                onChange={(event) => onChange({ ...form, subhubName: event.target.value })}
-                placeholder="Factory F8 — Rabale"
-                className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary"
-              />
-            </label>
-          ) : null}
-          <div>
-            <p className="text-sm font-medium">Section access</p>
-            <p className="mt-1 text-xs text-muted-foreground">Only selected sections will appear in this user’s navigation.</p>
-            <div className="mt-3 space-y-4">
-              {permissionGroups
-                .filter((group) => group.panel === form.panel)
-                .map((group) => (
-                  <div key={group.panel} className="rounded-md border border-border p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</p>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {group.items.map((item) => (
-                        <label key={item.value} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted">
-                          <input
-                            type="checkbox"
-                            checked={form.permissions.includes(item.value)}
-                            onChange={() => onTogglePermission(item.value)}
-                            className="size-4 accent-[var(--color-primary)]"
-                          />
-                          {item.label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </div>
-          {editing ? (
-            <label className="flex items-center gap-3 rounded-md border border-border px-3 py-3 text-sm">
-              <input
-                type="checkbox"
-                checked={form.active}
-                onChange={(event) => onChange({ ...form, active: event.target.checked })}
-                className="size-4 accent-[var(--color-primary)]"
-              />
-              Account is active and can sign in
-            </label>
-          ) : null}
-        </div>
-
-        {error ? (
-          <p role="alert" className="mt-4 rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-            {error}
-          </p>
-        ) : null}
-
-        <div className="mt-auto flex justify-end gap-3 border-t border-border pt-5">
-          <button type="button" onClick={onClose} className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted">
-            Cancel
-          </button>
-          <button type="submit" disabled={busy} className="rule-header inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60">
-            <ShieldCheck className="size-4" /> {busy ? "Saving…" : editing ? "Save changes" : "Create user"}
-          </button>
-        </div>
-      </form>
-    </div>
   );
 }

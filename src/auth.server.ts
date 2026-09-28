@@ -665,6 +665,9 @@ export async function updateManagedUser(input: {
   try {
     await moveWorkspaceDatabase(existing.databaseName, databaseName);
     await db.collection<UserDocument>("users").updateOne({ _id: input.id }, updateDocument);
+    if (!input.active || existing.active !== input.active || Boolean(input.password) || existing.panel !== input.panel) {
+      await db.collection<SessionDocument>("sessions").deleteMany({ userId: input.id });
+    }
     if (input.panel === "subhub") {
       await db.collection("production_orders").updateMany(
         { subhubUserId: input.id },
