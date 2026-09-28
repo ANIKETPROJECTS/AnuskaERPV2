@@ -131,116 +131,112 @@ export function Requested() {
         </div>
       }
     >
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="min-w-[240px] flex-1 text-sm font-medium text-muted-foreground">
-          Search subpart
-          <span className="relative mt-1 block">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2"
-              aria-hidden="true"
-            />
-            <input
-              aria-label="Search by subpart name or code"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Enter a name or code"
-              className="h-11 w-full rounded-md border border-input bg-background pl-9 pr-3 text-base font-normal text-foreground outline-none focus:border-primary"
-            />
-          </span>
-        </label>
-        <label className="w-full text-sm font-medium text-muted-foreground sm:w-64">
-          SubHub
-          <select
-            aria-label="Filter by SubHub"
-            value={hub}
-            onChange={(event) => setHub(event.target.value)}
-            className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal text-foreground outline-none focus:border-primary"
-          >
-            <option value="all">All active SubHubs</option>
-            {[...new Set(rows.map((row) => row.hub))].map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="w-full text-sm font-medium text-muted-foreground sm:w-56">
-          Stock status
-          <select
-            aria-label="Filter by stock status"
-            value={status}
-            onChange={(event) => setStatus(event.target.value as typeof status)}
-            className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal text-foreground outline-none focus:border-primary"
-          >
-            <option value="all">All statuses</option>
-            <option value="shortage">Shortage - needs stock</option>
-            <option value="low">Low buffer - exactly enough</option>
-            <option value="surplus">Surplus</option>
-            <option value="no-target">No open target</option>
-          </select>
-        </label>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-        <p>
-          {viewMode === "matrix"
-            ? `${visibleParts.length} subparts across ${visibleHubs.length} SubHubs`
-            : `${visibleListRows.length} matching part–SubHub rows`}
-        </p>
-        <div
-          role="group"
-          aria-label="Shortage view"
-          className="inline-flex rounded-md border border-input p-1"
-        >
-          <button
-            type="button"
-            aria-pressed={viewMode === "matrix"}
-            onClick={() => {
-              setPage(1);
-              setViewMode("matrix");
-            }}
-            className={`min-h-9 rounded px-3 text-sm font-medium ${
-              viewMode === "matrix"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            Matrix
-          </button>
-          <button
-            type="button"
-            aria-pressed={viewMode === "list"}
-            onClick={() => {
-              setPage(1);
-              setViewMode("list");
-            }}
-            className={`min-h-9 rounded px-3 text-sm font-medium ${
-              viewMode === "list"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            List
-          </button>
+      <section aria-label="Shortage filters" className="space-y-4 border-b border-border pb-5">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="min-w-[240px] flex-1 text-sm font-medium text-muted-foreground">
+            Search subpart
+            <span className="relative mt-1 block">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2"
+                aria-hidden="true"
+              />
+              <input
+                aria-label="Search by subpart name or code"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Enter a name or code"
+                className="h-11 w-full rounded-md border border-input bg-background pl-9 pr-3 text-base font-normal text-foreground outline-none focus:border-primary"
+              />
+            </span>
+          </label>
+          <label className="w-full text-sm font-medium text-muted-foreground sm:w-64">
+            SubHub
+            <select
+              aria-label="Filter by SubHub"
+              value={hub}
+              onChange={(event) => setHub(event.target.value)}
+              className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal text-foreground outline-none focus:border-primary"
+            >
+              <option value="all">All active SubHubs</option>
+              {[...new Set(rows.map((row) => row.hub))].map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="w-full text-sm font-medium text-muted-foreground sm:w-56">
+            Stock status
+            <select
+              aria-label="Filter by stock status"
+              value={status}
+              onChange={(event) => setStatus(event.target.value as typeof status)}
+              className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal text-foreground outline-none focus:border-primary"
+            >
+              <option value="all">All statuses</option>
+              <option value="shortage">Shortage - needs stock</option>
+              <option value="low">Low buffer - exactly enough</option>
+              <option value="surplus">Surplus</option>
+              <option value="no-target">No open target</option>
+            </select>
+          </label>
         </div>
-      </div>
+        <div className="flex justify-end">
+          <div
+            role="group"
+            aria-label="Shortage view"
+            className="inline-flex rounded-md border border-input p-1"
+          >
+            <button
+              type="button"
+              aria-pressed={viewMode === "matrix"}
+              onClick={() => {
+                setPage(1);
+                setViewMode("matrix");
+              }}
+              className={`min-h-9 rounded px-3 text-sm font-medium ${
+                viewMode === "matrix"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              Matrix
+            </button>
+            <button
+              type="button"
+              aria-pressed={viewMode === "list"}
+              onClick={() => {
+                setPage(1);
+                setViewMode("list");
+              }}
+              className={`min-h-9 rounded px-3 text-sm font-medium ${
+                viewMode === "list"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              List
+            </button>
+          </div>
+        </div>
+      </section>
 
       {viewMode === "matrix" && visibleParts.length && visibleHubs.length ? (
         <div className="overflow-x-auto border-y border-border">
           <table className="w-full min-w-[760px] border-collapse text-sm">
-            <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th scope="col" className="min-w-32 px-2 py-3 font-semibold">
+                <th scope="col" className="min-w-36 px-3 py-3 font-semibold">
                   Subpart name
                 </th>
-                <th scope="col" className="min-w-20 px-2 py-3 font-semibold">
+                <th scope="col" className="min-w-24 px-3 py-3 font-semibold">
                   Code
                 </th>
                 {visibleHubs.map((hubName) => (
                   <th
                     key={hubName}
                     scope="col"
-                    className="min-w-24 border-l border-border px-2 py-3 font-semibold normal-case tracking-normal text-foreground"
+                    className="min-w-28 border-l border-border px-3 py-3 font-semibold normal-case tracking-normal text-foreground"
                   >
                     {hubName}
                   </th>
@@ -250,8 +246,8 @@ export function Requested() {
             <tbody>
               {visibleParts.map((part) => (
                 <tr key={part.code} className="border-t border-border/70 hover:bg-muted/30">
-                  <td className="min-w-32 px-2 py-3.5 font-semibold">{part.name}</td>
-                  <td className="tabular min-w-20 whitespace-nowrap px-2 py-3.5 text-sm text-muted-foreground">
+                  <td className="min-w-36 px-3 py-4 text-base font-semibold">{part.name}</td>
+                  <td className="tabular min-w-24 whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">
                     {part.code}
                   </td>
                   {visibleHubs.map((hubName) => {
@@ -262,7 +258,7 @@ export function Requested() {
                       return (
                         <td
                           key={hubName}
-                          className="border-l border-border/70 px-2 py-3.5 text-muted-foreground"
+                          className="border-l border-border/70 px-3 py-4 text-sm text-muted-foreground"
                         >
                           —
                         </td>
@@ -270,22 +266,22 @@ export function Requested() {
                     }
                     const details = statusDetails(row);
                     return (
-                      <td key={hubName} className="border-l border-border/70 px-2 py-3.5">
-                        <div className="flex flex-col items-start gap-1.5">
-                          <div className="flex w-full items-baseline justify-between gap-1 whitespace-nowrap text-[11px]">
+                      <td key={hubName} className="border-l border-border/70 px-3 py-4">
+                        <div className="flex flex-col items-start gap-2">
+                          <div className="flex w-full items-baseline justify-between gap-2 whitespace-nowrap text-xs">
                             <span className="text-muted-foreground">Required</span>
-                            <span className="tabular font-medium">
+                            <span className="tabular text-sm font-semibold">
                               {row.required.toLocaleString("en-IN")}
                             </span>
                           </div>
-                          <div className="flex w-full items-baseline justify-between gap-1 whitespace-nowrap text-[11px]">
+                          <div className="flex w-full items-baseline justify-between gap-2 whitespace-nowrap text-xs">
                             <span className="text-muted-foreground">Stock</span>
-                            <span className="tabular font-semibold">
+                            <span className="tabular text-sm font-semibold">
                               {row.stock.toLocaleString("en-IN")}
                             </span>
                           </div>
                           <span
-                            className={`inline-flex whitespace-nowrap rounded-full px-1.5 py-1 text-[11px] font-semibold ${details.className}`}
+                            className={`inline-flex whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold ${details.className}`}
                           >
                             {details.label}
                           </span>
@@ -299,8 +295,8 @@ export function Requested() {
           </table>
         </div>
       ) : viewMode === "list" && visibleListRows.length ? (
-        <section className="panel overflow-hidden">
-          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-4">
+        <section className="overflow-hidden border-y border-border">
+          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-4">
             <div>
               <h2 className="text-lg font-semibold">Parts and stock by SubHub</h2>
               <p className="mt-0.5 text-sm text-muted-foreground">

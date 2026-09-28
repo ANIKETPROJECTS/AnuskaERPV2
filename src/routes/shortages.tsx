@@ -232,14 +232,7 @@ function Shortages() {
             </button>
           ) : null}
         </div>
-      </section>
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-        <p>
-          {formatNumber(visibleParts.length)} subparts across {formatNumber(visibleHubs.length)}{" "}
-          SubHubs
-        </p>
-        <div className="flex flex-wrap items-center gap-3">
-          {loading ? <p aria-live="polite">Refreshing…</p> : null}
+        <div className="flex items-center justify-end">
           <div
             role="group"
             aria-label="Shortage view"
@@ -271,7 +264,12 @@ function Shortages() {
             </button>
           </div>
         </div>
-      </div>
+      </section>
+      {loading ? (
+        <p aria-live="polite" className="text-sm text-muted-foreground">
+          Refreshing…
+        </p>
+      ) : null}
 
       <section
         aria-label={viewMode === "matrix" ? "Shortage matrix" : "Shortage list"}
@@ -284,12 +282,12 @@ function Shortages() {
         ) : viewMode === "matrix" && visibleParts.length && visibleHubs.length ? (
           <div className="overflow-x-auto border-y border-border">
             <table className="w-full min-w-[760px] border-collapse text-sm">
-              <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <thead className="bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th scope="col" className="min-w-32 px-2 py-3 font-semibold">
+                  <th scope="col" className="min-w-36 px-3 py-3 font-semibold">
                     Subpart name
                   </th>
-                  <th scope="col" className="min-w-20 px-2 py-3 font-semibold">
+                  <th scope="col" className="min-w-24 px-3 py-3 font-semibold">
                     Code
                   </th>
                   {visibleHubs.map((hub) => (
@@ -297,7 +295,7 @@ function Shortages() {
                       key={hub.id}
                       scope="col"
                       aria-label={`${hub.name}: required quantity, current stock, and status`}
-                      className="min-w-24 border-l border-border px-2 py-3 font-semibold normal-case tracking-normal text-foreground"
+                      className="min-w-28 border-l border-border px-3 py-3 font-semibold normal-case tracking-normal text-foreground"
                     >
                       {hub.name}
                     </th>
@@ -307,8 +305,8 @@ function Shortages() {
               <tbody>
                 {visibleParts.map((part) => (
                   <tr key={part.code} className="border-t border-border/70 hover:bg-muted/30">
-                    <td className="min-w-32 px-2 py-3.5 font-semibold">{part.name}</td>
-                    <td className="tabular min-w-20 whitespace-nowrap px-2 py-3.5 text-sm">
+                    <td className="min-w-36 px-3 py-4 text-base font-semibold">{part.name}</td>
+                    <td className="tabular min-w-24 whitespace-nowrap px-3 py-4 text-sm">
                       <Link
                         to="/part/$code"
                         params={{ code: part.code }}
@@ -323,7 +321,7 @@ function Shortages() {
                         return (
                           <td
                             key={hub.id}
-                            className="border-l border-border/70 px-2 py-3.5 text-muted-foreground"
+                            className="border-l border-border/70 px-3 py-4 text-sm text-muted-foreground"
                           >
                             —
                           </td>
@@ -332,22 +330,22 @@ function Shortages() {
 
                       const status = getStockStatus(cell.requirement, cell.stock);
                       return (
-                        <td key={hub.id} className="border-l border-border/70 px-2 py-3.5">
-                          <div className="flex flex-col items-start gap-1.5">
-                            <div className="flex w-full items-baseline justify-between gap-1 whitespace-nowrap text-[11px]">
+                        <td key={hub.id} className="border-l border-border/70 px-3 py-4">
+                          <div className="flex flex-col items-start gap-2">
+                            <div className="flex w-full items-baseline justify-between gap-2 whitespace-nowrap text-xs">
                               <span className="text-muted-foreground">Required</span>
-                              <span className="tabular font-medium">
+                              <span className="tabular text-sm font-semibold">
                                 {formatNumber(cell.requirement)}
                               </span>
                             </div>
-                            <div className="flex w-full items-baseline justify-between gap-1 whitespace-nowrap text-[11px]">
+                            <div className="flex w-full items-baseline justify-between gap-2 whitespace-nowrap text-xs">
                               <span className="text-muted-foreground">Stock</span>
-                              <span className="tabular font-semibold">
+                              <span className="tabular text-sm font-semibold">
                                 {formatNumber(cell.stock)}
                               </span>
                             </div>
                             <span
-                              className={`inline-flex whitespace-nowrap rounded-full px-1.5 py-1 text-[11px] font-semibold ${statusStyles[status]}`}
+                              className={`inline-flex whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold ${statusStyles[status]}`}
                               title={`Required ${formatNumber(cell.requirement)} · current stock ${formatNumber(cell.stock)}`}
                             >
                               {getStatusLabel(status, cell.requirement, cell.stock, formatNumber)}
@@ -362,8 +360,8 @@ function Shortages() {
             </table>
           </div>
         ) : viewMode === "list" && visibleListRows.length ? (
-          <section className="panel overflow-hidden">
-            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-4">
+          <section className="overflow-hidden border-y border-border">
+            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-4">
               <div>
                 <h2 className="text-lg font-semibold">Parts and stock by SubHub</h2>
                 <p className="mt-0.5 text-sm text-muted-foreground">
