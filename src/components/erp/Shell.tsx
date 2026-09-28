@@ -184,10 +184,10 @@ export function Shell({
                       onClick={() => setProcurementSectionOpen((open) => !open)}
                       className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground"
                     >
-                    <ChevronDown
-                      aria-hidden="true"
-                      className={`size-4 transition-transform ${isProcurementSectionOpen ? "rotate-180" : ""}`}
-                    />
+                      <ChevronDown
+                        aria-hidden="true"
+                        className={`size-4 transition-transform ${isProcurementSectionOpen ? "rotate-180" : ""}`}
+                      />
                     </button>
                   </div>
                   {isProcurementSectionOpen ? (
@@ -283,7 +283,9 @@ export function Shell({
                     <Link
                       to={item.to}
                       className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md px-3 py-1.5 text-sm ${
-                        active ? "bg-secondary font-medium text-foreground" : "text-muted-foreground"
+                        active
+                          ? "bg-secondary font-medium text-foreground"
+                          : "text-muted-foreground"
                       }`}
                     >
                       {item.label}
