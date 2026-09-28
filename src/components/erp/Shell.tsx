@@ -215,12 +215,6 @@ export function Shell({
         </header>
 
         <main className={mainClassName}>{children}</main>
-
-        {!isProcurementPanel ? (
-          <footer className="border-t border-border px-6 py-4 text-xs text-muted-foreground">
-            Prototype UI · seeded sample data · Stage 1 scope: Float product line
-          </footer>
-        ) : null}
       </div>
     </div>
   );

@@ -1,8 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CircleAlert, CircleCheck, Filter, RefreshCw, Search, Send, X } from "lucide-react";
+import { RefreshCw, Search, Send, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
-import { TablePagination } from "@/components/erp/TablePagination";
 import { getShortageDataFn } from "@/shortages";
 import type { ShortageData } from "@/shortages.server";
 
@@ -41,16 +40,16 @@ function getStatusLabel(
   formatNumber: (value: number) => string,
 ) {
   if (status === "shortage") return `Short by ${formatNumber(requirement - stock)}`;
-  if (status === "low") return "Low buffer · just enough";
+  if (status === "low") return "Exactly enough";
   if (status === "surplus") return `Surplus ${formatNumber(stock - requirement)}`;
   return "No open target";
 }
 
 const statusStyles: Record<StockStatus, string> = {
-  shortage: "bg-destructive/10 text-destructive",
-  low: "bg-warning/25 text-warning-foreground",
-  surplus: "bg-success/10 text-success",
-  "no-target": "bg-secondary text-secondary-foreground",
+  shortage: "bg-red-600 text-white",
+  low: "bg-amber-700 text-white",
+  surplus: "bg-green-700 text-white",
+  "no-target": "bg-gray-600 text-white",
 };
 
 function Shortages() {
@@ -61,8 +60,6 @@ function Shortages() {
   const [query, setQuery] = useState("");
   const [hubFilter, setHubFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<StockStatus | "all">("all");
-  const [page, setPage] = useState(1);
-  const pageSize = 20;
 
   useEffect(() => {
     if (result.ok) {
@@ -72,10 +69,6 @@ function Shortages() {
       setError(result.message);
     }
   }, [result]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [data.hubs, data.rows, hubFilter, query, statusFilter]);
 
   async function load() {
     setLoading(true);
@@ -89,31 +82,26 @@ function Shortages() {
     setLoading(false);
   }
 
-  const visibleRows = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    const selectedHubs =
-      hubFilter === "all" ? data.hubs : data.hubs.filter((hub) => hub.id === hubFilter);
+  const visibleHubs = useMemo(
+    () => (hubFilter === "all" ? data.hubs : data.hubs.filter((hub) => hub.id === hubFilter)),
+    [data.hubs, hubFilter],
+  );
 
-    return data.rows.flatMap((part) => {
+  const visibleParts = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return data.rows.filter((part) => {
       const matchesQuery =
         !normalized || `${part.name} ${part.code}`.toLowerCase().includes(normalized);
-      if (!matchesQuery) return [];
-
-      return selectedHubs.flatMap((hub) => {
+      if (!matchesQuery) return false;
+      if (statusFilter === "all") return true;
+      return visibleHubs.some((hub) => {
         const cell = part.cells[hub.id];
-        if (!cell) return [];
-        const status = getStockStatus(cell.requirement, cell.stock);
-        if (statusFilter !== "all" && status !== statusFilter) return [];
-        return [{ part, hub, cell, status }];
+        return cell && getStockStatus(cell.requirement, cell.stock) === statusFilter;
       });
     });
-  }, [data.hubs, data.rows, hubFilter, query, statusFilter]);
+  }, [data.rows, query, statusFilter, visibleHubs]);
 
   const hasFilters = Boolean(query.trim() || hubFilter !== "all" || statusFilter !== "all");
-  const totalHubRows = data.rows.length * (hubFilter === "all" ? data.hubs.length : 1);
-  const pageRows = visibleRows.slice((page - 1) * pageSize, page * pageSize);
-  const firstVisibleRow = visibleRows.length ? (page - 1) * pageSize + 1 : 0;
-  const lastVisibleRow = Math.min(page * pageSize, visibleRows.length);
   const formatNumber = (value: number) => value.toLocaleString("en-IN");
 
   return (
@@ -151,10 +139,6 @@ function Shortages() {
         </p>
       ) : null}
       <section aria-label="Shortage filters" className="space-y-4 border-b border-border pb-5">
-        <h2 className="flex items-center gap-2 text-base font-semibold">
-          <Filter className="size-4 text-primary" aria-hidden="true" />
-          Find a part or SubHub
-        </h2>
         <div className="flex flex-wrap items-end gap-3">
           <label className="min-w-[240px] flex-1 text-sm font-medium text-muted-foreground">
             Search subpart name or code
@@ -218,127 +202,102 @@ function Shortages() {
             </button>
           ) : null}
         </div>
-        <div
-          className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm"
-          aria-label="Status legend"
-        >
-          <span className="inline-flex items-center gap-2 text-muted-foreground">
-            <CircleAlert className="size-4 text-destructive" aria-hidden="true" />
-            Red: needs stock
-          </span>
-          <span className="inline-flex items-center gap-2 text-muted-foreground">
-            <CircleAlert className="size-4 text-warning-foreground" aria-hidden="true" />
-            Yellow: exactly enough, no spare
-          </span>
-          <span className="inline-flex items-center gap-2 text-muted-foreground">
-            <CircleCheck className="size-4 text-success" aria-hidden="true" />
-            Green: stock above requirement
-          </span>
-          <span className="text-muted-foreground">Gray: no open target</span>
-        </div>
       </section>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-base text-muted-foreground">
-          Required quantity comes from each SubHub’s remaining assigned target and its Bill of
-          Materials. Current stock is shown separately for each SubHub.
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+        <p>
+          {formatNumber(visibleParts.length)} subparts across {formatNumber(visibleHubs.length)}{" "}
+          SubHubs
         </p>
-        {loading ? (
-          <p className="text-sm text-muted-foreground" aria-live="polite">
-            Refreshing…
-          </p>
-        ) : null}
+        {loading ? <p aria-live="polite">Refreshing…</p> : null}
       </div>
 
-      <section className="panel overflow-hidden">
-        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-4">
-          <div>
-            <h2 className="text-lg font-semibold">Parts and stock by SubHub</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              Showing {formatNumber(firstVisibleRow)}–{formatNumber(lastVisibleRow)} of{" "}
-              {formatNumber(visibleRows.length)} matching rows ({formatNumber(totalHubRows)} total)
-            </p>
-          </div>
-        </header>
+      <section aria-label="Shortage matrix" className="min-w-0">
         {loading && !data.rows.length ? (
-          <p className="px-5 py-10 text-center text-base text-muted-foreground" aria-live="polite">
+          <p className="py-10 text-center text-base text-muted-foreground" aria-live="polite">
             Loading shortage details…
           </p>
-        ) : visibleRows.length ? (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px] text-base">
-                <thead className="bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    <th scope="col" className="min-w-56 px-4 py-3 font-semibold">
-                      Subpart name
-                    </th>
-                    <th scope="col" className="min-w-36 px-4 py-3 font-semibold">
-                      Code
-                    </th>
-                    <th scope="col" className="min-w-44 px-4 py-3 font-semibold">
-                      SubHub
-                    </th>
-                    <th scope="col" className="min-w-40 px-4 py-3 text-right font-semibold">
-                      <span className="block">Required quantity</span>
-                      <span className="mt-0.5 block text-xs font-normal normal-case tracking-normal">
-                        open targets
-                      </span>
-                    </th>
-                    <th scope="col" className="min-w-32 px-4 py-3 text-right font-semibold">
-                      Current stock
-                    </th>
-                    <th scope="col" className="min-w-48 px-4 py-3 font-semibold">
-                      Stock status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageRows.map(({ part, hub, cell, status }) => (
-                    <tr
-                      key={`${part.code}-${hub.id}`}
-                      className="border-t border-border/70 hover:bg-muted/30"
+        ) : visibleParts.length && visibleHubs.length ? (
+          <div className="overflow-x-auto border-y border-border">
+            <table className="w-full min-w-[760px] border-collapse text-sm">
+              <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th scope="col" className="min-w-32 px-2 py-3 font-semibold">
+                    Subpart name
+                  </th>
+                  <th scope="col" className="min-w-20 px-2 py-3 font-semibold">
+                    Code
+                  </th>
+                  {visibleHubs.map((hub) => (
+                    <th
+                      key={hub.id}
+                      scope="col"
+                      aria-label={`${hub.name}: required quantity, current stock, and status`}
+                      className="min-w-24 border-l border-border px-2 py-3 font-semibold normal-case tracking-normal text-foreground"
                     >
-                      <td className="whitespace-nowrap px-4 py-4 font-semibold">{part.name}</td>
-                      <td className="tabular whitespace-nowrap px-4 py-4 text-sm">
-                        <Link
-                          to="/part/$code"
-                          params={{ code: part.code }}
-                          className="text-primary underline-offset-2 hover:underline"
-                        >
-                          {part.code}
-                        </Link>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-4">{hub.name}</td>
-                      <td className="tabular px-4 py-4 text-right font-medium">
-                        {formatNumber(cell.requirement)}
-                      </td>
-                      <td className="tabular px-4 py-4 text-right font-semibold">
-                        {formatNumber(cell.stock)}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-sm font-semibold ${statusStyles[status]}`}
-                          title={`Required ${formatNumber(cell.requirement)} · current stock ${formatNumber(cell.stock)}`}
-                        >
-                          {getStatusLabel(status, cell.requirement, cell.stock, formatNumber)}
-                        </span>
-                      </td>
-                    </tr>
+                      {hub.name}
+                    </th>
                   ))}
-                </tbody>
-              </table>
-            </div>
-            <TablePagination
-              total={visibleRows.length}
-              page={page}
-              pageSize={pageSize}
-              showPageSizeSelect={false}
-              onPageChange={setPage}
-              onPageSizeChange={() => undefined}
-            />
-          </>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleParts.map((part) => (
+                  <tr key={part.code} className="border-t border-border/70 hover:bg-muted/30">
+                    <td className="min-w-32 px-2 py-3.5 font-semibold">{part.name}</td>
+                    <td className="tabular min-w-20 whitespace-nowrap px-2 py-3.5 text-sm">
+                      <Link
+                        to="/part/$code"
+                        params={{ code: part.code }}
+                        className="text-primary underline-offset-2 hover:underline"
+                      >
+                        {part.code}
+                      </Link>
+                    </td>
+                    {visibleHubs.map((hub) => {
+                      const cell = part.cells[hub.id];
+                      if (!cell) {
+                        return (
+                          <td
+                            key={hub.id}
+                            className="border-l border-border/70 px-2 py-3.5 text-muted-foreground"
+                          >
+                            —
+                          </td>
+                        );
+                      }
+
+                      const status = getStockStatus(cell.requirement, cell.stock);
+                      return (
+                        <td key={hub.id} className="border-l border-border/70 px-2 py-3.5">
+                          <div className="flex flex-col items-start gap-1.5">
+                            <div className="flex w-full items-baseline justify-between gap-1 whitespace-nowrap text-[11px]">
+                              <span className="text-muted-foreground">Required</span>
+                              <span className="tabular font-medium">
+                                {formatNumber(cell.requirement)}
+                              </span>
+                            </div>
+                            <div className="flex w-full items-baseline justify-between gap-1 whitespace-nowrap text-[11px]">
+                              <span className="text-muted-foreground">Stock</span>
+                              <span className="tabular font-semibold">
+                                {formatNumber(cell.stock)}
+                              </span>
+                            </div>
+                            <span
+                              className={`inline-flex whitespace-nowrap rounded-full px-1.5 py-1 text-[11px] font-semibold ${statusStyles[status]}`}
+                              title={`Required ${formatNumber(cell.requirement)} · current stock ${formatNumber(cell.stock)}`}
+                            >
+                              {getStatusLabel(status, cell.requirement, cell.stock, formatNumber)}
+                            </span>
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
-          <p className="px-5 py-10 text-center text-base text-muted-foreground">
+          <p className="py-10 text-center text-base text-muted-foreground">
             {data.hubs.length === 0
               ? "No active SubHubs are available to compare yet."
               : hasFilters
