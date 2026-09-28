@@ -1,13 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
-  AlertTriangle,
   ArrowRight,
-  ChevronDown,
   ClipboardList,
   Plus,
   RefreshCw,
-  Save,
-  Settings2,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -15,8 +11,8 @@ import { ProductionTargetsNav } from "@/components/erp/ProductionTargetsNav";
 import { Shell } from "@/components/erp/Shell";
 import { Tag } from "@/components/erp/bits";
 import { TablePagination } from "@/components/erp/TablePagination";
-import { getAdminProductionDashboardFn, listAssignableSubhubsFn, setAdminHubCapacityFn } from "@/production";
-import type { AdminProductionDashboard, AssignableSubhub, ProductionOrder } from "@/production.server";
+import { listAssignableSubhubsFn, listProductionOrdersFn } from "@/production";
+import type { AssignableSubhub, ProductionOrder } from "@/production.server";
 import { num } from "@/lib/erp-data";
 
 export const Route = createFileRoute("/orders")({
@@ -36,8 +32,6 @@ function statusTone(status: ProductionOrder["status"]): "good" | "warn" | "bad" 
   return "neutral";
 }
 
-type SaveHubCapacity = (subhubUserId: string, capacityUnits: number | null) => Promise<{ ok: true } | { ok: false; message: string }>;
-
 function formatOrderDate(value: string) {
   const parsed = new Date(value.includes("T") ? value : `${value}T00:00:00.000Z`);
   if (Number.isNaN(parsed.getTime())) return value;
@@ -45,7 +39,6 @@ function formatOrderDate(value: string) {
 }
 
 function Orders() {
-  const [dashboard, setDashboard] = useState<AdminProductionDashboard | null>(null);
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
   const [subhubs, setSubhubs] = useState<AssignableSubhub[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,16 +48,12 @@ function Orders() {
   const [statusFilter, setStatusFilter] = useState<ProductionOrder["status"] | "all">("all");
   const [orderPage, setOrderPage] = useState(1);
   const orderPageSize = 25;
-  const [savingCapacityId, setSavingCapacityId] = useState("");
-  const [capacitySuccess, setCapacitySuccess] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [dashboardResult, subhubResult] = await Promise.all([getAdminProductionDashboardFn(), listAssignableSubhubsFn()]);
-    if (dashboardResult.ok) {
-      setDashboard(dashboardResult.data);
-      setOrders(dashboardResult.data.orders);
-    } else setError(dashboardResult.message);
+    const [ordersResult, subhubResult] = await Promise.all([listProductionOrdersFn(), listAssignableSubhubsFn()]);
+    if (ordersResult.ok) setOrders(ordersResult.orders);
+    else setError(ordersResult.message);
     if (subhubResult.ok) setSubhubs(subhubResult.subhubs);
     else setError(subhubResult.message);
     setLoading(false);
@@ -105,21 +94,6 @@ function Orders() {
     return filteredOrders.slice(start, start + orderPageSize);
   }, [filteredOrders, orderPage, orderPageSize]);
 
-  async function saveHubCapacity(subhubUserId: string, capacityUnits: number | null) {
-    setSavingCapacityId(subhubUserId);
-    setCapacitySuccess("");
-    setError("");
-    const result = await setAdminHubCapacityFn({ data: { subhubUserId, capacityUnits } });
-    if (!result.ok) {
-      setError(result.message);
-    } else {
-      setCapacitySuccess(`Hub capacity updated${result.reassignments.length ? ` · ${result.reassignments.length} order${result.reassignments.length === 1 ? "" : "s"} automatically reassigned` : ""}.`);
-      await load();
-    }
-    setSavingCapacityId("");
-    return result;
-  }
-
   return (
     <Shell
       title="Orders & Production Targets"
@@ -139,7 +113,6 @@ function Orders() {
       <div className="space-y-5">
         <ProductionTargetsNav active="orders" />
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
-        {capacitySuccess ? <p role="status" className="rounded-md border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-700">{capacitySuccess}</p> : null}
         <section aria-labelledby="production-orders-heading" className="space-y-4">
           <div>
             <h2 id="production-orders-heading" className="text-base font-semibold">Production orders</h2>
@@ -247,136 +220,10 @@ function Orders() {
           ) : null}
         </section>
 
-        <details className="group border-y border-border">
-          <summary className="flex cursor-pointer list-none items-center gap-2 py-3 [&::-webkit-details-marker]:hidden">
-            <span className="text-sm font-medium">SubHub capacity & workload</span>
-            <span className="flex-1 text-xs text-muted-foreground">Advanced settings</span>
-            <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
-          </summary>
-          <div className="divide-y divide-border border-t border-border">
-            {loading && !dashboard ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">Loading hub capacity…</p>
-            ) : dashboard?.hubs.length ? (
-              dashboard.hubs.map((hub) => (
-                <HubCapacityRow
-                  key={hub.userId}
-                  hub={hub}
-                  saving={savingCapacityId === hub.userId}
-                  onSave={saveHubCapacity}
-                />
-              ))
-            ) : (
-              <p className="py-8 text-sm text-muted-foreground">No active SubHub Managers are available.</p>
-            )}
-          </div>
-        </details>
-
-        {dashboard?.recentReassignments.length ? (
-          <details className="group border-b border-border">
-            <summary className="flex cursor-pointer list-none items-center gap-2 py-3 [&::-webkit-details-marker]:hidden">
-              <span className="text-sm font-medium">Recent automatic moves</span>
-              <span className="flex-1 text-xs text-muted-foreground">
-                {dashboard.recentReassignments.length} {dashboard.recentReassignments.length === 1 ? "order" : "orders"}
-              </span>
-              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
-            </summary>
-            <div className="divide-y divide-border border-t border-border">
-              {dashboard.recentReassignments.map((reassignment, index) => (
-                <div key={`${reassignment.orderNumber}-${reassignment.createdAt}-${index}`} className="flex flex-wrap items-center gap-3 py-3 text-sm">
-                  <p className="min-w-48 flex-1 font-medium">{reassignment.orderNumber} · {reassignment.variantName}</p>
-                  <span className="text-xs text-muted-foreground">{reassignment.fromHub}</span>
-                  <ArrowRight className="size-4 text-muted-foreground" aria-hidden="true" />
-                  <span className="text-xs font-medium">{reassignment.toHub}</span>
-                  <time className="text-xs text-muted-foreground">{formatOrderDate(reassignment.createdAt)}</time>
-                </div>
-              ))}
-            </div>
-          </details>
-        ) : null}
       </div>
     </Shell>
   );
 }
-function HubCapacityRow({
-  hub,
-  saving,
-  onSave,
-}: {
-  hub: AdminProductionDashboard["hubs"][number];
-  saving: boolean;
-  onSave: SaveHubCapacity;
-}) {
-  const [capacityValue, setCapacityValue] = useState(hub.capacityUnits === null ? "" : String(hub.capacityUnits));
-  const [validationError, setValidationError] = useState("");
-  const capacityLabel = hub.capacityUnits === null ? "No limit" : num(hub.capacityUnits);
-  const loadLabel = hub.capacityUnits === null
-    ? `${num(hub.openUnits)} open units`
-    : `${num(hub.openUnits)} / ${num(hub.capacityUnits)} units`;
-  const status = hub.overloaded ? "Overloaded" : hub.capacityUnits === null ? "Unrestricted" : "Within capacity";
-  const statusTone = hub.overloaded ? "bad" : hub.capacityUnits === null ? "neutral" : "good";
-  const isDirty = capacityValue !== (hub.capacityUnits === null ? "" : String(hub.capacityUnits));
-
-  useEffect(() => {
-    setCapacityValue(hub.capacityUnits === null ? "" : String(hub.capacityUnits));
-  }, [hub.capacityUnits]);
-
-  async function submitCapacity() {
-    const trimmed = capacityValue.trim();
-    const parsed = trimmed === "" ? null : Number(trimmed);
-    if (parsed !== null && (!Number.isInteger(parsed) || parsed < 1)) {
-      setValidationError("Enter a whole number greater than zero, or leave blank for no limit.");
-      return;
-    }
-    setValidationError("");
-    const result = await onSave(hub.userId, parsed);
-    if (!result.ok) setValidationError(result.message);
-  }
-
-  return (
-    <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center">
-      <div className="min-w-52 flex-1">
-        <p className="font-medium">{hub.subhubName}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{hub.name} · {hub.orderCount} active order{hub.orderCount === 1 ? "" : "s"}</p>
-      </div>
-      <div className="flex items-center gap-3 text-sm">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Current load</p>
-          <p className="tabular mt-1 font-semibold">{loadLabel}</p>
-        </div>
-        <Tag tone={statusTone}>{status}</Tag>
-      </div>
-      <form onSubmit={(event) => { event.preventDefault(); void submitCapacity(); }} className="flex flex-col items-start gap-1">
-        <div className="flex items-center gap-2 rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">
-          <Settings2 className="size-4 text-muted-foreground" />
-          <label className="flex items-center gap-2">
-            <span className="whitespace-nowrap text-xs uppercase tracking-wide text-muted-foreground">Declared capacity</span>
-            <input
-              type="number"
-              min="1"
-              step="1"
-              value={capacityValue}
-              onChange={(event) => setCapacityValue(event.target.value)}
-              placeholder="No limit"
-              aria-label={`Declared capacity for ${hub.subhubName}`}
-              className="h-8 w-28 rounded-md border border-input bg-background px-2 text-right text-sm font-semibold outline-none focus:border-primary"
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={!isDirty || saving}
-            className="inline-flex h-8 items-center gap-1 rounded-md border border-input bg-background px-2 text-xs font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Save className="size-3.5" /> {saving ? "Saving…" : "Save"}
-          </button>
-        </div>
-        <p className="pl-8 text-[11px] text-muted-foreground">Blank means no limit{!isDirty && capacityValue === "" ? "" : ` · Current: ${capacityLabel}`}</p>
-        {validationError ? <p className="pl-8 text-xs text-destructive">{validationError}</p> : null}
-      </form>
-      {hub.overloaded ? <AlertTriangle className="size-5 text-destructive" aria-label="Hub is overloaded" /> : null}
-    </div>
-  );
-}
-
 function OrderRow({ order }: { order: ProductionOrder }) {
   return (
     <tr className="border-b border-border/70 hover:bg-muted/30">

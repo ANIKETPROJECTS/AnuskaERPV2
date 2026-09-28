@@ -19,6 +19,7 @@ import { Route as OrdersRouteImport } from './routes/orders'
 import { Route as ProcurementRouteImport } from './routes/procurement'
 import { Route as ProcurementManagementRouteImport } from './routes/procurement-management'
 import { Route as ProductionRouteImport } from './routes/production'
+import { Route as ProductionCapacityRouteImport } from './routes/production-capacity'
 import { Route as ProductionTargetsRouteImport } from './routes/production-targets'
 import { Route as QualityManagementRouteImport } from './routes/quality-management'
 import { Route as RawMaterialsRouteImport } from './routes/raw-materials'
@@ -118,6 +119,11 @@ const ProcurementManagementRoute = ProcurementManagementRouteImport.update({
 const ProductionRoute = ProductionRouteImport.update({
   id: '/production',
   path: '/production',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductionCapacityRoute = ProductionCapacityRouteImport.update({
+  id: '/production-capacity',
+  path: '/production-capacity',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductionTargetsRoute = ProductionTargetsRouteImport.update({
@@ -394,6 +400,7 @@ export interface FileRoutesByFullPath {
   '/procurement': typeof ProcurementRoute
   '/procurement-management': typeof ProcurementManagementRouteWithChildren
   '/production': typeof ProductionRoute
+  '/production-capacity': typeof ProductionCapacityRoute
   '/production-targets': typeof ProductionTargetsRoute
   '/quality-management': typeof QualityManagementRoute
   '/raw-materials': typeof RawMaterialsRoute
@@ -456,6 +463,7 @@ export interface FileRoutesByTo {
   '/procurement': typeof ProcurementRoute
   '/procurement-management': typeof ProcurementManagementRouteWithChildren
   '/production': typeof ProductionRoute
+  '/production-capacity': typeof ProductionCapacityRoute
   '/production-targets': typeof ProductionTargetsRoute
   '/quality-management': typeof QualityManagementRoute
   '/raw-materials': typeof RawMaterialsRoute
@@ -519,6 +527,7 @@ export interface FileRoutesById {
   '/procurement': typeof ProcurementRoute
   '/procurement-management': typeof ProcurementManagementRouteWithChildren
   '/production': typeof ProductionRoute
+  '/production-capacity': typeof ProductionCapacityRoute
   '/production-targets': typeof ProductionTargetsRoute
   '/quality-management': typeof QualityManagementRoute
   '/raw-materials': typeof RawMaterialsRoute
@@ -583,6 +592,7 @@ export interface FileRouteTypes {
     | '/procurement'
     | '/procurement-management'
     | '/production'
+    | '/production-capacity'
     | '/production-targets'
     | '/quality-management'
     | '/raw-materials'
@@ -645,6 +655,7 @@ export interface FileRouteTypes {
     | '/procurement'
     | '/procurement-management'
     | '/production'
+    | '/production-capacity'
     | '/production-targets'
     | '/quality-management'
     | '/raw-materials'
@@ -707,6 +718,7 @@ export interface FileRouteTypes {
     | '/procurement'
     | '/procurement-management'
     | '/production'
+    | '/production-capacity'
     | '/production-targets'
     | '/quality-management'
     | '/raw-materials'
@@ -770,6 +782,7 @@ export interface RootRouteChildren {
   ProcurementRoute: typeof ProcurementRoute
   ProcurementManagementRoute: typeof ProcurementManagementRouteWithChildren
   ProductionRoute: typeof ProductionRoute
+  ProductionCapacityRoute: typeof ProductionCapacityRoute
   ProductionTargetsRoute: typeof ProductionTargetsRoute
   QualityManagementRoute: typeof QualityManagementRoute
   RawMaterialsRoute: typeof RawMaterialsRoute
@@ -855,6 +868,13 @@ declare module '@tanstack/react-router' {
       path: '/production'
       fullPath: '/production'
       preLoaderRoute: typeof ProductionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/production-capacity': {
+      id: '/production-capacity'
+      path: '/production-capacity'
+      fullPath: '/production-capacity'
+      preLoaderRoute: typeof ProductionCapacityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/production-targets': {
@@ -1418,6 +1438,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProcurementRoute: ProcurementRoute,
   ProcurementManagementRoute: ProcurementManagementRouteWithChildren,
   ProductionRoute: ProductionRoute,
+  ProductionCapacityRoute: ProductionCapacityRoute,
   ProductionTargetsRoute: ProductionTargetsRoute,
   QualityManagementRoute: QualityManagementRoute,
   RawMaterialsRoute: RawMaterialsRoute,

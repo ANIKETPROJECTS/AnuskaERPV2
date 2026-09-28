@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-export function ProductionTargetsNav({ active }: { active: "orders" | "assign" }) {
+export function ProductionTargetsNav({ active }: { active: "orders" | "assign" | "capacity" }) {
   return (
     <nav
       aria-label="Production target pages"
@@ -27,6 +27,17 @@ export function ProductionTargetsNav({ active }: { active: "orders" | "assign" }
         }`}
       >
         Assign targets
+      </Link>
+      <Link
+        to="/production-capacity"
+        aria-current={active === "capacity" ? "page" : undefined}
+        className={`inline-flex items-center border-b-2 px-1 text-sm font-medium transition-colors ${
+          active === "capacity"
+            ? "border-primary text-primary"
+            : "border-transparent text-muted-foreground hover:text-foreground"
+        }`}
+      >
+        SubHub capacity
       </Link>
     </nav>
   );
