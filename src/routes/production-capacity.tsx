@@ -83,21 +83,37 @@ function ProductionCapacity() {
               Capacity is compared with active open target units. Leave a value blank for no limit.
             </p>
           </div>
-          <div className="divide-y divide-border">
-            {loading && !dashboard ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">Loading SubHub capacity…</p>
-            ) : dashboard?.hubs.length ? (
-              dashboard.hubs.map((hub) => (
-                <HubCapacityRow
-                  key={hub.userId}
-                  hub={hub}
-                  saving={savingCapacityId === hub.userId}
-                  onSave={saveHubCapacity}
-                />
-              ))
-            ) : (
-              <p className="py-8 text-sm text-muted-foreground">No active SubHub Managers are available.</p>
-            )}
+          <div className="overflow-x-auto border-b border-border">
+            <table aria-label="SubHub declared capacity and workload" className="w-full min-w-[820px] text-sm">
+              <thead className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th scope="col" className="w-[34%] px-4 py-3 font-medium">SubHub</th>
+                  <th scope="col" className="w-[18%] px-4 py-3 text-right font-medium">Current load</th>
+                  <th scope="col" className="w-[16%] px-4 py-3 font-medium">Status</th>
+                  <th scope="col" className="px-4 py-3 font-medium">Declared capacity</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {loading && !dashboard ? (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-sm text-muted-foreground">Loading SubHub capacity…</td>
+                  </tr>
+                ) : dashboard?.hubs.length ? (
+                  dashboard.hubs.map((hub) => (
+                    <HubCapacityRow
+                      key={hub.userId}
+                      hub={hub}
+                      saving={savingCapacityId === hub.userId}
+                      onSave={saveHubCapacity}
+                    />
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-sm text-muted-foreground">No active SubHub Managers are available.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </section>
       </div>
