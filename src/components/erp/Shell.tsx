@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   LayoutDashboard,
   Layers,
@@ -109,6 +109,14 @@ export function Shell({
   const router = useRouter();
   const { user } = useAuth();
   const isProcurementPanel = user?.panel === "procurement";
+  const [isProcurementSectionOpen, setProcurementSectionOpen] = useState(() =>
+    pathname.startsWith("/admin/procurement"),
+  );
+  useEffect(() => {
+    if (pathname.startsWith("/admin/procurement")) {
+      setProcurementSectionOpen(true);
+    }
+  }, [pathname]);
   const visibleNav = isProcurementPanel
     ? procurementPanelNav
     : nav.filter((item) => canAccess(user, item.permission));
@@ -152,6 +160,52 @@ export function Shell({
             Modules
           </p>
           {visibleNav.map((item) => {
+            if ("children" in item) {
+              const active = pathname.startsWith("/admin/procurement");
+              return (
+                <div key={item.label}>
+                  <button
+                    type="button"
+                    aria-expanded={isProcurementSectionOpen}
+                    onClick={() => setProcurementSectionOpen((open) => !open)}
+                    className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-base leading-snug transition-colors ${
+                      active
+                        ? "bg-sidebar-accent font-medium text-sidebar-primary"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent/60"
+                    }`}
+                  >
+                    <item.icon className="size-5 shrink-0" />
+                    <span className="flex-1">{item.label}</span>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className={`size-4 transition-transform ${isProcurementSectionOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {isProcurementSectionOpen ? (
+                    <div className="ml-5 mt-1 space-y-1 border-l border-sidebar-border py-1 pl-3">
+                      {item.children.map((child) => {
+                        const childActive =
+                          pathname === child.to || pathname.startsWith(`${child.to}/`);
+                        return (
+                          <Link
+                            key={child.to}
+                            to={child.to}
+                            className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm leading-snug transition-colors ${
+                              childActive
+                                ? "bg-sidebar-accent font-medium text-sidebar-primary"
+                                : "text-sidebar-foreground hover:bg-sidebar-accent/60"
+                            }`}
+                          >
+                            <child.icon className="size-4 shrink-0" />
+                            {child.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            }
             const destination = item.to;
             const active = pathname === destination || pathname.startsWith(`${destination}/`);
             return (
@@ -212,20 +266,59 @@ export function Shell({
             {actions}
           </div>
           <nav className="flex gap-1 overflow-x-auto border-t border-border px-4 py-2 lg:hidden">
-            {visibleNav.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted-foreground"
-                activeProps={{
-                  className: isProcurementPanel
-                    ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium"
-                    : "bg-secondary text-foreground font-medium",
-                }}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {visibleNav.map((item) => {
+              if ("children" in item) {
+                const active = pathname.startsWith("/admin/procurement");
+                return (
+                  <div key={item.label} className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      aria-expanded={isProcurementSectionOpen}
+                      onClick={() => setProcurementSectionOpen((open) => !open)}
+                      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md px-3 py-1.5 text-sm ${
+                        active
+                          ? "bg-secondary font-medium text-foreground"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {item.label}
+                      <ChevronDown
+                        aria-hidden="true"
+                        className={`size-3 transition-transform ${isProcurementSectionOpen ? "rotate-180" : ""}`}
+                      />
+                    </button>
+                    {isProcurementSectionOpen
+                      ? item.children.map((child) => (
+                          <Link
+                            key={child.to}
+                            to={child.to}
+                            className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted-foreground"
+                            activeProps={{
+                              className: "bg-secondary font-medium text-foreground",
+                            }}
+                          >
+                            {child.label}
+                          </Link>
+                        ))
+                      : null}
+                  </div>
+                );
+              }
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted-foreground"
+                  activeProps={{
+                    className: isProcurementPanel
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground font-medium"
+                      : "bg-secondary text-foreground font-medium",
+                  }}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
           </nav>
         </header>
 
