@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, Boxes, CheckCircle2, ClipboardList, Factory, RefreshCw, ShieldAlert, TrendingUp } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Shell } from "@/components/erp/Shell";
+import { ArrowLeft, Boxes, RefreshCw } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import { HubBatchBrowser } from "@/components/erp/HubBatchBrowser";
-import { Kpi, Panel, Tag } from "@/components/erp/bits";
+import { HubModuleNav } from "@/components/erp/HubModuleNav";
+import { Shell } from "@/components/erp/Shell";
+import { Tag } from "@/components/erp/bits";
 import { getAdminHubDetailFn } from "@/production";
 import type { AdminHubDetail, HubSummary } from "@/production.server";
 import { num } from "@/lib/erp-data";
@@ -17,6 +18,20 @@ export const Route = createFileRoute("/hubs/$hubId")({
   }),
   component: HubDetails,
 });
+
+const hubDetailViews = [
+  { id: "overview", label: "Overview" },
+  { id: "orders", label: "Orders" },
+  { id: "daily", label: "Daily output" },
+  { id: "reports", label: "Reports" },
+  { id: "inventory", label: "Inventory" },
+  { id: "batches", label: "Batches" },
+  { id: "quality", label: "Quality" },
+  { id: "movements", label: "Movements" },
+  { id: "activity", label: "Activity" },
+] as const;
+
+type HubDetailView = (typeof hubDetailViews)[number]["id"];
 
 function statusTone(status: HubSummary["status"] | "Unstarted"): "good" | "warn" | "bad" | "neutral" {
   if (status === "Complete" || status === "Over target") return "good";
@@ -34,123 +49,448 @@ function HubDetails() {
   const [data, setData] = useState<AdminHubDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  async function load() {
-    setLoading(true);
-    const result = await getAdminHubDetailFn({ data: { hubId } });
-    if (result.ok) {
-      setData(result.data);
-      setError("");
-    } else {
-      setError(result.message);
-    }
-    setLoading(false);
-  }
+  const [activeView, setActiveView] = useState<HubDetailView>("overview");
 
   useEffect(() => {
-    void load();
+    let active = true;
+    setLoading(true);
+    setData(null);
+    setError("");
+    setActiveView("overview");
+    void getAdminHubDetailFn({ data: { hubId } })
+      .then((result) => {
+        if (!active) return;
+        if (result.ok) setData(result.data);
+        else setError(result.message);
+      })
+      .catch((cause: unknown) => {
+        if (active) setError(cause instanceof Error ? cause.message : "Hub details could not be loaded.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [hubId]);
+
+  async function refresh() {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await getAdminHubDetailFn({ data: { hubId } });
+      if (result.ok) setData(result.data);
+      else setError(result.message);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Hub details could not be refreshed.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   if (loading && !data) {
     return (
       <Shell title="Loading hub details" subtitle="Getting the latest live workspace data">
-        <div className="p-8 text-center text-sm text-muted-foreground">Loading hub details…</div>
+        <div className="py-8 text-center text-base text-muted-foreground">Loading hub details…</div>
       </Shell>
     );
   }
 
   if (!data) {
     return (
-      <Shell title="Hub details unavailable" subtitle="The requested live SubHub could not be loaded" actions={<Link to="/hubs" className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm"><ArrowLeft className="size-4" /> All hubs</Link>}>
-        <Panel title="Unable to load hub">
-          <p role="alert" className="p-5 text-sm text-destructive">{error || "The requested hub could not be found."}</p>
-        </Panel>
+      <Shell
+        title="Hub details unavailable"
+        subtitle="The requested live SubHub could not be loaded"
+        actions={
+          <Link to="/hubs" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input px-3 py-2 text-base font-medium">
+            <ArrowLeft className="size-4" /> All hubs
+          </Link>
+        }
+      >
+        <p role="alert" className="border-l-4 border-destructive bg-destructive/5 px-4 py-3 text-base text-destructive">
+          {error || "The requested hub could not be found."}
+        </p>
       </Shell>
     );
   }
 
   const { hub, manager, orders, reports, inventory, activities, dailyProduction } = data;
+
   return (
     <Shell
-      title={`${hub.subhubName} · ${hub.name}`}
-      subtitle="Complete live operational view for this factory / hub"
+      title={hub.subhubName}
+      subtitle={`${hub.name} · ${manager.active ? "Active manager" : "Inactive manager"}`}
       actions={
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => void load()} className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm"><RefreshCw className="size-4" /> Refresh</button>
-          <Link to="/hubs" className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm"><ArrowLeft className="size-4" /> All hubs</Link>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            disabled={loading}
+            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input px-3 py-2 text-base font-medium hover:bg-muted disabled:opacity-50"
+          >
+            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh
+          </button>
+          <Link to="/hubs" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input px-3 py-2 text-base font-medium hover:bg-muted">
+            <ArrowLeft className="size-4" /> All hubs
+          </Link>
         </div>
       }
+      headerNav={
+        <HubModuleNav
+          active={activeView}
+          ariaLabel={`${hub.subhubName} sections`}
+          idPrefix="hub-detail"
+          items={hubDetailViews}
+          onSelect={(view) => setActiveView(view)}
+        />
+      }
     >
-      <div className="space-y-6 p-6">
-        {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Kpi label="Assigned target" value={num(hub.target)} hint={`${hub.orderCount} assigned ${hub.orderCount === 1 ? "order" : "orders"}`} />
-          <Kpi label="Produced" value={num(hub.produced)} tone="good" hint={`${hub.reportCount} production reports`} />
-          <Kpi label="Stock units" value={num(hub.stockUnits)} tone="neutral" hint={`₹${hub.stockValue.toLocaleString("en-IN")} stock value`} />
-          <Kpi label="Completion" value={`${hub.completion}%`} tone={statusTone(hub.status)} hint={hub.status} />
-        </div>
+      <div className="space-y-5">
+        {error ? <p role="alert" className="border-l-4 border-destructive bg-destructive/5 px-4 py-3 text-base text-destructive">{error}</p> : null}
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Panel title="Hub profile" description="Live manager and workspace information" className="lg:col-span-2">
-            <dl className="grid gap-x-8 divide-y divide-border text-sm sm:grid-cols-2 sm:divide-y-0">
-              <ProfileRow label="Factory / hub" value={hub.subhubName} icon={Factory} />
-              <ProfileRow label="Manager" value={hub.name} icon={ClipboardList} />
-              <ProfileRow label="Email" value={manager.email} icon={ClipboardList} />
-              <ProfileRow label="Account status" value={manager.active ? "Active" : "Inactive"} icon={CheckCircle2} />
-              <ProfileRow label="Created" value={dateTime(manager.createdAt)} icon={ClipboardList} />
-              <ProfileRow label="Last production report" value={dateTime(hub.lastProductionDate)} icon={TrendingUp} />
-            </dl>
-          </Panel>
-          <Panel title="Capacity & workload" description="Open target units compared with declared capacity">
-            <div className="space-y-4 p-5 text-sm">
-              <div className="flex items-center justify-between"><span className="text-muted-foreground">Declared capacity</span><span className="tabular font-semibold">{hub.capacityUnits === null ? "Unlimited" : `${num(hub.capacityUnits)} units`}</span></div>
-              <div className="flex items-center justify-between"><span className="text-muted-foreground">Open target units</span><span className="tabular font-semibold">{num(hub.openUnits)}</span></div>
-              <div className="flex items-center justify-between"><span className="text-muted-foreground">Available capacity</span><span className={`tabular font-semibold ${hub.overloaded ? "text-destructive" : "text-success"}`}>{hub.availableUnits === null ? "Unlimited" : num(hub.availableUnits)}</span></div>
-              <div className="border-t border-border pt-4"><Tag tone={hub.overloaded ? "bad" : statusTone(hub.status)}>{hub.overloaded ? "Over capacity" : hub.status}</Tag></div>
+        <section
+          id="hub-detail-panel-overview"
+          role="tabpanel"
+          aria-labelledby="hub-detail-tab-overview"
+          tabIndex={0}
+          hidden={activeView !== "overview"}
+          className="grid gap-x-10 gap-y-8 lg:grid-cols-2"
+        >
+          <div className="space-y-3">
+            <SectionHeading title="SubHub profile" description="Manager and workspace details" />
+            <KeyValueList items={[
+              { label: "Manager", value: hub.name },
+              { label: "Email", value: manager.email },
+              { label: "Account status", value: manager.active ? "Active" : "Inactive" },
+              { label: "Created", value: dateTime(manager.createdAt) },
+              { label: "Last production report", value: dateTime(hub.lastProductionDate) },
+              { label: "Production status", value: <Tag tone={statusTone(hub.status)}>{hub.status}</Tag> },
+              { label: "Assigned orders", value: num(hub.orderCount) },
+              { label: "Assigned target", value: `${num(hub.target)} units` },
+              { label: "Produced", value: `${num(hub.produced)} units` },
+              { label: "Remaining", value: `${num(hub.remaining)} units` },
+              { label: "Stock", value: `${num(hub.stockUnits)} units · ₹${hub.stockValue.toLocaleString("en-IN")}` },
+            ]} />
+          </div>
+          <div className="space-y-3">
+            <SectionHeading title="Capacity & workload" description="Active open targets compared with declared capacity" />
+            <KeyValueList items={[
+              { label: "Declared capacity", value: hub.capacityUnits === null ? "No limit" : `${num(hub.capacityUnits)} units` },
+              { label: "Current load", value: `${num(hub.openUnits)} open units` },
+              { label: "Available capacity", value: hub.availableUnits === null ? "No limit" : `${num(hub.availableUnits)} units` },
+              { label: "Capacity status", value: <Tag tone={hub.overloaded ? "bad" : statusTone(hub.status)}>{hub.overloaded ? "Over capacity" : hub.status}</Tag> },
+            ]} />
+          </div>
+        </section>
+
+        <section
+          id="hub-detail-panel-orders"
+          role="tabpanel"
+          aria-labelledby="hub-detail-tab-orders"
+          tabIndex={0}
+          hidden={activeView !== "orders"}
+          className="space-y-4"
+        >
+          <SectionHeading title="Assigned orders" description="Every production order currently assigned to this SubHub" />
+          {orders.length === 0 ? <Empty text="No production orders are assigned to this SubHub." /> : (
+            <div className="overflow-x-auto border-b border-border">
+              <table className="w-full min-w-[900px] text-base">
+                <thead className="border-b border-border bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="px-4 py-3 font-semibold">Order</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Product / variant</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Target</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Produced</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Remaining</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Due</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {orders.map((order) => (
+                    <tr key={order.id} className="hover:bg-muted/30">
+                      <td className="tabular whitespace-nowrap px-4 py-4 font-semibold">{order.orderNumber}</td>
+                      <td className="px-4 py-4">
+                        <span className="block font-semibold">{order.productName}</span>
+                        <span className="text-sm text-muted-foreground">{order.variantName} · {order.variantCode}</span>
+                      </td>
+                      <td className="tabular px-4 py-4 text-right">{num(order.target)}</td>
+                      <td className="tabular px-4 py-4 text-right font-semibold">{num(order.produced)}</td>
+                      <td className="tabular px-4 py-4 text-right">{num(order.remaining)}</td>
+                      <td className="tabular whitespace-nowrap px-4 py-4">{order.dueDate}</td>
+                      <td className="px-4 py-4"><Tag tone={statusTone(order.status)}>{order.status}</Tag></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </Panel>
-        </div>
+          )}
+        </section>
 
-        <Panel title="Production by day" description="Manager-entered production reports stored in this hub workspace">
-          {dailyProduction.length === 0 ? <Empty text="No production reports recorded for this hub." /> : <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4">{dailyProduction.slice(0, 12).map((day) => <div key={day.date} className="rounded-md border border-border bg-muted/15 p-4"><p className="text-xs text-muted-foreground">{day.date}</p><p className="tabular mt-1 text-xl font-semibold">{num(day.quantity)}</p><p className="text-xs text-muted-foreground">units produced</p></div>)}</div>}
-        </Panel>
+        <section
+          id="hub-detail-panel-daily"
+          role="tabpanel"
+          aria-labelledby="hub-detail-tab-daily"
+          tabIndex={0}
+          hidden={activeView !== "daily"}
+          className="space-y-4"
+        >
+          <SectionHeading title="Daily output" description="Daily production totals recorded in this SubHub workspace" />
+          {dailyProduction.length === 0 ? <Empty text="No production totals are recorded for this SubHub." /> : (
+            <div className="overflow-x-auto border-b border-border">
+              <table className="w-full min-w-[480px] text-base">
+                <thead className="border-b border-border bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="px-4 py-3 font-semibold">Date</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Units produced</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {dailyProduction.slice(0, 12).map((day) => (
+                    <tr key={day.date}>
+                      <td className="tabular px-4 py-4">{day.date}</td>
+                      <td className="tabular px-4 py-4 text-right font-semibold">{num(day.quantity)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
-        <Panel title="Assigned production orders" description="Every order currently assigned to this hub">
-          {orders.length === 0 ? <Empty text="No production orders assigned to this hub." /> : <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Order</th><th className="px-5 py-3 font-medium">Product / variant</th><th className="px-5 py-3 text-right font-medium">Target</th><th className="px-5 py-3 text-right font-medium">Produced</th><th className="px-5 py-3 text-right font-medium">Remaining</th><th className="px-5 py-3 font-medium">Due</th><th className="px-5 py-3 font-medium">Status</th></tr></thead><tbody>{orders.map((order) => <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40"><td className="tabular px-5 py-3 font-medium">{order.orderNumber}</td><td className="px-5 py-3"><p className="font-medium">{order.productName}</p><p className="text-xs text-muted-foreground">{order.variantName} · {order.variantCode}</p></td><td className="tabular px-5 py-3 text-right">{num(order.target)}</td><td className="tabular px-5 py-3 text-right font-semibold">{num(order.produced)}</td><td className="tabular px-5 py-3 text-right">{num(order.remaining)}</td><td className="tabular whitespace-nowrap px-5 py-3">{order.dueDate}</td><td className="px-5 py-3"><Tag tone={statusTone(order.status)}>{order.status}</Tag></td></tr>)}</tbody></table></div>}
-        </Panel>
+        <section
+          id="hub-detail-panel-reports"
+          role="tabpanel"
+          aria-labelledby="hub-detail-tab-reports"
+          tabIndex={0}
+          hidden={activeView !== "reports"}
+          className="space-y-4"
+        >
+          <SectionHeading title="Production reports" description="Report entries, notes, and batch-allocation references" />
+          {reports.length === 0 ? <Empty text="No production reports are recorded for this SubHub." /> : (
+            <div className="overflow-x-auto border-b border-border">
+              <table className="w-full min-w-[980px] text-base">
+                <thead className="border-b border-border bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="px-4 py-3 font-semibold">Date</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Order / variant</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Quantity</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Notes</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Batch allocation</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {reports.map((report) => (
+                    <tr key={report.id}>
+                      <td className="tabular whitespace-nowrap px-4 py-4">{report.date}</td>
+                      <td className="px-4 py-4">
+                        <span className="block font-semibold">{report.orderNumber}</span>
+                        <span className="text-sm text-muted-foreground">{report.productName} · {report.variantName} · {report.variantCode}</span>
+                      </td>
+                      <td className="tabular px-4 py-4 text-right font-semibold">{num(report.quantity)}</td>
+                      <td className="max-w-[260px] px-4 py-4 text-muted-foreground">{report.notes || "—"}</td>
+                      <td className="max-w-[360px] px-4 py-4 text-sm text-muted-foreground">
+                        {report.batchAllocation?.allocations?.length
+                          ? report.batchAllocation.allocations.map((allocation) => `${allocation.batchCode} (${num(allocation.quantity)})`).join(", ")
+                          : "FIFO allocation not recorded"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
-        <Panel title="Production report history" description="Detailed report entries and batch allocation references">
-          {reports.length === 0 ? <Empty text="No production reports recorded for this hub." /> : <div className="overflow-x-auto"><table className="w-full min-w-[980px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">Order / variant</th><th className="px-5 py-3 text-right font-medium">Quantity</th><th className="px-5 py-3 font-medium">Notes</th><th className="px-5 py-3 font-medium">Batch allocation</th></tr></thead><tbody>{reports.map((report) => <tr key={report.id} className="border-b border-border/70 last:border-0"><td className="tabular whitespace-nowrap px-5 py-3">{report.date}</td><td className="px-5 py-3"><p className="font-medium">{report.orderNumber}</p><p className="text-xs text-muted-foreground">{report.productName} · {report.variantName} · {report.variantCode}</p></td><td className="tabular px-5 py-3 text-right font-semibold">{num(report.quantity)}</td><td className="max-w-[260px] px-5 py-3 text-muted-foreground">{report.notes || "—"}</td><td className="px-5 py-3 text-xs text-muted-foreground">{report.batchAllocation?.allocations?.length ? report.batchAllocation.allocations.map((allocation) => `${allocation.batchCode} (${num(allocation.quantity)})`).join(", ") : "FIFO allocation not recorded"}</td></tr>)}</tbody></table></div>}
-        </Panel>
+        <section
+          id="hub-detail-panel-inventory"
+          role="tabpanel"
+          aria-labelledby="hub-detail-tab-inventory"
+          tabIndex={0}
+          hidden={activeView !== "inventory"}
+          className="space-y-4"
+        >
+          <SectionHeading
+            title="Current inventory"
+            description={`Raw materials and final products · ${num(hub.stockUnits)} units · ₹${hub.stockValue.toLocaleString("en-IN")} total value`}
+          />
+          {inventory.items.length === 0 ? <Empty text="No inventory items are recorded for this SubHub." /> : (
+            <div className="overflow-x-auto border-b border-border">
+              <table className="w-full min-w-[800px] text-base">
+                <thead className="border-b border-border bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="px-4 py-3 font-semibold">Item</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Category</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Quantity</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Unit price</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Last updated</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {inventory.items.map((item) => (
+                    <tr key={item.code}>
+                      <td className="px-4 py-4">
+                        <span className="block font-semibold">{item.name}</span>
+                        <span className="tabular text-sm text-muted-foreground">{item.code}</span>
+                      </td>
+                      <td className="px-4 py-4"><Tag tone={item.category === "Float" ? "info" : "neutral"}>{item.category === "Float" ? "Final product" : "Raw material"}</Tag></td>
+                      <td className="tabular whitespace-nowrap px-4 py-4 text-right font-semibold">{num(item.quantity)} {item.unit}</td>
+                      <td className="tabular whitespace-nowrap px-4 py-4 text-right">₹{item.price.toLocaleString("en-IN")}</td>
+                      <td className="tabular whitespace-nowrap px-4 py-4 text-sm text-muted-foreground">{dateTime(item.loggedAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
-        <Panel title="Current inventory" description="All raw materials and final products stored in this hub workspace">
-          {inventory.items.length === 0 ? <Empty text="No inventory items recorded for this hub." /> : <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Item</th><th className="px-5 py-3 font-medium">Category</th><th className="px-5 py-3 text-right font-medium">Quantity</th><th className="px-5 py-3 text-right font-medium">Unit price</th><th className="px-5 py-3 font-medium">Last updated</th></tr></thead><tbody>{inventory.items.map((item) => <tr key={item.code} className="border-b border-border/70 last:border-0"><td className="px-5 py-3"><p className="font-medium">{item.name}</p><p className="tabular text-xs text-muted-foreground">{item.code}</p></td><td className="px-5 py-3"><Tag tone={item.category === "Float" ? "info" : "neutral"}>{item.category === "Float" ? "Final product" : "Raw material"}</Tag></td><td className="tabular px-5 py-3 text-right font-semibold">{num(item.quantity)} {item.unit}</td><td className="tabular px-5 py-3 text-right">₹{item.price.toLocaleString("en-IN")}</td><td className="tabular whitespace-nowrap px-5 py-3 text-xs text-muted-foreground">{dateTime(item.loggedAt)}</td></tr>)}</tbody></table></div>}
-        </Panel>
-
-        <div className="space-y-6">
+        <section
+          id="hub-detail-panel-batches"
+          role="tabpanel"
+          aria-labelledby="hub-detail-tab-batches"
+          tabIndex={0}
+          hidden={activeView !== "batches"}
+          className="space-y-4"
+        >
           <HubBatchBrowser hubId={hubId} panel="admin" initialBatches={inventory.batches} />
-          <Panel title="Quality history" description="Quality deductions recorded in this hub workspace">
-            {inventory.qualityLogs.length === 0 ? <Empty text="No quality records recorded for this hub." /> : <div className="overflow-x-auto"><table className="w-full min-w-[680px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">Item</th><th className="px-5 py-3 font-medium">Issue</th><th className="px-5 py-3 text-right font-medium">Units</th><th className="px-5 py-3 font-medium">Notes</th></tr></thead><tbody>{inventory.qualityLogs.map((log) => <tr key={log.id} className="border-b border-border/70 last:border-0"><td className="tabular whitespace-nowrap px-5 py-3 text-xs">{dateTime(log.date)}</td><td className="px-5 py-3"><p className="font-medium">{log.product}</p><p className="tabular text-xs text-muted-foreground">{log.code} · {log.batchCode || "FIFO"}</p></td><td className="px-5 py-3"><Tag tone="bad">{log.issue}</Tag></td><td className="tabular px-5 py-3 text-right font-semibold text-destructive">-{num(log.quantity)}</td><td className="max-w-[220px] truncate px-5 py-3 text-muted-foreground">{log.notes || "—"}</td></tr>)}</tbody></table></div>}
-          </Panel>
-        </div>
+        </section>
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          <Panel title="Inventory movement history" description="Latest receipts, production, consumption, quality and adjustments">
-            {inventory.batchMovements.length === 0 ? <Empty text="No batch movements recorded for this hub." /> : <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3 font-medium">Date</th><th className="px-5 py-3 font-medium">Item / batch</th><th className="px-5 py-3 font-medium">Type</th><th className="px-5 py-3 text-right font-medium">Change</th><th className="px-5 py-3 font-medium">Reason</th></tr></thead><tbody>{inventory.batchMovements.slice(0, 100).map((movement) => <tr key={movement.id} className="border-b border-border/70 last:border-0"><td className="tabular whitespace-nowrap px-5 py-3 text-xs">{dateTime(movement.createdAt)}</td><td className="px-5 py-3"><p className="font-medium">{movement.itemCode}</p><p className="tabular text-xs text-muted-foreground">{movement.batchCode}</p></td><td className="px-5 py-3"><Tag tone={movement.quantityDelta > 0 ? "good" : movement.type === "QUALITY" ? "bad" : "neutral"}>{movement.type}</Tag></td><td className={`tabular px-5 py-3 text-right font-semibold ${movement.quantityDelta > 0 ? "text-success" : "text-destructive"}`}>{movement.quantityDelta > 0 ? "+" : ""}{num(movement.quantityDelta)}</td><td className="max-w-[220px] truncate px-5 py-3 text-muted-foreground">{movement.reason}</td></tr>)}</tbody></table></div>}
-          </Panel>
-          <Panel title="Order activity" description="Assignment and production changes affecting this hub">
-            {activities.length === 0 ? <Empty text="No order activity recorded for this hub." /> : <div className="divide-y divide-border">{activities.map((activity) => <div key={activity.id} className="flex gap-3 px-5 py-3 text-sm"><div className="mt-0.5 rounded-full bg-primary/10 p-1.5 text-primary"><ArrowRight className="size-3.5" /></div><div className="min-w-0"><p className="font-medium">{activity.summary}</p><p className="mt-0.5 text-xs text-muted-foreground">{activity.details}</p><p className="mt-1 text-xs text-muted-foreground">{activity.actorName} · {dateTime(activity.createdAt)}</p></div></div>)}</div>}
-          </Panel>
-        </div>
+        <section
+          id="hub-detail-panel-quality"
+          role="tabpanel"
+          aria-labelledby="hub-detail-tab-quality"
+          tabIndex={0}
+          hidden={activeView !== "quality"}
+          className="space-y-4"
+        >
+          <SectionHeading title="Quality history" description="Quality deductions recorded in this SubHub workspace" />
+          {inventory.qualityLogs.length === 0 ? <Empty text="No quality records are recorded for this SubHub." /> : (
+            <div className="overflow-x-auto border-b border-border">
+              <table className="w-full min-w-[720px] text-base">
+                <thead className="border-b border-border bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="px-4 py-3 font-semibold">Date</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Item</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Issue</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Units</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Notes</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {inventory.qualityLogs.map((log) => (
+                    <tr key={log.id}>
+                      <td className="tabular whitespace-nowrap px-4 py-4 text-sm">{dateTime(log.date)}</td>
+                      <td className="px-4 py-4">
+                        <span className="block font-semibold">{log.product}</span>
+                        <span className="tabular text-sm text-muted-foreground">{log.code} · {log.batchCode || "FIFO"}</span>
+                      </td>
+                      <td className="px-4 py-4"><Tag tone="bad">{log.issue}</Tag></td>
+                      <td className="tabular px-4 py-4 text-right font-semibold text-destructive">-{num(log.quantity)}</td>
+                      <td className="max-w-[260px] px-4 py-4 text-muted-foreground">{log.notes || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <section
+          id="hub-detail-panel-movements"
+          role="tabpanel"
+          aria-labelledby="hub-detail-tab-movements"
+          tabIndex={0}
+          hidden={activeView !== "movements"}
+          className="space-y-4"
+        >
+          <SectionHeading title="Inventory movements" description="Receipts, production, consumption, quality, and adjustments" />
+          {inventory.batchMovements.length === 0 ? <Empty text="No inventory movements are recorded for this SubHub." /> : (
+            <div className="overflow-x-auto border-b border-border">
+              <table className="w-full min-w-[760px] text-base">
+                <thead className="border-b border-border bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="px-4 py-3 font-semibold">Date</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Item / batch</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Type</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Change</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Reason</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {inventory.batchMovements.slice(0, 100).map((movement) => (
+                    <tr key={movement.id}>
+                      <td className="tabular whitespace-nowrap px-4 py-4 text-sm">{dateTime(movement.createdAt)}</td>
+                      <td className="px-4 py-4">
+                        <span className="block font-semibold">{movement.itemCode}</span>
+                        <span className="tabular text-sm text-muted-foreground">{movement.batchCode}</span>
+                      </td>
+                      <td className="px-4 py-4"><Tag tone={movement.quantityDelta > 0 ? "good" : movement.type === "QUALITY" ? "bad" : "neutral"}>{movement.type}</Tag></td>
+                      <td className={`tabular px-4 py-4 text-right font-semibold ${movement.quantityDelta > 0 ? "text-success" : "text-destructive"}`}>
+                        {movement.quantityDelta > 0 ? "+" : ""}{num(movement.quantityDelta)}
+                      </td>
+                      <td className="max-w-[260px] px-4 py-4 text-muted-foreground">{movement.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <section
+          id="hub-detail-panel-activity"
+          role="tabpanel"
+          aria-labelledby="hub-detail-tab-activity"
+          tabIndex={0}
+          hidden={activeView !== "activity"}
+          className="space-y-4"
+        >
+          <SectionHeading title="Order activity" description="Assignment and production changes affecting this SubHub" />
+          {activities.length === 0 ? <Empty text="No order activity is recorded for this SubHub." /> : (
+            <div className="divide-y divide-border border-b border-border">
+              {activities.map((activity) => (
+                <article key={activity.id} className="py-4 first:pt-0">
+                  <p className="text-base font-semibold">{activity.summary}</p>
+                  <p className="mt-1 text-base text-muted-foreground">{activity.details}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{activity.actorName} · {dateTime(activity.createdAt)}</p>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </Shell>
   );
 }
 
-function ProfileRow({ label, value, icon: Icon }: { label: string; value: string; icon: typeof Factory }) {
-  return <div className="flex items-center gap-3 border-b border-border px-5 py-3 last:border-0 sm:border-b-0"><Icon className="size-4 text-muted-foreground" /><span className="text-muted-foreground">{label}</span><span className="ml-auto max-w-[55%] truncate text-right font-medium">{value}</span></div>;
+function SectionHeading({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="border-b border-border pb-3">
+      <h2 className="text-lg font-semibold">{title}</h2>
+      <p className="mt-1 text-base text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+function KeyValueList({ items }: { items: { label: string; value: ReactNode }[] }) {
+  return (
+    <dl className="divide-y divide-border border-b border-border">
+      {items.map((item) => (
+        <div key={item.label} className="flex min-h-12 items-center justify-between gap-6 py-3">
+          <dt className="text-base text-muted-foreground">{item.label}</dt>
+          <dd className="max-w-[60%] text-right text-base font-semibold">{item.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
 }
 
 function Empty({ text }: { text: string }) {
-  return <p className="p-8 text-center text-sm text-muted-foreground"><Boxes className="mx-auto mb-2 size-6" />{text}</p>;
+  return (
+    <p className="py-10 text-center text-base text-muted-foreground">
+      <Boxes className="mx-auto mb-2 size-6" />
+      {text}
+    </p>
+  );
 }

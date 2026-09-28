@@ -1,8 +1,9 @@
 import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
-import { ArrowRight, MapPin, RefreshCw } from "lucide-react";
+import { ArrowRight, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
+import { HubModuleNav } from "@/components/erp/HubModuleNav";
 import { Shell } from "@/components/erp/Shell";
-import { Kpi, Panel, Tag } from "@/components/erp/bits";
+import { Tag } from "@/components/erp/bits";
 import { getAdminProductionDashboardFn } from "@/production";
 import type { AdminProductionDashboard, HubSummary } from "@/production.server";
 import { num } from "@/lib/erp-data";
@@ -32,7 +33,7 @@ const emptyDashboard: AdminProductionDashboard = {
   latestReportDate: null,
 };
 
-function toneFor(status: HubSummary["status"]): "good" | "warn" | "bad" | "neutral" {
+function toneFor(status: HubSummary["status"] | "Unstarted"): "good" | "warn" | "bad" | "neutral" {
   if (status === "Complete") return "good";
   if (status === "Over target") return "good";
   if (status === "In progress") return "warn";
@@ -40,11 +41,19 @@ function toneFor(status: HubSummary["status"]): "good" | "warn" | "bad" | "neutr
   return "neutral";
 }
 
+const hubViews = [
+  { id: "hubs", label: "SubHubs" },
+  { id: "orders", label: "Assigned output" },
+] as const;
+
+type HubView = (typeof hubViews)[number]["id"];
+
 function Hubs() {
   const { pathname } = useLocation();
   const [dashboard, setDashboard] = useState(emptyDashboard);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [activeView, setActiveView] = useState<HubView>("hubs");
 
   async function load() {
     setLoading(true);
@@ -70,115 +79,134 @@ function Hubs() {
   return (
     <Shell
       title="Hubs & Stock"
-      subtitle="Live SubHub performance from assigned targets and manager-entered daily production"
+      subtitle="SubHub production, stock, and assigned output"
       actions={
-        <button type="button" onClick={() => void load()} className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm">
-          <RefreshCw className="size-4" /> Refresh live data
+        <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input px-3 py-2 text-base font-medium hover:bg-muted disabled:opacity-50">
+          <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh
         </button>
       }
+      headerNav={
+        <HubModuleNav
+          active={activeView}
+          ariaLabel="Hubs and stock views"
+          idPrefix="hub-list"
+          items={hubViews}
+          onSelect={(view) => setActiveView(view)}
+        />
+      }
     >
-      <div className="space-y-6 p-6">
-        {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Kpi label="Assigned target" value={num(dashboard.totalTarget)} hint={`${dashboard.orders.length} orders across ${dashboard.hubs.length} SubHubs`} />
-          <Kpi label="Produced" value={num(dashboard.totalProduced)} tone="good" hint="from stored daily reports" />
-          <Kpi label="Remaining" value={num(dashboard.totalRemaining)} tone="warn" hint="assigned units still open" />
-          <Kpi label="Completion" value={`${dashboard.completion}%`} tone={dashboard.completion >= 100 ? "good" : "neutral"} hint={`${dashboard.reportsToday} reports today`} />
-        </div>
+      <div className="space-y-5">
+        {error ? <p role="alert" className="border-l-4 border-destructive bg-destructive/5 px-4 py-3 text-base text-destructive">{error}</p> : null}
 
-        <Panel title="Hub performance" description="Every row is a managed SubHub; no shared or seeded hub totals are shown.">
-          {loading ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">Loading live hub data…</p>
+        <section
+          id="hub-list-panel-hubs"
+          role="tabpanel"
+          aria-labelledby="hub-list-tab-hubs"
+          tabIndex={0}
+          hidden={activeView !== "hubs"}
+          className="space-y-4"
+        >
+          <div className="border-b border-border pb-3">
+            <h2 className="text-lg font-semibold">SubHub overview</h2>
+            <p className="mt-1 text-base text-muted-foreground">Live production and stock totals from each SubHub workspace.</p>
+          </div>
+          {loading && !dashboard.hubs.length ? (
+            <p className="py-8 text-center text-base text-muted-foreground">Loading SubHub data…</p>
           ) : dashboard.hubs.length === 0 ? (
-            <div className="p-10 text-center">
-              <MapPin className="mx-auto size-8 text-muted-foreground" />
-              <p className="mt-3 font-medium">No active SubHub Managers yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">Create a SubHub Manager and assign an order to start seeing hub performance here.</p>
-            </div>
+            <p className="py-8 text-center text-base text-muted-foreground">No active SubHub Managers are available.</p>
           ) : (
-            <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
-              {dashboard.hubs.map((hub) => (
-                <article key={hub.userId} className="rounded-lg border border-border p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><MapPin className="size-3.5" /> {hub.subhubName}</p>
-                      <h2 className="mt-1 truncate font-semibold">{hub.name}</h2>
-                    </div>
-                    <Tag tone={toneFor(hub.status)}>{hub.status}</Tag>
-                  </div>
-                  <div className="mt-5 grid grid-cols-3 gap-3 text-xs">
-                    <Metric label="Target" value={num(hub.target)} />
-                    <Metric label="Produced" value={num(hub.produced)} />
-                    <Metric label="Reports" value={num(hub.reportCount)} />
-                    <Metric label="Stock units" value={num(hub.stockUnits)} />
-                  </div>
-                  <div className="mt-4">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>{hub.orderCount} assigned {hub.orderCount === 1 ? "order" : "orders"}</span>
-                      <span className="tabular font-semibold text-foreground">{hub.completion}%</span>
-                    </div>
-                    <div className="mt-2 h-2 rounded-full bg-muted">
-                      <div className={`h-2 rounded-full ${hub.completion >= 100 ? "bg-success" : hub.completion > 0 ? "bg-primary" : "bg-muted-foreground/30"}`} style={{ width: `${Math.min(100, hub.completion)}%` }} />
-                    </div>
-                  </div>
-                  <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
-                    Last report: <span className="font-medium text-foreground">{hub.lastProductionDate ?? "No report submitted"}</span>
-                    <span className="mx-1">·</span>
-                    Stock value: <span className="font-medium text-foreground">₹{hub.stockValue.toLocaleString("en-IN")}</span>
-                  </p>
-                  <Link to="/hubs/$hubId" params={{ hubId: hub.userId }} className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline">
-                    View details <ArrowRight className="size-4" />
-                  </Link>
-                </article>
-              ))}
-            </div>
-          )}
-        </Panel>
-
-        <Panel title="Assigned output by order" description="Production totals below are calculated from reports stored in each SubHub workspace.">
-          {dashboard.orders.length === 0 ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">No assigned orders to report yet.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-sm">
-                <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <div className="overflow-x-auto border-b border-border">
+              <table aria-label="SubHub overview" className="w-full min-w-[1050px] text-base">
+                <thead className="border-b border-border bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    <th className="px-5 py-3 font-medium">SubHub</th>
-                    <th className="px-5 py-3 font-medium">Order</th>
-                    <th className="px-5 py-3 font-medium">Variant</th>
-                    <th className="px-5 py-3 text-right font-medium">Target</th>
-                    <th className="px-5 py-3 text-right font-medium">Produced</th>
-                    <th className="px-5 py-3 text-right font-medium">Remaining</th>
-                    <th className="px-5 py-3 text-right font-medium">Status</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Factory / SubHub</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Manager</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Active orders</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Target</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Produced</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Remaining</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Stock</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Status</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {dashboard.orders.map((order) => (
-                    <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
-                      <td className="px-5 py-3">{order.subhubName}</td>
-                      <td className="tabular px-5 py-3 font-medium">{order.orderNumber}</td>
-                      <td className="px-5 py-3"><span className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">{order.productName}</span><span className="mt-1 block font-medium">{order.variantName}</span><span className="tabular text-xs text-muted-foreground">{order.variantCode}</span></td>
-                      <td className="tabular px-5 py-3 text-right">{num(order.target)}</td>
-                      <td className="tabular px-5 py-3 text-right font-semibold">{num(order.produced)}</td>
-                      <td className="tabular px-5 py-3 text-right">{num(order.remaining)}</td>
-                      <td className="px-5 py-3 text-right"><Tag tone={order.status === "Complete" || order.status === "Over target" ? "good" : order.status === "In progress" ? "warn" : "neutral"}>{order.status}</Tag></td>
+                <tbody className="divide-y divide-border">
+                  {dashboard.hubs.map((hub) => (
+                    <tr key={hub.userId} className="hover:bg-muted/30">
+                      <th scope="row" className="px-4 py-4 text-left font-semibold">
+                        <Link to="/hubs/$hubId" params={{ hubId: hub.userId }} className="inline-flex items-center gap-1 text-primary hover:underline">
+                          {hub.subhubName}<ArrowRight className="size-4" />
+                        </Link>
+                        <span className="mt-1 block text-sm font-normal text-muted-foreground">
+                          Last report: {hub.lastProductionDate ?? "No report submitted"}
+                        </span>
+                      </th>
+                      <td className="px-4 py-4">{hub.name || "—"}</td>
+                      <td className="tabular px-4 py-4 text-right">{num(hub.orderCount)}</td>
+                      <td className="tabular px-4 py-4 text-right">{num(hub.target)}</td>
+                      <td className="tabular px-4 py-4 text-right font-semibold">{num(hub.produced)}</td>
+                      <td className="tabular px-4 py-4 text-right">{num(hub.remaining)}</td>
+                      <td className="tabular whitespace-nowrap px-4 py-4 text-right">
+                        <span className="block font-semibold">{num(hub.stockUnits)} units</span>
+                        <span className="text-sm text-muted-foreground">₹{hub.stockValue.toLocaleString("en-IN")}</span>
+                      </td>
+                      <td className="px-4 py-4"><Tag tone={toneFor(hub.status)}>{hub.status}</Tag></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-        </Panel>
+        </section>
 
-        <div className="rounded-md border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-          <p className="font-medium text-foreground">Stock source</p>
-          <p className="mt-1">Stock units and value on each hub card come from inventory movements saved in that SubHub’s workspace. Order rows show production output; stock is summarized at the hub level.</p>
-        </div>
+        <section
+          id="hub-list-panel-orders"
+          role="tabpanel"
+          aria-labelledby="hub-list-tab-orders"
+          tabIndex={0}
+          hidden={activeView !== "orders"}
+          className="space-y-4"
+        >
+          <div className="border-b border-border pb-3">
+            <h2 className="text-lg font-semibold">Assigned output</h2>
+            <p className="mt-1 text-base text-muted-foreground">Production totals from reports stored in each SubHub workspace.</p>
+          </div>
+          {dashboard.orders.length === 0 ? (
+            <p className="py-8 text-center text-base text-muted-foreground">No assigned orders to report yet.</p>
+          ) : (
+            <div className="overflow-x-auto border-b border-border">
+              <table aria-label="Assigned output by order" className="w-full min-w-[900px] text-base">
+                <thead className="border-b border-border bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="px-4 py-3 font-semibold">SubHub</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Order</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Product / variant</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Target</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Produced</th>
+                    <th scope="col" className="px-4 py-3 text-right font-semibold">Remaining</th>
+                    <th scope="col" className="px-4 py-3 font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {dashboard.orders.map((order) => (
+                    <tr key={order.id} className="hover:bg-muted/30">
+                      <td className="px-4 py-4">{order.subhubName}</td>
+                      <td className="tabular px-4 py-4 font-semibold">{order.orderNumber}</td>
+                      <td className="px-4 py-4">
+                        <span className="block font-semibold">{order.productName}</span>
+                        <span className="text-sm text-muted-foreground">{order.variantName} · {order.variantCode}</span>
+                      </td>
+                      <td className="tabular px-4 py-4 text-right">{num(order.target)}</td>
+                      <td className="tabular px-4 py-4 text-right font-semibold">{num(order.produced)}</td>
+                      <td className="tabular px-4 py-4 text-right">{num(order.remaining)}</td>
+                      <td className="px-4 py-4"><Tag tone={toneFor(order.status)}>{order.status}</Tag></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
     </Shell>
   );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return <div><p className="text-muted-foreground">{label}</p><p className="tabular mt-1 text-sm font-semibold">{value}</p></div>;
 }

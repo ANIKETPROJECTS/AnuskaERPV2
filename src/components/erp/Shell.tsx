@@ -97,12 +97,14 @@ export function Shell({
   title,
   subtitle,
   actions,
+  headerNav,
   mainClassName = "flex-1 space-y-6 p-6",
   children,
 }: {
   title: string;
   subtitle?: string | undefined;
   actions?: ReactNode | undefined;
+  headerNav?: ReactNode | undefined;
   mainClassName?: string;
   children: ReactNode;
 }) {
@@ -274,6 +276,11 @@ export function Shell({
             {user?.panel === "admin" ? <NotificationBell panel="admin" /> : null}
             {actions}
           </div>
+          {headerNav ? (
+            <div className="border-t border-border px-4 md:px-6">
+              {headerNav}
+            </div>
+          ) : null}
           <nav className="flex gap-1 overflow-x-auto border-t border-border px-4 py-2 lg:hidden">
             {visibleNav.map((item) => {
               if ("children" in item) {
