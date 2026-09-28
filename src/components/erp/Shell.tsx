@@ -1,11 +1,13 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   LayoutDashboard,
   Layers,
   ClipboardList,
   Factory,
   AlertTriangle,
+  ChevronDown,
+  Truck,
   Users,
   Database,
   PackagePlus,
@@ -30,28 +32,31 @@ const nav = [
   { to: "/hubs", label: "Hubs & Stock", icon: Factory, permission: "hubs" },
   { to: "/shortages", label: "Shortages", icon: AlertTriangle, permission: "shortages" },
   {
-    to: "/admin/procurement/orders",
-    label: "Order Management",
-    icon: ClipboardList,
+    label: "Procurement",
+    icon: Truck,
     permission: "procurement",
-  },
-  {
-    to: "/admin/procurement/vendors",
-    label: "Vendor Management",
-    icon: Store,
-    permission: "procurement",
-  },
-  {
-    to: "/admin/procurement/hub-stock",
-    label: "Hub stock & targets",
-    icon: PackagePlus,
-    permission: "procurement",
-  },
-  {
-    to: "/admin/procurement/item-requests",
-    label: "Item requests",
-    icon: ClipboardList,
-    permission: "procurement",
+    children: [
+      {
+        to: "/admin/procurement/orders",
+        label: "Order Management",
+        icon: ClipboardList,
+      },
+      {
+        to: "/admin/procurement/vendors",
+        label: "Vendor Management",
+        icon: Store,
+      },
+      {
+        to: "/admin/procurement/hub-stock",
+        label: "Hub stock & targets",
+        icon: PackagePlus,
+      },
+      {
+        to: "/admin/procurement/item-requests",
+        label: "Item requests",
+        icon: ClipboardList,
+      },
+    ],
   },
   { to: "/production", label: "Production & Workforce", icon: Users, permission: "production" },
   { to: "/admin/users", label: "User Management", icon: UserCog, permission: "user-management" },
