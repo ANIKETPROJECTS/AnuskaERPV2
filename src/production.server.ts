@@ -59,6 +59,12 @@ export type ManagerProductionData = {
   reports: ProductionReport[];
 };
 
+export type AdminProductionOrderDetail = {
+  order: ProductionOrder;
+  reports: ProductionReport[];
+  activities: ProductionOrderActivity[];
+};
+
 export type HubSummary = {
   userId: string;
   name: string;
@@ -1169,6 +1175,48 @@ export async function getProductionOrderActivity(orderId: string, panel: Panel):
     .limit(100)
     .toArray();
   return { ok: true, activities: activities.map(serializeOrderActivity) };
+}
+
+export async function getAdminProductionOrderDetail(orderId: string): Promise<
+  { ok: true; data: AdminProductionOrderDetail } | { ok: false; data: null; message: string }
+> {
+  const current = await getCurrentUserRecord("admin");
+  if (!isAdmin(current)) {
+    return { ok: false, data: null, message: "Only Admin users can view production order details." };
+  }
+
+  const controlDb = await getControlPlaneDatabase();
+  const order = await controlDb.collection<ProductionOrderDocument>("production_orders").findOne({ _id: orderId });
+  if (!order) return { ok: false, data: null, message: "The production order could not be found." };
+
+  const subhub = await controlDb.collection<UserDocument>("users").findOne({
+    _id: order.subhubUserId,
+    panel: "subhub",
+    role: "subhub",
+  });
+  if (!subhub) return { ok: false, data: null, message: "The assigned SubHub could not be found." };
+
+  const workspaceDb = await getMongoDb(subhub.databaseName);
+  const [reports, activities] = await Promise.all([
+    workspaceDb.collection<ProductionReportDocument>("production_reports")
+      .find({ orderId: order._id })
+      .sort({ date: -1, updatedAt: -1 })
+      .toArray(),
+    controlDb.collection<OrderActivityDocument>("production_order_activity")
+      .find({ orderId: order._id })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .toArray(),
+  ]);
+
+  return {
+    ok: true,
+    data: {
+      order: summarizeOrder(order, reports),
+      reports: reports.map((report) => serializeReport(report)),
+      activities: activities.map(serializeOrderActivity),
+    },
+  };
 }
 
 export async function searchWorkspace(query: string, panel: Panel, scope: WorkspaceSearchScope): Promise<

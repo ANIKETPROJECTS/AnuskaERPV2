@@ -43,6 +43,7 @@ import { Route as ProcurementManagementHubStockRouteImport } from './routes/proc
 import { Route as ProcurementManagementItemRequestsRouteImport } from './routes/procurement-management.item-requests'
 import { Route as ProcurementManagementOrdersRouteImport } from './routes/procurement-management.orders'
 import { Route as ProcurementManagementVendorsRouteImport } from './routes/procurement-management.vendors'
+import { Route as ProductionOrdersOrderIdRouteImport } from './routes/production-orders.$orderId'
 import { Route as SkuCodeRouteImport } from './routes/sku.$code'
 import { Route as SubhubBomRouteImport } from './routes/subhub.bom'
 import { Route as SubhubFloatParentRouteImport } from './routes/subhub.float-parent'
@@ -243,6 +244,11 @@ const ProcurementManagementVendorsRoute =
     path: '/vendors',
     getParentRoute: () => ProcurementManagementRoute,
   } as any)
+const ProductionOrdersOrderIdRoute = ProductionOrdersOrderIdRouteImport.update({
+  id: '/production-orders/$orderId',
+  path: '/production-orders/$orderId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SkuCodeRoute = SkuCodeRouteImport.update({
   id: '/sku/$code',
   path: '/sku/$code',
@@ -412,6 +418,7 @@ export interface FileRoutesByFullPath {
   '/procurement-management/item-requests': typeof ProcurementManagementItemRequestsRoute
   '/procurement-management/orders': typeof ProcurementManagementOrdersRoute
   '/procurement-management/vendors': typeof ProcurementManagementVendorsRoute
+  '/production-orders/$orderId': typeof ProductionOrdersOrderIdRoute
   '/sku/$code': typeof SkuCodeRoute
   '/subhub/bom': typeof SubhubBomRouteWithChildren
   '/subhub/float-parent': typeof SubhubFloatParentRoute
@@ -473,6 +480,7 @@ export interface FileRoutesByTo {
   '/procurement-management/item-requests': typeof ProcurementManagementItemRequestsRoute
   '/procurement-management/orders': typeof ProcurementManagementOrdersRoute
   '/procurement-management/vendors': typeof ProcurementManagementVendorsRoute
+  '/production-orders/$orderId': typeof ProductionOrdersOrderIdRoute
   '/sku/$code': typeof SkuCodeRoute
   '/subhub/bom': typeof SubhubBomRouteWithChildren
   '/subhub/float-parent': typeof SubhubFloatParentRoute
@@ -535,6 +543,7 @@ export interface FileRoutesById {
   '/procurement-management/item-requests': typeof ProcurementManagementItemRequestsRoute
   '/procurement-management/orders': typeof ProcurementManagementOrdersRoute
   '/procurement-management/vendors': typeof ProcurementManagementVendorsRoute
+  '/production-orders/$orderId': typeof ProductionOrdersOrderIdRoute
   '/sku/$code': typeof SkuCodeRoute
   '/subhub/bom': typeof SubhubBomRouteWithChildren
   '/subhub/float-parent': typeof SubhubFloatParentRoute
@@ -598,6 +607,7 @@ export interface FileRouteTypes {
     | '/procurement-management/item-requests'
     | '/procurement-management/orders'
     | '/procurement-management/vendors'
+    | '/production-orders/$orderId'
     | '/sku/$code'
     | '/subhub/bom'
     | '/subhub/float-parent'
@@ -659,6 +669,7 @@ export interface FileRouteTypes {
     | '/procurement-management/item-requests'
     | '/procurement-management/orders'
     | '/procurement-management/vendors'
+    | '/production-orders/$orderId'
     | '/sku/$code'
     | '/subhub/bom'
     | '/subhub/float-parent'
@@ -720,6 +731,7 @@ export interface FileRouteTypes {
     | '/procurement-management/item-requests'
     | '/procurement-management/orders'
     | '/procurement-management/vendors'
+    | '/production-orders/$orderId'
     | '/sku/$code'
     | '/subhub/bom'
     | '/subhub/float-parent'
@@ -768,6 +780,7 @@ export interface RootRouteChildren {
   HubCodeRoute: typeof HubCodeRoute
   PartCodeRoute: typeof PartCodeRoute
   PoIdRoute: typeof PoIdRoute
+  ProductionOrdersOrderIdRoute: typeof ProductionOrdersOrderIdRoute
   SkuCodeRoute: typeof SkuCodeRoute
   WorkerIdRoute: typeof WorkerIdRoute
 }
@@ -1011,6 +1024,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/procurement-management/vendors'
       preLoaderRoute: typeof ProcurementManagementVendorsRouteImport
       parentRoute: typeof ProcurementManagementRoute
+    }
+    '/production-orders/$orderId': {
+      id: '/production-orders/$orderId'
+      path: '/production-orders/$orderId'
+      fullPath: '/production-orders/$orderId'
+      preLoaderRoute: typeof ProductionOrdersOrderIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/sku/$code': {
       id: '/sku/$code'
@@ -1408,6 +1428,7 @@ const rootRouteChildren: RootRouteChildren = {
   HubCodeRoute: HubCodeRoute,
   PartCodeRoute: PartCodeRoute,
   PoIdRoute: PoIdRoute,
+  ProductionOrdersOrderIdRoute: ProductionOrdersOrderIdRoute,
   SkuCodeRoute: SkuCodeRoute,
   WorkerIdRoute: WorkerIdRoute,
 }

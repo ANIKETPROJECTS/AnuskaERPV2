@@ -4,25 +4,19 @@ import {
   ArrowRight,
   ChevronDown,
   ClipboardList,
-  Edit3,
   Plus,
   RefreshCw,
   Save,
   Settings2,
-  Trash2,
-  X,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useAuth } from "@/components/auth/AuthContext";
 import { ProductionTargetsNav } from "@/components/erp/ProductionTargetsNav";
 import { Shell } from "@/components/erp/Shell";
 import { Tag } from "@/components/erp/bits";
 import { TablePagination } from "@/components/erp/TablePagination";
-import { getAdminProductionDashboardFn, getProductionOrderActivityFn, listAssignableSubhubsFn, reassignProductionOrderFn, setAdminHubCapacityFn } from "@/production";
-import { deleteProductionOrderFn, updateProductionOrderFn } from "@/production";
-import type { AdminProductionDashboard, AssignableSubhub, ProductionOrder, ProductionOrderActivity } from "@/production.server";
-import { bomCatalog } from "@/lib/bom-catalog";
+import { getAdminProductionDashboardFn, listAssignableSubhubsFn, setAdminHubCapacityFn } from "@/production";
+import type { AdminProductionDashboard, AssignableSubhub, ProductionOrder } from "@/production.server";
 import { num } from "@/lib/erp-data";
 
 export const Route = createFileRoute("/orders")({
@@ -51,27 +45,18 @@ function formatOrderDate(value: string) {
 }
 
 function Orders() {
-  const auth = useAuth();
-  const isMasterAdmin = auth.user?.role === "master_admin";
   const [dashboard, setDashboard] = useState<AdminProductionDashboard | null>(null);
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
   const [subhubs, setSubhubs] = useState<AssignableSubhub[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
-  const [activities, setActivities] = useState<Record<string, ProductionOrderActivity[]>>({});
-  const [activityLoading, setActivityLoading] = useState("");
-  const [reassigningOrderId, setReassigningOrderId] = useState("");
   const [search, setSearch] = useState("");
   const [subhubFilter, setSubhubFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<ProductionOrder["status"] | "all">("all");
   const [orderPage, setOrderPage] = useState(1);
-  const [orderPageSize, setOrderPageSize] = useState(10);
+  const orderPageSize = 25;
   const [savingCapacityId, setSavingCapacityId] = useState("");
   const [capacitySuccess, setCapacitySuccess] = useState("");
-  const [editingOrder, setEditingOrder] = useState<ProductionOrder | null>(null);
-  const [savingOrderId, setSavingOrderId] = useState("");
-  const [orderSuccess, setOrderSuccess] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -120,38 +105,6 @@ function Orders() {
     return filteredOrders.slice(start, start + orderPageSize);
   }, [filteredOrders, orderPage, orderPageSize]);
 
-  async function toggleActivity(orderId: string) {
-    if (expandedOrderId === orderId) {
-      setExpandedOrderId(null);
-      return;
-    }
-    setExpandedOrderId(orderId);
-    if (activities[orderId]) return;
-    setActivityLoading(orderId);
-    const result = await getProductionOrderActivityFn({ data: { orderId, panel: "admin" } });
-    if (result.ok) setActivities((current) => ({ ...current, [orderId]: result.activities }));
-    else setError(result.message);
-    setActivityLoading("");
-  }
-
-  async function reassignOrder(orderId: string, subhubUserId: string, reason: string) {
-    setReassigningOrderId(orderId);
-    setError("");
-    const result = await reassignProductionOrderFn({ data: { orderId, subhubUserId, reason } });
-    if (!result.ok) {
-      setError(result.message);
-    } else {
-      setActivities((current) => {
-        const next = { ...current };
-        delete next[orderId];
-        return next;
-      });
-      setExpandedOrderId(null);
-      await load();
-    }
-    setReassigningOrderId("");
-  }
-
   async function saveHubCapacity(subhubUserId: string, capacityUnits: number | null) {
     setSavingCapacityId(subhubUserId);
     setCapacitySuccess("");
@@ -165,55 +118,6 @@ function Orders() {
     }
     setSavingCapacityId("");
     return result;
-  }
-
-  async function saveTarget(input: {
-    orderId: string;
-    subhubUserId: string;
-    productCode: string;
-    variantCode: string;
-    target: number;
-    dueDate: string;
-    notes: string;
-  }) {
-    setSavingOrderId(input.orderId);
-    setError("");
-    setOrderSuccess("");
-    const result = await updateProductionOrderFn({ data: input });
-    if (!result.ok) {
-      setError(result.message);
-    } else {
-      setEditingOrder(null);
-      setActivities((current) => {
-        const next = { ...current };
-        delete next[input.orderId];
-        return next;
-      });
-      setOrderSuccess(`${result.order.orderNumber} was updated successfully.`);
-      await load();
-    }
-    setSavingOrderId("");
-  }
-
-  async function deleteTarget(order: ProductionOrder) {
-    if (!window.confirm(`Delete ${order.orderNumber}? This will permanently remove the target, its production reports, and its activity history.`)) return;
-    setSavingOrderId(order.id);
-    setError("");
-    setOrderSuccess("");
-    const result = await deleteProductionOrderFn({ data: { orderId: order.id } });
-    if (!result.ok) {
-      setError(result.message);
-    } else {
-      setExpandedOrderId(null);
-      setActivities((current) => {
-        const next = { ...current };
-        delete next[order.id];
-        return next;
-      });
-      setOrderSuccess(`${result.orderNumber} was deleted successfully.`);
-      await load();
-    }
-    setSavingOrderId("");
   }
 
   return (
@@ -236,7 +140,6 @@ function Orders() {
         <ProductionTargetsNav active="orders" />
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
         {capacitySuccess ? <p role="status" className="rounded-md border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-700">{capacitySuccess}</p> : null}
-        {orderSuccess ? <p role="status" className="rounded-md border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-700">{orderSuccess}</p> : null}
         <section aria-labelledby="production-orders-heading" className="space-y-4">
           <div>
             <h2 id="production-orders-heading" className="text-base font-semibold">Production orders</h2>
@@ -326,21 +229,7 @@ function Orders() {
                 </thead>
                 <tbody>
                   {paginatedOrders.map((order) => (
-                    <OrderRow
-                      key={order.id}
-                      order={order}
-                      subhubs={subhubs}
-                      activity={activities[order.id] ?? []}
-                      activityLoading={activityLoading === order.id}
-                      reassigning={reassigningOrderId === order.id}
-                      activityOpen={expandedOrderId === order.id}
-                      canManage={isMasterAdmin}
-                      saving={savingOrderId === order.id}
-                      onToggleActivity={() => void toggleActivity(order.id)}
-                      onReassign={(subhubUserId, reason) => void reassignOrder(order.id, subhubUserId, reason)}
-                      onEdit={() => setEditingOrder(order)}
-                      onDelete={() => void deleteTarget(order)}
-                    />
+                    <OrderRow key={order.id} order={order} />
                   ))}
                 </tbody>
               </table>
@@ -352,7 +241,8 @@ function Orders() {
               page={orderPage}
               pageSize={orderPageSize}
               onPageChange={setOrderPage}
-              onPageSizeChange={setOrderPageSize}
+              onPageSizeChange={() => undefined}
+              showPageSizeSelect={false}
             />
           ) : null}
         </section>
@@ -404,8 +294,6 @@ function Orders() {
           </details>
         ) : null}
       </div>
-      {editingOrder ? <TargetEditor order={editingOrder} subhubs={subhubs} busy={savingOrderId === editingOrder.id} onClose={() => setEditingOrder(null)} onSave={saveTarget} /> : null}
-
     </Shell>
   );
 }
@@ -489,272 +377,37 @@ function HubCapacityRow({
   );
 }
 
-function TargetEditor({
-  order,
-  subhubs,
-  busy,
-  onClose,
-  onSave,
-}: {
-  order: ProductionOrder;
-  subhubs: AssignableSubhub[];
-  busy: boolean;
-  onClose: () => void;
-  onSave: (input: {
-    orderId: string;
-    subhubUserId: string;
-    productCode: string;
-    variantCode: string;
-    target: number;
-    dueDate: string;
-    notes: string;
-  }) => Promise<void>;
-}) {
-  const [subhubUserId, setSubhubUserId] = useState(order.subhubUserId);
-  const [productCode, setProductCode] = useState(order.productCode);
-  const [variantCode, setVariantCode] = useState(order.variantCode);
-  const [target, setTarget] = useState(String(order.target));
-  const [dueDate, setDueDate] = useState(order.dueDate);
-  const [notes, setNotes] = useState(order.notes);
-  const product = bomCatalog.find((item) => item.code === productCode) ?? bomCatalog[0];
-
-  function changeProduct(nextProductCode: string) {
-    const nextProduct = bomCatalog.find((item) => item.code === nextProductCode);
-    setProductCode(nextProductCode);
-    setVariantCode(nextProduct?.variants[0]?.code ?? "");
-  }
-
-  function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void onSave({
-      orderId: order.id,
-      subhubUserId,
-      productCode,
-      variantCode,
-      target: Number(target),
-      dueDate,
-      notes,
-    });
-  }
-
+function OrderRow({ order }: { order: ProductionOrder }) {
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-black/25" role="dialog" aria-modal="true" aria-labelledby="edit-production-target-title">
-      <div className="flex h-full w-full max-w-xl flex-col overflow-y-auto border-l border-border bg-card p-6 shadow-xl">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Master Admin controls</p>
-            <h2 id="edit-production-target-title" className="mt-2 text-xl font-semibold">Edit production target</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{order.orderNumber} · update the assigned SubHub, variant, quantity, date, or notes.</p>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Close edit target" className="rounded-md p-1.5 text-muted-foreground hover:bg-muted">
-            <X className="size-5" />
-          </button>
-        </div>
-        <form onSubmit={submit} className="mt-7 space-y-4">
-          <label className="block text-sm font-medium">
-            Destination SubHub
-            <select required value={subhubUserId} onChange={(event) => setSubhubUserId(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary">
-              <option value="">Select SubHub</option>
-              {subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.subhubName} · {subhub.name}</option>)}
-            </select>
-          </label>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block text-sm font-medium">
-              Float type
-              <select required value={productCode} onChange={(event) => changeProduct(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary">
-                {bomCatalog.map((item) => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}
-              </select>
-            </label>
-            <label className="block text-sm font-medium">
-              Variant
-              <select required value={variantCode} onChange={(event) => setVariantCode(event.target.value)} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary">
-                {(product?.variants ?? []).map((variant) => <option key={variant.code} value={variant.code}>{variant.name} · {variant.code}</option>)}
-              </select>
-            </label>
-            <label className="block text-sm font-medium">
-              Target quantity
-              <input required type="number" min="1" step="1" value={target} onChange={(event) => setTarget(event.target.value)} className="tabular mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" />
-            </label>
-            <label className="block text-sm font-medium">
-              Due date
-              <input required type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="tabular mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:border-primary" />
-            </label>
-          </div>
-          <label className="block text-sm font-medium">
-            Instructions <span className="font-normal text-muted-foreground">(optional)</span>
-            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={4} className="mt-1.5 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:border-primary" />
-          </label>
-          <div className="flex justify-end gap-3 border-t border-border pt-5">
-            <button type="button" onClick={onClose} className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted">Cancel</button>
-            <button type="submit" disabled={busy} className="rule-header inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-60">
-              <Save className="size-4" /> {busy ? "Saving…" : "Save target"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function OrderRow({
-  order,
-  subhubs,
-  activity,
-  activityLoading,
-  reassigning,
-  activityOpen,
-  canManage,
-  saving,
-  onToggleActivity,
-  onReassign,
-  onEdit,
-  onDelete,
-}: {
-  order: ProductionOrder;
-  subhubs: AssignableSubhub[];
-  activity?: ProductionOrderActivity[];
-  activityLoading: boolean;
-  reassigning: boolean;
-  activityOpen: boolean;
-  canManage: boolean;
-  saving: boolean;
-  onToggleActivity: () => void;
-  onReassign: (subhubUserId: string, reason: string) => void;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  const [destinationId, setDestinationId] = useState(order.subhubUserId);
-  const [reason, setReason] = useState("");
-
-  useEffect(() => {
-    setDestinationId(order.subhubUserId);
-  }, [order.subhubUserId]);
-
-  return (
-    <>
-      <tr className="border-b border-border/70 hover:bg-muted/30">
-        <td className="px-4 py-3">
-          <p className="tabular font-semibold">{order.orderNumber}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{order.subhubName}</p>
-        </td>
-        <td className="px-4 py-3">
-          <p className="font-medium">{order.productName}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{order.variantName} · {order.variantCode}</p>
-        </td>
-        <td className="tabular px-4 py-3 text-right font-medium">{num(order.target)}</td>
-        <td className="tabular px-4 py-3 text-right">{num(order.produced)}</td>
-        <td className="tabular px-4 py-3 text-right font-medium">{num(order.remaining)}</td>
-        <td className="whitespace-nowrap px-4 py-3 text-xs">{formatOrderDate(order.dueDate)}</td>
-        <td className="px-4 py-3"><Tag tone={statusTone(order.status)}>{order.status}</Tag></td>
-        <td className="px-4 py-3 text-right">
-          <button
-            type="button"
-            onClick={onToggleActivity}
-            aria-expanded={activityOpen}
-            className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-sm font-medium text-primary hover:bg-primary/5"
-          >
-            {activityLoading ? "Loading…" : activityOpen ? "Close" : "Manage"}
-            <ChevronDown className={`size-4 transition-transform ${activityOpen ? "rotate-180" : ""}`} />
-          </button>
-        </td>
-      </tr>
-      {activityOpen ? (
-        <tr className="border-b border-border/70">
-          <td colSpan={8} className="bg-muted/10 px-4 py-4">
-            <div className="grid gap-6 lg:grid-cols-2">
-              <section aria-label={`Actions for ${order.orderNumber}`} className="space-y-3">
-                <div>
-                  <h3 className="text-sm font-semibold">Manage {order.orderNumber}</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">Assigned to {order.subhubName}</p>
-                  {order.notes ? <p className="mt-2 text-sm">{order.notes}</p> : null}
-                </div>
-                <label className="block max-w-xl text-sm font-medium">
-                  Move to another SubHub
-                  <div className="mt-1.5 flex flex-wrap gap-2">
-                    <select
-                      value={destinationId}
-                      onChange={(event) => setDestinationId(event.target.value)}
-                      aria-label={`Destination SubHub for ${order.orderNumber}`}
-                      className="h-10 min-w-48 flex-1 rounded-md border border-input bg-background px-3 text-sm font-normal"
-                    >
-                      {subhubs.map((subhub) => (
-                        <option key={subhub.id} value={subhub.id}>{subhub.subhubName}</option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      disabled={reassigning || destinationId === order.subhubUserId}
-                      onClick={() => onReassign(destinationId, reason)}
-                      className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <ArrowRight className="size-4" /> {reassigning ? "Moving…" : "Move order"}
-                    </button>
-                  </div>
-                </label>
-                {destinationId !== order.subhubUserId ? (
-                  <label className="block max-w-xl text-xs font-medium text-muted-foreground">
-                    Reason for moving <span className="font-normal">(optional)</span>
-                    <input
-                      value={reason}
-                      onChange={(event) => setReason(event.target.value)}
-                      aria-label={`Reason for moving ${order.orderNumber}`}
-                      className="mt-1 block h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-normal text-foreground"
-                    />
-                  </label>
-                ) : null}
-                {canManage ? (
-                  <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-                    <button
-                      type="button"
-                      onClick={onEdit}
-                      disabled={saving}
-                      className="inline-flex min-h-9 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted disabled:opacity-50"
-                    >
-                      <Edit3 className="size-4" /> Edit target
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onDelete}
-                      disabled={saving}
-                      className="inline-flex min-h-9 items-center gap-2 rounded-md border border-destructive/30 px-3 text-sm font-medium text-destructive hover:bg-destructive/5 disabled:opacity-50"
-                    >
-                      <Trash2 className="size-4" /> {saving ? "Deleting…" : "Delete target"}
-                    </button>
-                  </div>
-                ) : null}
-              </section>
-              <section aria-label={`History for ${order.orderNumber}`} className="border-t border-border pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
-                <ActivityTimeline activities={activity ?? []} loading={activityLoading} />
-              </section>
-            </div>
-          </td>
-        </tr>
-      ) : null}
-    </>
-  );
-}
-
-function ActivityTimeline({ activities, loading }: { activities: ProductionOrderActivity[]; loading: boolean }) {
-  if (loading) return <p className="text-sm text-muted-foreground">Loading order activity…</p>;
-  if (!activities.length) return <p className="text-sm text-muted-foreground">No activity has been recorded for this order yet.</p>;
-  return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Order activity</p>
-      <div className="mt-3 space-y-3">
-        {activities.map((activity) => (
-          <div key={activity.id} className="flex gap-3 text-sm">
-            <div className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                <p className="font-medium">{activity.summary}</p>
-                <time className="text-xs text-muted-foreground">{activity.createdAt.replace("T", " ").slice(0, 16)}</time>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">{activity.details}</p>
-              <p className="mt-1 text-xs text-muted-foreground">By {activity.actorName} · {activity.actorRole}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+    <tr className="border-b border-border/70 hover:bg-muted/30">
+      <td className="px-4 py-3">
+        <Link
+          to="/production-orders/$orderId"
+          params={{ orderId: order.id }}
+          className="tabular font-semibold text-primary hover:underline"
+        >
+          {order.orderNumber}
+        </Link>
+        <p className="mt-1 text-xs text-muted-foreground">{order.subhubName}</p>
+      </td>
+      <td className="px-4 py-3">
+        <p className="font-medium">{order.productName}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{order.variantName} · {order.variantCode}</p>
+      </td>
+      <td className="tabular px-4 py-3 text-right font-medium">{num(order.target)}</td>
+      <td className="tabular px-4 py-3 text-right">{num(order.produced)}</td>
+      <td className="tabular px-4 py-3 text-right font-medium">{num(order.remaining)}</td>
+      <td className="whitespace-nowrap px-4 py-3 text-xs">{formatOrderDate(order.dueDate)}</td>
+      <td className="px-4 py-3"><Tag tone={statusTone(order.status)}>{order.status}</Tag></td>
+      <td className="px-4 py-3 text-right">
+        <Link
+          to="/production-orders/$orderId"
+          params={{ orderId: order.id }}
+          className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-sm font-medium text-primary hover:bg-primary/5"
+        >
+          View details <ArrowRight className="size-4" />
+        </Link>
+      </td>
+    </tr>
   );
 }

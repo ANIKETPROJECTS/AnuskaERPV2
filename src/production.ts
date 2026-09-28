@@ -5,6 +5,7 @@ import {
   createProductionOrders,
   getAdminProductionDashboard,
   getAdminHubDetail,
+  getAdminProductionOrderDetail,
   getManagerProductionData,
   getOrderNotifications,
   getProductionOrderActivity,
@@ -78,6 +79,10 @@ const deleteOrderSchema = z.object({
   orderId: z.string().min(1),
 });
 
+const productionOrderDetailSchema = z.object({
+  orderId: z.string().min(1),
+});
+
 const searchSchema = z.object({
   query: z.string().max(100),
   panel: z.enum(["admin", "subhub"]),
@@ -92,6 +97,7 @@ export const listProductionOrdersFn = createServerFn({ method: "GET" }).handler(
 export const getManagerProductionDataFn = createServerFn({ method: "GET" }).handler(() => getManagerProductionData());
 export const getAdminProductionDashboardFn = createServerFn({ method: "GET" }).handler(() => getAdminProductionDashboard());
 export const getAdminHubDetailFn = createServerFn({ method: "POST" }).validator(hubDetailSchema).handler(({ data }) => getAdminHubDetail(data.hubId));
+export const getAdminProductionOrderDetailFn = createServerFn({ method: "POST" }).validator(productionOrderDetailSchema).handler(({ data }) => getAdminProductionOrderDetail(data.orderId));
 export const createProductionOrderFn = createServerFn({ method: "POST" }).validator(orderSchema).handler(({ data }) => createProductionOrder(data));
 export const createProductionOrdersFn = createServerFn({ method: "POST" }).validator(batchOrderSchema).handler(({ data }) => createProductionOrders(data));
 export const saveDailyProductionFn = createServerFn({ method: "POST" }).validator(reportSchema).handler(({ data }) => saveDailyProduction(data));
