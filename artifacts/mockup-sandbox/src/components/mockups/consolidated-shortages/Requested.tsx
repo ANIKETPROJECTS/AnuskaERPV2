@@ -105,7 +105,8 @@ export function Requested() {
   const visibleListRows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return rows.filter((row) => {
-      const matchesQuery = !normalized || `${row.name} ${row.code}`.toLowerCase().includes(normalized);
+      const matchesQuery =
+        !normalized || `${row.name} ${row.code}`.toLowerCase().includes(normalized);
       const matchesHub = hub === "all" || row.hub === hub;
       const matchesStatus = status === "all" || statusFor(row) === status;
       return matchesQuery && matchesHub && matchesStatus;
@@ -186,7 +187,11 @@ export function Requested() {
             ? `${visibleParts.length} subparts across ${visibleHubs.length} SubHubs`
             : `${visibleListRows.length} matching part–SubHub rows`}
         </p>
-        <div role="group" aria-label="Shortage view" className="inline-flex rounded-md border border-input p-1">
+        <div
+          role="group"
+          aria-label="Shortage view"
+          className="inline-flex rounded-md border border-input p-1"
+        >
           <button
             type="button"
             aria-pressed={viewMode === "matrix"}

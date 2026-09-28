@@ -368,8 +368,8 @@ function Shortages() {
                 <h2 className="text-lg font-semibold">Parts and stock by SubHub</h2>
                 <p className="mt-0.5 text-sm text-muted-foreground">
                   Showing {formatNumber(firstVisibleRow)}–{formatNumber(lastVisibleRow)} of{" "}
-                  {formatNumber(visibleListRows.length)} matching rows (
-                  {formatNumber(totalHubRows)} total)
+                  {formatNumber(visibleListRows.length)} matching rows ({formatNumber(totalHubRows)}{" "}
+                  total)
                 </p>
               </div>
             </header>
