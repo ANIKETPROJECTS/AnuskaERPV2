@@ -24,6 +24,7 @@ import { Route as QualityManagementRouteImport } from './routes/quality-manageme
 import { Route as RawMaterialsRouteImport } from './routes/raw-materials'
 import { Route as ShortagesRouteImport } from './routes/shortages'
 import { Route as SubhubRouteImport } from './routes/subhub'
+import { Route as AdminProcurementRouteImport } from './routes/admin.procurement'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as BomCodeRouteImport } from './routes/bom.$code'
 import { Route as HrHistoryRouteImport } from './routes/hr.history'
@@ -51,6 +52,10 @@ import { Route as SubhubRawMaterialsRouteImport } from './routes/subhub.raw-mate
 import { Route as SubhubReportsRouteImport } from './routes/subhub.reports'
 import { Route as SubhubRequestItemsRouteImport } from './routes/subhub.request-items'
 import { Route as WorkerIdRouteImport } from './routes/worker.$id'
+import { Route as AdminProcurementHubStockRouteImport } from './routes/admin.procurement.hub-stock'
+import { Route as AdminProcurementItemRequestsRouteImport } from './routes/admin.procurement.item-requests'
+import { Route as AdminProcurementOrdersRouteImport } from './routes/admin.procurement.orders'
+import { Route as AdminProcurementVendorsRouteImport } from './routes/admin.procurement.vendors'
 import { Route as AdminUsersUserIdRouteImport } from './routes/admin.users.$userId'
 import { Route as InventoryBatchesBatchIdRouteImport } from './routes/inventory.batches.$batchId'
 import { Route as InventoryItemsItemCodeRouteImport } from './routes/inventory.items.$itemCode'
@@ -137,6 +142,11 @@ const ShortagesRoute = ShortagesRouteImport.update({
 const SubhubRoute = SubhubRouteImport.update({
   id: '/subhub',
   path: '/subhub',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminProcurementRoute = AdminProcurementRouteImport.update({
+  id: '/admin/procurement',
+  path: '/admin/procurement',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
@@ -278,6 +288,28 @@ const WorkerIdRoute = WorkerIdRouteImport.update({
   path: '/worker/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminProcurementHubStockRoute =
+  AdminProcurementHubStockRouteImport.update({
+    id: '/hub-stock',
+    path: '/hub-stock',
+    getParentRoute: () => AdminProcurementRoute,
+  } as any)
+const AdminProcurementItemRequestsRoute =
+  AdminProcurementItemRequestsRouteImport.update({
+    id: '/item-requests',
+    path: '/item-requests',
+    getParentRoute: () => AdminProcurementRoute,
+  } as any)
+const AdminProcurementOrdersRoute = AdminProcurementOrdersRouteImport.update({
+  id: '/orders',
+  path: '/orders',
+  getParentRoute: () => AdminProcurementRoute,
+} as any)
+const AdminProcurementVendorsRoute = AdminProcurementVendorsRouteImport.update({
+  id: '/vendors',
+  path: '/vendors',
+  getParentRoute: () => AdminProcurementRoute,
+} as any)
 const AdminUsersUserIdRoute = AdminUsersUserIdRouteImport.update({
   id: '/$userId',
   path: '/$userId',
@@ -361,6 +393,7 @@ export interface FileRoutesByFullPath {
   '/raw-materials': typeof RawMaterialsRoute
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
+  '/admin/procurement': typeof AdminProcurementRouteWithChildren
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/bom/$code': typeof BomCodeRoute
   '/hr/history': typeof HrHistoryRoute
@@ -388,6 +421,10 @@ export interface FileRoutesByFullPath {
   '/subhub/reports': typeof SubhubReportsRoute
   '/subhub/request-items': typeof SubhubRequestItemsRouteWithChildren
   '/worker/$id': typeof WorkerIdRoute
+  '/admin/procurement/hub-stock': typeof AdminProcurementHubStockRoute
+  '/admin/procurement/item-requests': typeof AdminProcurementItemRequestsRoute
+  '/admin/procurement/orders': typeof AdminProcurementOrdersRoute
+  '/admin/procurement/vendors': typeof AdminProcurementVendorsRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
   '/inventory/items/$itemCode': typeof InventoryItemsItemCodeRoute
@@ -417,6 +454,7 @@ export interface FileRoutesByTo {
   '/raw-materials': typeof RawMaterialsRoute
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
+  '/admin/procurement': typeof AdminProcurementRouteWithChildren
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/bom/$code': typeof BomCodeRoute
   '/hr/history': typeof HrHistoryRoute
@@ -444,6 +482,10 @@ export interface FileRoutesByTo {
   '/subhub/reports': typeof SubhubReportsRoute
   '/subhub/request-items': typeof SubhubRequestItemsRouteWithChildren
   '/worker/$id': typeof WorkerIdRoute
+  '/admin/procurement/hub-stock': typeof AdminProcurementHubStockRoute
+  '/admin/procurement/item-requests': typeof AdminProcurementItemRequestsRoute
+  '/admin/procurement/orders': typeof AdminProcurementOrdersRoute
+  '/admin/procurement/vendors': typeof AdminProcurementVendorsRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
   '/inventory/items/$itemCode': typeof InventoryItemsItemCodeRoute
@@ -474,6 +516,7 @@ export interface FileRoutesById {
   '/raw-materials': typeof RawMaterialsRoute
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
+  '/admin/procurement': typeof AdminProcurementRouteWithChildren
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/bom/$code': typeof BomCodeRoute
   '/hr/history': typeof HrHistoryRoute
@@ -501,6 +544,10 @@ export interface FileRoutesById {
   '/subhub/reports': typeof SubhubReportsRoute
   '/subhub/request-items': typeof SubhubRequestItemsRouteWithChildren
   '/worker/$id': typeof WorkerIdRoute
+  '/admin/procurement/hub-stock': typeof AdminProcurementHubStockRoute
+  '/admin/procurement/item-requests': typeof AdminProcurementItemRequestsRoute
+  '/admin/procurement/orders': typeof AdminProcurementOrdersRoute
+  '/admin/procurement/vendors': typeof AdminProcurementVendorsRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
   '/inventory/batches/$batchId': typeof InventoryBatchesBatchIdRoute
   '/inventory/items/$itemCode': typeof InventoryItemsItemCodeRoute
@@ -532,6 +579,7 @@ export interface FileRouteTypes {
     | '/raw-materials'
     | '/shortages'
     | '/subhub'
+    | '/admin/procurement'
     | '/admin/users'
     | '/bom/$code'
     | '/hr/history'
@@ -559,6 +607,10 @@ export interface FileRouteTypes {
     | '/subhub/reports'
     | '/subhub/request-items'
     | '/worker/$id'
+    | '/admin/procurement/hub-stock'
+    | '/admin/procurement/item-requests'
+    | '/admin/procurement/orders'
+    | '/admin/procurement/vendors'
     | '/admin/users/$userId'
     | '/inventory/batches/$batchId'
     | '/inventory/items/$itemCode'
@@ -588,6 +640,7 @@ export interface FileRouteTypes {
     | '/raw-materials'
     | '/shortages'
     | '/subhub'
+    | '/admin/procurement'
     | '/admin/users'
     | '/bom/$code'
     | '/hr/history'
@@ -615,6 +668,10 @@ export interface FileRouteTypes {
     | '/subhub/reports'
     | '/subhub/request-items'
     | '/worker/$id'
+    | '/admin/procurement/hub-stock'
+    | '/admin/procurement/item-requests'
+    | '/admin/procurement/orders'
+    | '/admin/procurement/vendors'
     | '/admin/users/$userId'
     | '/inventory/batches/$batchId'
     | '/inventory/items/$itemCode'
@@ -644,6 +701,7 @@ export interface FileRouteTypes {
     | '/raw-materials'
     | '/shortages'
     | '/subhub'
+    | '/admin/procurement'
     | '/admin/users'
     | '/bom/$code'
     | '/hr/history'
@@ -671,6 +729,10 @@ export interface FileRouteTypes {
     | '/subhub/reports'
     | '/subhub/request-items'
     | '/worker/$id'
+    | '/admin/procurement/hub-stock'
+    | '/admin/procurement/item-requests'
+    | '/admin/procurement/orders'
+    | '/admin/procurement/vendors'
     | '/admin/users/$userId'
     | '/inventory/batches/$batchId'
     | '/inventory/items/$itemCode'
@@ -701,6 +763,7 @@ export interface RootRouteChildren {
   RawMaterialsRoute: typeof RawMaterialsRoute
   ShortagesRoute: typeof ShortagesRoute
   SubhubRoute: typeof SubhubRouteWithChildren
+  AdminProcurementRoute: typeof AdminProcurementRouteWithChildren
   AdminUsersRoute: typeof AdminUsersRouteWithChildren
   HubCodeRoute: typeof HubCodeRoute
   PartCodeRoute: typeof PartCodeRoute
@@ -814,6 +877,13 @@ declare module '@tanstack/react-router' {
       path: '/subhub'
       fullPath: '/subhub'
       preLoaderRoute: typeof SubhubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/procurement': {
+      id: '/admin/procurement'
+      path: '/admin/procurement'
+      fullPath: '/admin/procurement'
+      preLoaderRoute: typeof AdminProcurementRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/users': {
@@ -1004,6 +1074,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/worker/$id'
       preLoaderRoute: typeof WorkerIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/procurement/hub-stock': {
+      id: '/admin/procurement/hub-stock'
+      path: '/hub-stock'
+      fullPath: '/admin/procurement/hub-stock'
+      preLoaderRoute: typeof AdminProcurementHubStockRouteImport
+      parentRoute: typeof AdminProcurementRoute
+    }
+    '/admin/procurement/item-requests': {
+      id: '/admin/procurement/item-requests'
+      path: '/item-requests'
+      fullPath: '/admin/procurement/item-requests'
+      preLoaderRoute: typeof AdminProcurementItemRequestsRouteImport
+      parentRoute: typeof AdminProcurementRoute
+    }
+    '/admin/procurement/orders': {
+      id: '/admin/procurement/orders'
+      path: '/orders'
+      fullPath: '/admin/procurement/orders'
+      preLoaderRoute: typeof AdminProcurementOrdersRouteImport
+      parentRoute: typeof AdminProcurementRoute
+    }
+    '/admin/procurement/vendors': {
+      id: '/admin/procurement/vendors'
+      path: '/vendors'
+      fullPath: '/admin/procurement/vendors'
+      preLoaderRoute: typeof AdminProcurementVendorsRouteImport
+      parentRoute: typeof AdminProcurementRoute
     }
     '/admin/users/$userId': {
       id: '/admin/users/$userId'
@@ -1260,6 +1358,23 @@ const SubhubRouteChildren: SubhubRouteChildren = {
 const SubhubRouteWithChildren =
   SubhubRoute._addFileChildren(SubhubRouteChildren)
 
+interface AdminProcurementRouteChildren {
+  AdminProcurementHubStockRoute: typeof AdminProcurementHubStockRoute
+  AdminProcurementItemRequestsRoute: typeof AdminProcurementItemRequestsRoute
+  AdminProcurementOrdersRoute: typeof AdminProcurementOrdersRoute
+  AdminProcurementVendorsRoute: typeof AdminProcurementVendorsRoute
+}
+
+const AdminProcurementRouteChildren: AdminProcurementRouteChildren = {
+  AdminProcurementHubStockRoute: AdminProcurementHubStockRoute,
+  AdminProcurementItemRequestsRoute: AdminProcurementItemRequestsRoute,
+  AdminProcurementOrdersRoute: AdminProcurementOrdersRoute,
+  AdminProcurementVendorsRoute: AdminProcurementVendorsRoute,
+}
+
+const AdminProcurementRouteWithChildren =
+  AdminProcurementRoute._addFileChildren(AdminProcurementRouteChildren)
+
 interface AdminUsersRouteChildren {
   AdminUsersUserIdRoute: typeof AdminUsersUserIdRoute
 }
@@ -1288,6 +1403,7 @@ const rootRouteChildren: RootRouteChildren = {
   RawMaterialsRoute: RawMaterialsRoute,
   ShortagesRoute: ShortagesRoute,
   SubhubRoute: SubhubRouteWithChildren,
+  AdminProcurementRoute: AdminProcurementRouteWithChildren,
   AdminUsersRoute: AdminUsersRouteWithChildren,
   HubCodeRoute: HubCodeRoute,
   PartCodeRoute: PartCodeRoute,

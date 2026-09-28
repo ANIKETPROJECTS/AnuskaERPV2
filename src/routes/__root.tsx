@@ -185,6 +185,7 @@ function RootComponent() {
 }
 
 function sectionForPath(pathname: string): string | null {
+  if (pathname.startsWith("/admin/procurement")) return "procurement";
   if (pathname.startsWith("/admin/users")) return "user-management";
   if (pathname.startsWith("/raw-materials")) return "raw-materials";
   if (pathname.startsWith("/bom")) return "bom";
@@ -211,6 +212,7 @@ function sectionForPath(pathname: string): string | null {
 }
 
 function panelForPath(pathname: string, searchStr = ""): "admin" | "subhub" | "procurement" | undefined {
+  if (pathname.startsWith("/admin/procurement")) return "admin";
   if (pathname.startsWith("/subhub") || pathname.startsWith("/inventory")) return "subhub";
   if (pathname.startsWith("/procurement-management")) return "procurement";
   if (pathname.startsWith("/procurement")) {

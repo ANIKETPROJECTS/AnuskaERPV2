@@ -148,7 +148,7 @@ function Shortages() {
             Refresh
           </button>
           <Link
-            to="/procurement"
+            to="/admin/procurement/orders"
             className="rule-header inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-base font-semibold"
           >
             <Send className="size-4" aria-hidden="true" />

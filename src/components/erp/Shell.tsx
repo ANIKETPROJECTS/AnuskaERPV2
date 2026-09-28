@@ -6,7 +6,6 @@ import {
   ClipboardList,
   Factory,
   AlertTriangle,
-  Truck,
   Users,
   Database,
   PackagePlus,
@@ -30,7 +29,30 @@ const nav = [
   { to: "/orders", label: "Orders & Targets", icon: ClipboardList, permission: "orders" },
   { to: "/hubs", label: "Hubs & Stock", icon: Factory, permission: "hubs" },
   { to: "/shortages", label: "Shortages", icon: AlertTriangle, permission: "shortages" },
-  { to: "/procurement", label: "Procurement", icon: Truck, permission: "procurement" },
+  {
+    to: "/admin/procurement/orders",
+    label: "Order Management",
+    icon: ClipboardList,
+    permission: "procurement",
+  },
+  {
+    to: "/admin/procurement/vendors",
+    label: "Vendor Management",
+    icon: Store,
+    permission: "procurement",
+  },
+  {
+    to: "/admin/procurement/hub-stock",
+    label: "Hub stock & targets",
+    icon: PackagePlus,
+    permission: "procurement",
+  },
+  {
+    to: "/admin/procurement/item-requests",
+    label: "Item requests",
+    icon: ClipboardList,
+    permission: "procurement",
+  },
   { to: "/production", label: "Production & Workforce", icon: Users, permission: "production" },
   { to: "/admin/users", label: "User Management", icon: UserCog, permission: "user-management" },
   { to: "/hr", label: "HR & Attendance", icon: UserRoundCog, permission: "hr" },
@@ -73,8 +95,8 @@ export function Shell({
   children,
 }: {
   title: string;
-  subtitle?: string;
-  actions?: ReactNode;
+  subtitle?: string | undefined;
+  actions?: ReactNode | undefined;
   mainClassName?: string;
   children: ReactNode;
 }) {
@@ -131,11 +153,6 @@ export function Shell({
               <Link
                 key={item.to}
                 to={destination}
-                search={
-                  "permission" in item && item.permission === "procurement"
-                    ? { panel: user?.panel ?? "admin" }
-                    : undefined
-                }
                 className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-base leading-snug transition-colors ${
                   active
                     ? isProcurementPanel
@@ -194,13 +211,6 @@ export function Shell({
               <Link
                 key={item.to}
                 to={item.to}
-                search={
-                  "permission" in item &&
-                  item.permission === "procurement" &&
-                  user?.panel !== "procurement"
-                    ? { panel: user?.panel ?? "admin" }
-                    : undefined
-                }
                 className="whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted-foreground"
                 activeProps={{
                   className: isProcurementPanel

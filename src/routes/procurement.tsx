@@ -152,13 +152,16 @@ type ProcurementResult = Awaited<ReturnType<typeof getProcurementDataFn>>;
 export function ProcurementPage({
   result,
   view,
+  dedicatedView = false,
 }: {
   result: ProcurementResult;
   view?: ProcurementView;
+  dedicatedView?: boolean;
 }) {
   const auth = useAuth();
   const canManageProcurement = auth.user?.panel === "admin" || auth.user?.panel === "procurement";
   const panel = auth.user?.panel ?? "admin";
+  const showDedicatedView = dedicatedView || panel === "procurement";
   const [data, setData] = useState<ProcurementData>(result.ok ? result.data : emptyData);
   const [tab, setTab] = useState<Tab>("orders");
   const activeTab = view ?? tab;
@@ -347,7 +350,7 @@ export function ProcurementPage({
   }
 
   const summaryMetrics =
-    panel === "subhub" || (panel === "procurement" && activeTab !== "orders")
+    panel === "subhub" || (showDedicatedView && activeTab !== "orders")
       ? []
       : activeTab === "orders"
         ? [
@@ -406,8 +409,8 @@ export function ProcurementPage({
         </section>
       ) : null}
 
-      {panel !== "subhub" && !(panel === "procurement" && (activeTab === "requests" || activeTab === "vendors" || activeTab === "orders" || activeTab === "needs")) ? <div className="flex flex-col gap-3 border-b border-border pb-3 lg:flex-row lg:items-end lg:justify-between">
-        {panel !== "procurement" ? <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-1" role="tablist" aria-label="Procurement sections">
+      {panel !== "subhub" && !showDedicatedView ? <div className="flex flex-col gap-3 border-b border-border pb-3 lg:flex-row lg:items-end lg:justify-between">
+        {!showDedicatedView ? <div className="flex min-w-0 flex-wrap gap-x-6 gap-y-1" role="tablist" aria-label="Procurement sections">
           <button type="button" role="tab" aria-selected={activeTab === "orders"} onClick={() => setTab("orders")} className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-base font-semibold ${activeTab === "orders" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             <ClipboardList className="size-5" /> Order Management
           </button>
@@ -422,8 +425,8 @@ export function ProcurementPage({
           </button> : null}
         </div> : null}
         <div className="flex flex-wrap gap-2">
-          {canManageProcurement && activeTab === "vendors" && panel !== "procurement" ? <button type="button" onClick={openCreateVendor} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted"><Plus className="size-5" /> Add vendor</button> : null}
-          {activeTab !== "orders" && activeTab !== "needs" && !(panel === "procurement" && activeTab === "requests") ? <button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-semibold hover:bg-muted disabled:opacity-50"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh</button> : null}
+          {canManageProcurement && activeTab === "vendors" && !showDedicatedView ? <button type="button" onClick={openCreateVendor} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted"><Plus className="size-5" /> Add vendor</button> : null}
+          {activeTab !== "orders" && activeTab !== "needs" && !(showDedicatedView && activeTab === "requests") ? <button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-semibold hover:bg-muted disabled:opacity-50"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh</button> : null}
         </div>
       </div> : null}
 
@@ -456,13 +459,13 @@ export function ProcurementPage({
       ) : activeTab === "vendors" ? (
         <>
           <section className="space-y-4">
-            {panel !== "procurement" ? (
+            {!showDedicatedView ? (
               <SectionHeading
                 title="Vendor directory"
                 description="Create, edit, archive, and review the shared procurement vendor directory."
               />
             ) : null}
-            {panel === "procurement" ? (
+            {showDedicatedView ? (
               <VendorFilters
                 query={vendorQuery}
                 setQuery={setVendorQuery}
@@ -476,7 +479,7 @@ export function ProcurementPage({
               />
             ) : null}
             <VendorTable
-              vendors={panel === "procurement" ? paginatedProcurementVendors : visibleVendors}
+              vendors={showDedicatedView ? paginatedProcurementVendors : visibleVendors}
               data={data}
               panel={panel as "admin" | "procurement"}
               isAdmin={canManageProcurement}
@@ -485,12 +488,12 @@ export function ProcurementPage({
               onEdit={openEditVendor}
               onRemove={(vendor) => void removeVendor(vendor)}
               emptyDescription={
-                panel === "procurement" && data.vendors.length > 0
+                showDedicatedView && data.vendors.length > 0
                   ? "No vendors match these filters. Adjust or clear your filters."
                   : undefined
               }
             />
-            {panel === "procurement" ? (
+            {showDedicatedView ? (
               <TablePagination
                 total={filteredProcurementVendors.length}
                 page={vendorPage}
@@ -538,8 +541,8 @@ export function ProcurementPage({
     </SubHubShell>
   ) : (
     <Shell
-      title={panel === "procurement" ? PROCUREMENT_VIEW_TITLES[activeTab] : "Procurement"}
-      subtitle={panel === "procurement" ? undefined : "Live vendor and purchase-order management across Gadsons SubHubs"}
+      title={showDedicatedView ? PROCUREMENT_VIEW_TITLES[activeTab] : "Procurement"}
+      subtitle={showDedicatedView ? undefined : "Live vendor and purchase-order management across Gadsons SubHubs"}
       actions={
         canManageProcurement && activeTab === "orders" ? (
           <button
@@ -549,7 +552,7 @@ export function ProcurementPage({
           >
             <PackagePlus className="size-4" /> New procurement order
           </button>
-        ) : panel === "procurement" && activeTab === "vendors" ? (
+        ) : showDedicatedView && activeTab === "vendors" ? (
           <button
             type="button"
             onClick={openCreateVendor}
@@ -1706,7 +1709,7 @@ function VendorTable({
   selectedVendorId: string;
   onEdit: (vendor: ProcurementVendor) => void;
   onRemove: (vendor: ProcurementVendor) => void;
-  emptyDescription?: string;
+  emptyDescription?: string | undefined;
 }) {
   const performanceByVendor = new Map(data.vendorPerformance.map((item) => [item.vendorId, item]));
   const showAdminMetrics = panel === "admin";
