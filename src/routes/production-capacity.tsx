@@ -77,26 +77,36 @@ function ProductionCapacity() {
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
         {success ? <p role="status" className="rounded-md border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-700">{success}</p> : null}
         <section aria-labelledby="subhub-capacity-heading">
-          <div className="border-b border-border py-3">
-            <h2 id="subhub-capacity-heading" className="text-base font-semibold">Declared capacity by SubHub</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+          <div className="border-b border-border py-4">
+            <h2 id="subhub-capacity-heading" className="text-lg font-semibold">Declared capacity by SubHub</h2>
+            <p className="mt-1 text-base text-muted-foreground">
               Capacity is compared with active open target units. Leave a value blank for no limit.
             </p>
           </div>
           <div className="overflow-x-auto border-b border-border">
-            <table aria-label="SubHub declared capacity and workload" className="w-full min-w-[820px] text-sm">
-              <thead className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <table aria-label="SubHub declared capacity and workload" className="w-full min-w-[900px] table-fixed text-base">
+              <colgroup>
+                <col className="w-[20%]" />
+                <col className="w-[15%]" />
+                <col className="w-[10%]" />
+                <col className="w-[17%]" />
+                <col className="w-[16%]" />
+                <col className="w-[22%]" />
+              </colgroup>
+              <thead className="border-b border-border bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th scope="col" className="w-[34%] px-4 py-3 font-medium">SubHub</th>
-                  <th scope="col" className="w-[18%] px-4 py-3 text-right font-medium">Current load</th>
-                  <th scope="col" className="w-[16%] px-4 py-3 font-medium">Status</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Declared capacity</th>
+                  <th scope="col" className="px-2 py-3 font-semibold">Factory / SubHub</th>
+                  <th scope="col" className="px-2 py-3 font-semibold">Manager</th>
+                  <th scope="col" className="px-2 py-3 text-center font-semibold">Active orders</th>
+                  <th scope="col" className="px-2 py-3 text-right font-semibold">Current load</th>
+                  <th scope="col" className="px-2 py-3 font-semibold">Status</th>
+                  <th scope="col" className="px-2 py-3 font-semibold">Declared capacity</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {loading && !dashboard ? (
                   <tr>
-                    <td colSpan={4} className="py-8 text-center text-sm text-muted-foreground">Loading SubHub capacity…</td>
+                    <td colSpan={6} className="py-8 text-center text-base text-muted-foreground">Loading SubHub capacity…</td>
                   </tr>
                 ) : dashboard?.hubs.length ? (
                   dashboard.hubs.map((hub) => (
@@ -109,7 +119,7 @@ function ProductionCapacity() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="py-8 text-sm text-muted-foreground">No active SubHub Managers are available.</td>
+                    <td colSpan={6} className="py-8 text-base text-muted-foreground">No active SubHub Managers are available.</td>
                   </tr>
                 )}
               </tbody>
