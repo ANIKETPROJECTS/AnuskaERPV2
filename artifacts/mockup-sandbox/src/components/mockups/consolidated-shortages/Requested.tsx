@@ -132,8 +132,8 @@ export function Requested() {
       }
     >
       <section aria-label="Shortage filters" className="space-y-4 border-b border-border pb-5">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="min-w-[240px] flex-1 text-sm font-medium text-muted-foreground">
+        <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1.4fr)_minmax(145px,0.85fr)_minmax(145px,0.85fr)_auto]">
+          <label className="min-w-0 text-sm font-medium text-muted-foreground">
             Search subpart
             <span className="relative mt-1 block">
               <Search
@@ -149,7 +149,7 @@ export function Requested() {
               />
             </span>
           </label>
-          <label className="w-full text-sm font-medium text-muted-foreground sm:w-64">
+          <label className="min-w-0 text-sm font-medium text-muted-foreground">
             SubHub
             <select
               aria-label="Filter by SubHub"
@@ -165,7 +165,7 @@ export function Requested() {
               ))}
             </select>
           </label>
-          <label className="w-full text-sm font-medium text-muted-foreground sm:w-56">
+          <label className="min-w-0 text-sm font-medium text-muted-foreground">
             Stock status
             <select
               aria-label="Filter by stock status"
@@ -180,43 +180,43 @@ export function Requested() {
               <option value="no-target">No open target</option>
             </select>
           </label>
-        </div>
-        <div className="flex justify-end">
-          <div
-            role="group"
-            aria-label="Shortage view"
-            className="inline-flex rounded-md border border-input p-1"
-          >
-            <button
-              type="button"
-              aria-pressed={viewMode === "matrix"}
-              onClick={() => {
-                setPage(1);
-                setViewMode("matrix");
-              }}
-              className={`min-h-9 rounded px-3 text-sm font-medium ${
-                viewMode === "matrix"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
+          <div className="flex justify-end">
+            <div
+              role="group"
+              aria-label="Shortage view"
+              className="inline-flex rounded-md border border-input p-1"
             >
-              Matrix
-            </button>
-            <button
-              type="button"
-              aria-pressed={viewMode === "list"}
-              onClick={() => {
-                setPage(1);
-                setViewMode("list");
-              }}
-              className={`min-h-9 rounded px-3 text-sm font-medium ${
-                viewMode === "list"
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
-            >
-              List
-            </button>
+              <button
+                type="button"
+                aria-pressed={viewMode === "matrix"}
+                onClick={() => {
+                  setPage(1);
+                  setViewMode("matrix");
+                }}
+                className={`min-h-9 rounded px-3 text-sm font-medium ${
+                  viewMode === "matrix"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                Matrix
+              </button>
+              <button
+                type="button"
+                aria-pressed={viewMode === "list"}
+                onClick={() => {
+                  setPage(1);
+                  setViewMode("list");
+                }}
+                className={`min-h-9 rounded px-3 text-sm font-medium ${
+                  viewMode === "list"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                List
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -296,16 +296,6 @@ export function Requested() {
         </div>
       ) : viewMode === "list" && visibleListRows.length ? (
         <section className="overflow-hidden border-y border-border">
-          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-4">
-            <div>
-              <h2 className="text-lg font-semibold">Parts and stock by SubHub</h2>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                Showing {(page - 1) * pageSize + 1}–
-                {Math.min(page * pageSize, visibleListRows.length)} of {visibleListRows.length}{" "}
-                matching rows
-              </p>
-            </div>
-          </header>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[980px] text-base">
               <thead className="bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
