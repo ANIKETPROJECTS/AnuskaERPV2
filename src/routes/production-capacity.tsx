@@ -84,29 +84,31 @@ function ProductionCapacity() {
             </p>
           </div>
           <div className="overflow-x-auto border-b border-border">
-            <table aria-label="SubHub declared capacity and workload" className="w-full min-w-[900px] table-fixed text-base">
+            <table aria-label="SubHub declared capacity and workload" className="w-full min-w-[1000px] table-fixed text-base">
               <colgroup>
-                <col className="w-[19%]" />
-                <col className="w-[14%]" />
-                <col className="w-[10%]" />
                 <col className="w-[16%]" />
-                <col className="w-[15%]" />
-                <col className="w-[26%]" />
+                <col className="w-[12%]" />
+                <col className="w-[9%]" />
+                <col className="w-[13%]" />
+                <col className="w-[12%]" />
+                <col className="w-[14%]" />
+                <col className="w-[24%]" />
               </colgroup>
               <thead className="border-b border-border bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th scope="col" className="px-2 py-3 font-semibold">Factory / SubHub</th>
-                  <th scope="col" className="px-2 py-3 font-semibold">Manager</th>
-                  <th scope="col" className="px-2 py-3 text-center font-semibold">Active orders</th>
-                  <th scope="col" className="px-2 py-3 text-right font-semibold">Current load</th>
-                  <th scope="col" className="px-2 py-3 font-semibold">Status</th>
-                  <th scope="col" className="px-2 py-3 font-semibold">Declared capacity</th>
+                  <th scope="col" className="border-r border-border/60 px-3 py-3 font-semibold">Factory / SubHub</th>
+                  <th scope="col" className="border-r border-border/60 px-3 py-3 font-semibold">Manager</th>
+                  <th scope="col" className="border-r border-border/60 px-3 py-3 text-center font-semibold">Active orders</th>
+                  <th scope="col" className="border-r border-border/60 px-3 py-3 text-right font-semibold">Current load</th>
+                  <th scope="col" className="border-r border-border/60 px-3 py-3 font-semibold">Declared capacity</th>
+                  <th scope="col" className="border-r border-border/60 px-3 py-3 font-semibold">Status</th>
+                  <th scope="col" className="px-3 py-3 font-semibold">Set capacity</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {loading && !dashboard ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-base text-muted-foreground">Loading SubHub capacity…</td>
+                    <td colSpan={7} className="py-8 text-center text-base text-muted-foreground">Loading SubHub capacity…</td>
                   </tr>
                 ) : dashboard?.hubs.length ? (
                   dashboard.hubs.map((hub) => (
@@ -119,7 +121,7 @@ function ProductionCapacity() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="py-8 text-base text-muted-foreground">No active SubHub Managers are available.</td>
+                    <td colSpan={7} className="py-8 text-base text-muted-foreground">No active SubHub Managers are available.</td>
                   </tr>
                 )}
               </tbody>

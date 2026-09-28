@@ -19,6 +19,7 @@ export function HubCapacityRow({
 }) {
   const [capacityValue, setCapacityValue] = useState(hub.capacityUnits === null ? "" : String(hub.capacityUnits));
   const [validationError, setValidationError] = useState("");
+  const declaredCapacity = hub.capacityUnits === null ? "No limit" : `${num(hub.capacityUnits)} units`;
   const status = hub.overloaded ? "Overloaded" : hub.capacityUnits === null ? "Unrestricted" : "Within capacity";
   const statusClass = hub.overloaded
     ? "bg-destructive text-white"
@@ -45,29 +46,32 @@ export function HubCapacityRow({
 
   return (
     <tr className="hover:bg-muted/20">
-      <th scope="row" className="px-2 py-4 text-left text-base font-semibold">
+      <th scope="row" className="border-r border-border/60 px-3 py-4 text-left text-base font-semibold">
         {hub.subhubName}
       </th>
-      <td className="px-2 py-4 text-base">{hub.name || "—"}</td>
-      <td className="tabular whitespace-nowrap px-2 py-4 text-center text-base font-semibold">{num(hub.orderCount)}</td>
-      <td className="tabular px-2 py-4 text-right">
+      <td className="border-r border-border/60 px-3 py-4 text-base">{hub.name || "—"}</td>
+      <td className="tabular whitespace-nowrap border-r border-border/60 px-3 py-4 text-center text-base font-semibold">{num(hub.orderCount)}</td>
+      <td className="tabular border-r border-border/60 px-3 py-4 text-right">
         <div className="flex flex-col items-end gap-0.5">
           <span className="text-lg font-semibold">{num(hub.openUnits)}</span>
           <span className="text-sm text-muted-foreground">open units</span>
         </div>
       </td>
-      <td className="px-2 py-4">
+      <td className="tabular whitespace-nowrap border-r border-border/60 px-3 py-4 text-base font-semibold">
+        {declaredCapacity}
+      </td>
+      <td className="border-r border-border/60 px-3 py-4">
         <span className={`inline-flex whitespace-nowrap rounded-full px-2 py-1 text-[13px] font-semibold ${statusClass}`}>
           {status}
         </span>
       </td>
-      <td className="px-2 py-4">
+      <td className="px-3 py-4">
         <form
           onSubmit={(event) => {
             event.preventDefault();
             void submitCapacity();
           }}
-          className="min-w-[160px]"
+          className="min-w-[200px]"
         >
           <div className="flex items-center gap-1.5">
             <label htmlFor={`capacity-${hub.userId}`} className="sr-only">
