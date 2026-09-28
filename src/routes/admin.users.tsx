@@ -1,6 +1,6 @@
 import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Check, Database, Eye, KeyRound, Pencil, Plus, Search, ShieldCheck, Trash2, UserCog, X } from "lucide-react";
+import { Eye, KeyRound, Pencil, Plus, Power, PowerOff, Search, ShieldCheck, Trash2, X } from "lucide-react";
 import {
   createManagedUserFn,
   deleteManagedUserFn,
@@ -9,6 +9,7 @@ import {
 } from "@/auth";
 import type { AccessSection, Panel, PublicUser } from "@/auth.server";
 import { useAuth } from "@/components/auth/AuthContext";
+import { HubModuleNav } from "@/components/erp/HubModuleNav";
 import { Shell } from "@/components/erp/Shell";
 
 const permissionGroups: Array<{ label: string; panel: Panel; items: Array<{ value: AccessSection; label: string }> }> = [
@@ -70,15 +71,37 @@ type UserFormState = {
   panel: Panel;
   subhubName: string;
   permissions: AccessSection[];
-  active: boolean;
+  accessMode: "standard" | "custom";
 };
 
 type PanelFilter = "all" | Panel;
 type StatusFilter = "all" | "active" | "inactive";
-type UserSort = "name-asc" | "name-desc" | "panel" | "status";
+
+function permissionsForPanel(panel: Panel): AccessSection[] {
+  return permissionGroups.find((group) => group.panel === panel)?.items.map((item) => item.value) ?? [];
+}
+
+function usesStandardAccess(panel: Panel, permissions: AccessSection[]) {
+  const standard = permissionsForPanel(panel);
+  return standard.length === permissions.length && standard.every((item) => permissions.includes(item));
+}
+
+function panelLabel(panel: Panel) {
+  if (panel === "admin") return "Admin";
+  if (panel === "subhub") return "SubHub";
+  return "Procurement";
+}
 
 function emptyForm(): UserFormState {
-  return { name: "", email: "", password: "", panel: "subhub", subhubName: "", permissions: subhubDefaults, active: true };
+  return {
+    name: "",
+    email: "",
+    password: "",
+    panel: "subhub",
+    subhubName: "",
+    permissions: subhubDefaults,
+    accessMode: "standard",
+  };
 }
 
 function UserManagement() {
@@ -97,15 +120,16 @@ function UserManagementPage() {
   const [closingUserForm, setClosingUserForm] = useState(false);
   const [form, setForm] = useState<UserFormState>(emptyForm);
   const [message, setMessage] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [panelFilter, setPanelFilter] = useState<PanelFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [sortBy, setSortBy] = useState<UserSort>("name-asc");
 
   useEffect(() => setUsers(result.users), [result.users]);
 
   const activeUsers = useMemo(() => users.filter((user) => user.active).length, [users]);
+  const deactivatedUsers = users.length - activeUsers;
   const filteredUsers = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return users
@@ -116,15 +140,10 @@ function UserManagementPage() {
         const matchesStatus = statusFilter === "all" || (statusFilter === "active" ? user.active : !user.active);
         return matchesQuery && matchesPanel && matchesStatus;
       })
-      .sort((a, b) => {
-        if (sortBy === "panel") return a.panel.localeCompare(b.panel) || a.name.localeCompare(b.name);
-        if (sortBy === "status") return Number(b.active) - Number(a.active) || a.name.localeCompare(b.name);
-        const comparison = a.name.localeCompare(b.name);
-        return sortBy === "name-desc" ? -comparison : comparison;
-      });
-  }, [panelFilter, query, sortBy, statusFilter, users]);
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [panelFilter, query, statusFilter, users]);
 
-  const hasFilters = Boolean(query.trim()) || panelFilter !== "all" || statusFilter !== "all" || sortBy !== "name-asc";
+  const hasFilters = Boolean(query.trim()) || panelFilter !== "all" || statusFilter !== "all";
 
   if (auth.user?.role !== "master_admin") {
     return (
@@ -140,6 +159,7 @@ function UserManagementPage() {
 
   function openCreate() {
     setMessage("");
+    setNotice("");
     setEditingUser(null);
     setClosingUserForm(false);
     setForm(emptyForm());
@@ -148,6 +168,7 @@ function UserManagementPage() {
 
   function openEdit(user: PublicUser) {
     setMessage("");
+    setNotice("");
     setShowCreator(false);
     setEditingUser(user);
     setClosingUserForm(false);
@@ -158,7 +179,7 @@ function UserManagementPage() {
       panel: user.panel,
       subhubName: user.subhubName ?? "",
       permissions: user.permissions,
-      active: user.active,
+      accessMode: usesStandardAccess(user.panel, user.permissions) ? "standard" : "custom",
     });
   }
 
@@ -179,13 +200,23 @@ function UserManagementPage() {
       ...current,
       panel,
       subhubName: panel === "subhub" ? current.subhubName : "",
-      permissions: panel === "admin" ? adminDefaults : panel === "subhub" ? subhubDefaults : procurementDefaults,
+      permissions: permissionsForPanel(panel),
+      accessMode: "standard",
+    }));
+  }
+
+  function changeAccessMode(accessMode: "standard" | "custom") {
+    setForm((current) => ({
+      ...current,
+      accessMode,
+      permissions: accessMode === "standard" ? permissionsForPanel(current.panel) : current.permissions,
     }));
   }
 
   function togglePermission(permission: AccessSection) {
     setForm((current) => ({
       ...current,
+      accessMode: "custom",
       permissions: current.permissions.includes(permission)
         ? current.permissions.filter((item) => item !== permission)
         : [...current.permissions, permission],
@@ -206,7 +237,7 @@ function UserManagementPage() {
               panel: form.panel,
               subhubName: form.panel === "subhub" ? form.subhubName : undefined,
               permissions: form.permissions,
-              active: form.active,
+              active: editingUser.active,
               password: form.password || undefined,
             },
           })
@@ -229,6 +260,7 @@ function UserManagementPage() {
           ? current.map((user) => (user.id === response.user.id ? response.user : user))
           : [response.user, ...current],
       );
+      setNotice(editingUser ? `${response.user.name} was updated.` : `${response.user.name} was added.`);
       closeUserForm();
       await router.invalidate();
     } catch {
@@ -239,7 +271,9 @@ function UserManagementPage() {
   }
 
   async function removeUser(user: PublicUser) {
-    if (!window.confirm(`Delete ${user.name}? This permanently deletes their MongoDB workspace database and cannot be undone.`)) return;
+    if (!window.confirm(
+      `Permanently delete ${user.name}?\n\nThis removes their sign-in, workspace database, and assigned production orders. This cannot be undone.\n\nChoose Cancel to keep their data and deactivate the account instead.`,
+    )) return;
     setBusy(true);
     setMessage("");
     try {
@@ -249,10 +283,50 @@ function UserManagementPage() {
         return;
       }
       setUsers((current) => current.filter((item) => item.id !== user.id));
-      if (editingUser?.id === user.id) closeUserForm();
+      setNotice(`${user.name} was permanently deleted.`);
+      if (editingUser?.id === user.id) {
+        setClosingUserForm(true);
+        setShowCreator(false);
+        setEditingUser(null);
+      }
       await router.invalidate();
     } catch {
       setMessage("The user could not be deleted. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setUserActive(user: PublicUser, active: boolean) {
+    if (!active && !window.confirm(
+      `Deactivate ${user.name}?\n\nThey will no longer be able to sign in. Their workspace and records will be kept, and you can reactivate them later.`,
+    )) return;
+    setBusy(true);
+    setMessage("");
+    setNotice("");
+    try {
+      const response = await updateManagedUserFn({
+        data: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          panel: user.panel,
+          subhubName: user.subhubName,
+          permissions: user.permissions,
+          active,
+        },
+      });
+      if (!response.ok) {
+        setMessage(response.message);
+        return;
+      }
+      setUsers((current) => current.map((item) => item.id === user.id ? response.user : item));
+      setNotice(active
+        ? `${user.name} can sign in again.`
+        : `${user.name} is deactivated. Their data and workspace are unchanged.`);
+      await router.invalidate();
+    } catch {
+      setMessage(`The account status for ${user.name} could not be changed. Please try again.`);
     } finally {
       setBusy(false);
     }
