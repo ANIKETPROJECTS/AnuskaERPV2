@@ -4,6 +4,7 @@ import {
   createProductionOrder,
   createProductionOrders,
   getAdminProductionDashboard,
+  getAdminProductionWorkforceData,
   getAdminHubDetail,
   getAdminProductionOrderDetail,
   getManagerProductionData,
@@ -96,6 +97,7 @@ export const listAssignableSubhubsFn = createServerFn({ method: "GET" }).handler
 export const listProductionOrdersFn = createServerFn({ method: "GET" }).handler(() => listProductionOrders());
 export const getManagerProductionDataFn = createServerFn({ method: "GET" }).handler(() => getManagerProductionData());
 export const getAdminProductionDashboardFn = createServerFn({ method: "GET" }).handler(() => getAdminProductionDashboard());
+export const getAdminProductionWorkforceDataFn = createServerFn({ method: "GET" }).handler(() => getAdminProductionWorkforceData());
 export const getAdminHubDetailFn = createServerFn({ method: "POST" }).validator(hubDetailSchema).handler(({ data }) => getAdminHubDetail(data.hubId));
 export const getAdminProductionOrderDetailFn = createServerFn({ method: "POST" }).validator(productionOrderDetailSchema).handler(({ data }) => getAdminProductionOrderDetail(data.orderId));
 export const createProductionOrderFn = createServerFn({ method: "POST" }).validator(orderSchema).handler(({ data }) => createProductionOrder(data));

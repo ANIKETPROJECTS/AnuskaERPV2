@@ -175,6 +175,26 @@ export type AdminProductionDashboard = {
   latestReportDate: string | null;
 };
 
+export type AdminProductionHistoryRow = {
+  id: string;
+  date: string;
+  quantity: number;
+  subhubUserId: string;
+  subhubName: string;
+  orderId: string;
+  orderNumber: string;
+  productCode: string;
+  productName: string;
+  variantCode: string;
+  variantName: string;
+};
+
+export type AdminProductionWorkforceData = {
+  subhubs: Array<{ id: string; name: string; managerName: string; active: boolean }>;
+  reports: AdminProductionHistoryRow[];
+  orders: ProductionOrder[];
+};
+
 export type AdminHubDetailReport = ProductionReport & {
   orderNumber: string;
   productName: string;
@@ -1530,6 +1550,64 @@ export async function getAdminProductionDashboard(): Promise<
       completion: totalTarget ? Math.round((totalProduced / totalTarget) * 100) : 0,
       reportsToday: allReports.filter(({ report }) => report.date === today).length,
       latestReportDate,
+    },
+  };
+}
+
+export async function getAdminProductionWorkforceData(): Promise<
+  { ok: true; data: AdminProductionWorkforceData } | { ok: false; data: AdminProductionWorkforceData; message: string }
+> {
+  const current = await getCurrentUserRecord("admin");
+  const empty: AdminProductionWorkforceData = { subhubs: [], reports: [], orders: [] };
+  if (!isAdmin(current)) {
+    return { ok: false, data: empty, message: "Only Admin users can view consolidated production and workforce data." };
+  }
+
+  const db = await getControlPlaneDatabase();
+  const [orders, users] = await Promise.all([
+    db.collection<ProductionOrderDocument>("production_orders").find().sort({ dueDate: 1, createdAt: -1 }).toArray(),
+    allSubhubUsers(),
+  ]);
+  const reportsByUser = await reportsByUserFor(users);
+  const ordersById = new Map(orders.map((order) => [order._id, order]));
+  const reportsByOrder = new Map<string, ProductionReportDocument[]>();
+  const reports: AdminProductionHistoryRow[] = [];
+
+  reportsByUser.forEach(({ user, reports: workspaceReports }) => {
+    workspaceReports.forEach((report) => {
+      const order = ordersById.get(report.orderId);
+      if (!order || order.subhubUserId !== user._id) return;
+
+      const orderReports = reportsByOrder.get(order._id) ?? [];
+      orderReports.push(report);
+      reportsByOrder.set(order._id, orderReports);
+      reports.push({
+        id: report._id,
+        date: report.date,
+        quantity: report.quantity,
+        subhubUserId: user._id,
+        subhubName: user.subhubName ?? "SubHub",
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        productCode: order.productCode,
+        productName: order.productName,
+        variantCode: order.variantCode,
+        variantName: order.variantName,
+      });
+    });
+  });
+
+  return {
+    ok: true,
+    data: {
+      subhubs: users.map((user) => ({
+        id: user._id,
+        name: user.subhubName ?? "SubHub",
+        managerName: user.name,
+        active: user.active,
+      })),
+      reports: reports.sort((left, right) => right.date.localeCompare(left.date)),
+      orders: orders.map((order) => summarizeOrder(order, reportsByOrder.get(order._id) ?? [])),
     },
   };
 }

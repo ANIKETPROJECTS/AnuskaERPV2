@@ -116,14 +116,11 @@ export function sortHeadcountSummaries(summaries: AdminHeadcountSummary[]) {
   return [...summaries].sort((left, right) => left.subhubName.localeCompare(right.subhubName));
 }
 
-export function useAdminHeadcountReport() {
+export function useAdminHeadcountReport(initialRange: HeadcountDateRange = { startDate: "", endDate: "" }) {
   const [report, setReport] = useState<AdminHeadcountReport>(emptyAdminHeadcountReport);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [appliedRange, setAppliedRange] = useState<HeadcountDateRange>({
-    startDate: "",
-    endDate: "",
-  });
+  const [appliedRange, setAppliedRange] = useState<HeadcountDateRange>(() => ({ ...initialRange }));
 
   const applyRange = useCallback((range: HeadcountDateRange) => {
     setAppliedRange({ ...range });
