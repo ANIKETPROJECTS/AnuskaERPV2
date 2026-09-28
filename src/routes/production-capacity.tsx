@@ -86,12 +86,12 @@ function ProductionCapacity() {
           <div className="overflow-x-auto border-b border-border">
             <table aria-label="SubHub declared capacity and workload" className="w-full min-w-[900px] table-fixed text-base">
               <colgroup>
-                <col className="w-[20%]" />
-                <col className="w-[15%]" />
+                <col className="w-[19%]" />
+                <col className="w-[14%]" />
                 <col className="w-[10%]" />
-                <col className="w-[17%]" />
                 <col className="w-[16%]" />
-                <col className="w-[22%]" />
+                <col className="w-[15%]" />
+                <col className="w-[26%]" />
               </colgroup>
               <thead className="border-b border-border bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
                 <tr>

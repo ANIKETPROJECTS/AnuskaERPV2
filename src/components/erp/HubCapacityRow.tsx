@@ -19,9 +19,6 @@ export function HubCapacityRow({
 }) {
   const [capacityValue, setCapacityValue] = useState(hub.capacityUnits === null ? "" : String(hub.capacityUnits));
   const [validationError, setValidationError] = useState("");
-  const loadLabel = hub.capacityUnits === null
-    ? `${num(hub.openUnits)} open units`
-    : `${num(hub.openUnits)} / ${num(hub.capacityUnits)} units`;
   const status = hub.overloaded ? "Overloaded" : hub.capacityUnits === null ? "Unrestricted" : "Within capacity";
   const statusClass = hub.overloaded
     ? "bg-destructive text-white"
@@ -53,7 +50,12 @@ export function HubCapacityRow({
       </th>
       <td className="px-2 py-4 text-base">{hub.name || "—"}</td>
       <td className="tabular whitespace-nowrap px-2 py-4 text-center text-base font-semibold">{num(hub.orderCount)}</td>
-      <td className="tabular whitespace-nowrap px-2 py-4 text-right text-base font-semibold">{loadLabel}</td>
+      <td className="tabular px-2 py-4 text-right">
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="text-lg font-semibold">{num(hub.openUnits)}</span>
+          <span className="text-sm text-muted-foreground">open units</span>
+        </div>
+      </td>
       <td className="px-2 py-4">
         <span className={`inline-flex whitespace-nowrap rounded-full px-2 py-1 text-[13px] font-semibold ${statusClass}`}>
           {status}
@@ -67,11 +69,11 @@ export function HubCapacityRow({
           }}
           className="min-w-[160px]"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <label htmlFor={`capacity-${hub.userId}`} className="sr-only">
               Declared capacity for {hub.subhubName}
             </label>
-            <div className="flex h-10 min-w-0 items-center rounded-md border border-input bg-background px-1.5">
+            <div className="flex h-10 min-w-0 items-center gap-1 rounded-md border border-input bg-background px-2">
               <input
                 id={`capacity-${hub.userId}`}
                 type="number"
@@ -80,13 +82,14 @@ export function HubCapacityRow({
                 value={capacityValue}
                 onChange={(event) => setCapacityValue(event.target.value)}
                 placeholder="No limit"
-                className="tabular h-8 min-w-0 w-16 bg-transparent px-1 text-right text-base font-semibold outline-none"
+                className="tabular h-8 min-w-0 w-20 bg-transparent px-1 text-right text-base font-semibold outline-none"
               />
+              {capacityValue.trim() ? <span className="shrink-0 text-sm text-muted-foreground">units</span> : null}
             </div>
             <button
               type="submit"
               disabled={!isDirty || saving}
-              className="inline-flex h-10 shrink-0 items-center gap-1 rounded-md border border-input bg-background px-2.5 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-10 shrink-0 items-center gap-1 rounded-md border border-input bg-background px-2 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Save className="size-4" /> {saving ? "Saving…" : "Save"}
             </button>
