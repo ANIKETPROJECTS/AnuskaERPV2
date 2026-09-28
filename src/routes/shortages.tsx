@@ -1,8 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Filter, RefreshCw, Send, X } from "lucide-react";
+import { CircleAlert, CircleCheck, Filter, RefreshCw, Search, Send, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
-import { Kpi, Panel, Tag } from "@/components/erp/bits";
+import { TablePagination } from "@/components/erp/TablePagination";
 import { getShortageDataFn } from "@/shortages";
 import type { ShortageData } from "@/shortages.server";
 
@@ -13,14 +13,45 @@ export const Route = createFileRoute("/shortages")({
       { title: "Consolidated Shortages — Float ERP" },
       {
         name: "description",
-        content: "Company-wide shortage matrix: requirement minus stock per subpart per hub, with action tracking.",
+        content: "Compare open production requirements with current stock across active SubHubs.",
       },
       { property: "og:title", content: "Consolidated Shortages — Float ERP" },
-      { property: "og:description", content: "One grid showing surplus and deficit for every subpart across hubs." },
+      {
+        property: "og:description",
+        content: "See what each SubHub needs to complete its assigned production targets.",
+      },
     ],
   }),
   component: Shortages,
 });
+
+type StockStatus = "shortage" | "low" | "surplus" | "no-target";
+
+function getStockStatus(requirement: number, stock: number): StockStatus {
+  if (requirement <= 0) return "no-target";
+  if (stock < requirement) return "shortage";
+  if (stock === requirement) return "low";
+  return "surplus";
+}
+
+function getStatusLabel(
+  status: StockStatus,
+  requirement: number,
+  stock: number,
+  formatNumber: (value: number) => string,
+) {
+  if (status === "shortage") return `Short by ${formatNumber(requirement - stock)}`;
+  if (status === "low") return "Low buffer · just enough";
+  if (status === "surplus") return `Surplus ${formatNumber(stock - requirement)}`;
+  return "No open target";
+}
+
+const statusStyles: Record<StockStatus, string> = {
+  shortage: "bg-destructive/10 text-destructive",
+  low: "bg-warning/25 text-warning-foreground",
+  surplus: "bg-success/10 text-success",
+  "no-target": "bg-secondary text-secondary-foreground",
+};
 
 function Shortages() {
   const result = Route.useLoaderData();
@@ -29,8 +60,9 @@ function Shortages() {
   const [error, setError] = useState(result.ok ? "" : result.message);
   const [query, setQuery] = useState("");
   const [hubFilter, setHubFilter] = useState("all");
-  const [coverageFilter, setCoverageFilter] = useState<"all" | "deficit" | "covered">("all");
-  const [showFilters, setShowFilters] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StockStatus | "all">("all");
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
 
   useEffect(() => {
     if (result.ok) {
@@ -40,6 +72,10 @@ function Shortages() {
       setError(result.message);
     }
   }, [result]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [data.hubs, data.rows, hubFilter, query, statusFilter]);
 
   async function load() {
     setLoading(true);
@@ -55,150 +91,262 @@ function Shortages() {
 
   const visibleRows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return data.rows.filter((row) => {
-      const matchesQuery = !normalized || `${row.code} ${row.name} ${row.material} ${row.source}`.toLowerCase().includes(normalized);
-      const selectedCells: ShortageData["rows"][number]["cells"][string][] =
-        hubFilter === "all"
-          ? Object.values(row.cells)
-          : [row.cells[hubFilter]].filter((cell): cell is ShortageData["rows"][number]["cells"][string] => Boolean(cell));
-      const matchesCoverage =
-        coverageFilter === "all" ||
-        (coverageFilter === "deficit" && selectedCells.some((cell) => cell.gap > 0)) ||
-        (coverageFilter === "covered" && selectedCells.length > 0 && selectedCells.every((cell) => cell.gap <= 0));
-      return matchesQuery && matchesCoverage;
-    });
-  }, [coverageFilter, data.rows, hubFilter, query]);
+    const selectedHubs =
+      hubFilter === "all" ? data.hubs : data.hubs.filter((hub) => hub.id === hubFilter);
 
-  const hasFilters = Boolean(query || hubFilter !== "all" || coverageFilter !== "all");
+    return data.rows.flatMap((part) => {
+      const matchesQuery =
+        !normalized || `${part.name} ${part.code}`.toLowerCase().includes(normalized);
+      if (!matchesQuery) return [];
+
+      return selectedHubs.flatMap((hub) => {
+        const cell = part.cells[hub.id];
+        if (!cell) return [];
+        const status = getStockStatus(cell.requirement, cell.stock);
+        if (statusFilter !== "all" && status !== statusFilter) return [];
+        return [{ part, hub, cell, status }];
+      });
+    });
+  }, [data.hubs, data.rows, hubFilter, query, statusFilter]);
+
+  const hasFilters = Boolean(query.trim() || hubFilter !== "all" || statusFilter !== "all");
+  const totalHubRows = data.rows.length * (hubFilter === "all" ? data.hubs.length : 1);
+  const pageRows = visibleRows.slice((page - 1) * pageSize, page * pageSize);
+  const firstVisibleRow = visibleRows.length ? (page - 1) * pageSize + 1 : 0;
+  const lastVisibleRow = Math.min(page * pageSize, visibleRows.length);
   const formatNumber = (value: number) => value.toLocaleString("en-IN");
-  const formatShortDate = (value: string) => {
-    const date = new Date(value);
-    const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][date.getUTCMonth()];
-    return `${date.getUTCDate().toString().padStart(2, "0")} ${month}`;
-  };
 
   return (
     <Shell
       title="Consolidated Shortages"
-      subtitle="Remaining BOM requirement − current workspace stock · negative values are surplus"
+      subtitle="See what each SubHub needs to complete its assigned production targets."
+      mainClassName="flex-1 space-y-5 p-6"
       actions={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => setShowFilters((visible) => !visible)}
-            className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${showFilters || hasFilters ? "border-primary/40 bg-primary/5 text-primary" : "border-input bg-card"}`}
+            onClick={() => void load()}
+            disabled={loading}
+            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-card px-3 text-base font-medium hover:bg-muted disabled:cursor-wait disabled:opacity-60"
           >
-            <Filter className="size-4" /> Filters{hasFilters ? ` (${[query, hubFilter !== "all" ? hubFilter : "", coverageFilter !== "all" ? coverageFilter : ""].filter(Boolean).length})` : ""}
+            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
+            Refresh
           </button>
-          <button type="button" onClick={() => void load()} className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm">
-            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh
-          </button>
-          <Link to="/procurement" className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium">
-            <Send className="size-4" /> Raise procurement
+          <Link
+            to="/procurement"
+            className="rule-header inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-base font-semibold"
+          >
+            <Send className="size-4" aria-hidden="true" />
+            Raise procurement
           </Link>
         </div>
       }
     >
-      {error ? <p role="alert" className="mb-4 rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
-      {showFilters ? (
-        <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-4">
-          <label className="min-w-56 flex-1 text-xs font-medium text-muted-foreground">
-            Search parts
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, code, material…" className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary" />
-          </label>
-          <label className="min-w-48 text-xs font-medium text-muted-foreground">
-            SubHub
-            <select value={hubFilter} onChange={(event) => setHubFilter(event.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary">
-              <option value="all">All active SubHubs</option>
-              {data.hubs.map((hub) => <option key={hub.id} value={hub.id}>{hub.name}</option>)}
-            </select>
-          </label>
-          <label className="min-w-44 text-xs font-medium text-muted-foreground">
-            Coverage
-            <select value={coverageFilter} onChange={(event) => setCoverageFilter(event.target.value as typeof coverageFilter)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary">
-              <option value="all">All parts</option>
-              <option value="deficit">Deficit only</option>
-              <option value="covered">Covered only</option>
-            </select>
-          </label>
-          {hasFilters ? <button type="button" onClick={() => { setQuery(""); setHubFilter("all"); setCoverageFilter("all"); }} className="inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"><X className="size-4" /> Clear</button> : null}
-        </div>
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-base text-destructive"
+        >
+          {error}
+        </p>
       ) : null}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Total deficit" value={formatNumber(data.totalDeficit)} tone="bad" hint="open units to arrange" />
-        <Kpi label="Parts affected" value={`${data.affectedParts} / ${data.totalParts}`} tone="warn" hint="with at least one deficit" />
-        <Kpi label="Hubs in deficit" value={`${data.hubsInDeficit} / ${data.hubs.length}`} tone="warn" hint={`${data.coveredHubs} fully covered`} />
-        <Kpi label="Actions logged" value={formatNumber(data.actions.length)} tone="good" hint="linked MongoDB actions" />
+      <section aria-label="Shortage filters" className="space-y-4 border-b border-border pb-5">
+        <h2 className="flex items-center gap-2 text-base font-semibold">
+          <Filter className="size-4 text-primary" aria-hidden="true" />
+          Find a part or SubHub
+        </h2>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="min-w-[240px] flex-1 text-sm font-medium text-muted-foreground">
+            Search subpart name or code
+            <span className="relative mt-1 block">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2"
+                aria-hidden="true"
+              />
+              <input
+                aria-label="Search by subpart name or code"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Enter a name or code"
+                className="h-11 w-full rounded-md border border-input bg-background pl-9 pr-3 text-base font-normal text-foreground outline-none focus:border-primary"
+              />
+            </span>
+          </label>
+          <label className="w-full text-sm font-medium text-muted-foreground sm:w-64">
+            SubHub
+            <select
+              aria-label="Filter by SubHub"
+              value={hubFilter}
+              onChange={(event) => setHubFilter(event.target.value)}
+              className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal text-foreground outline-none focus:border-primary"
+            >
+              <option value="all">All active SubHubs</option>
+              {data.hubs.map((hub) => (
+                <option key={hub.id} value={hub.id}>
+                  {hub.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="w-full text-sm font-medium text-muted-foreground sm:w-64">
+            Stock status
+            <select
+              aria-label="Filter by stock status"
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+              className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3 text-base font-normal text-foreground outline-none focus:border-primary"
+            >
+              <option value="all">All statuses</option>
+              <option value="shortage">Shortage — needs stock</option>
+              <option value="low">Low buffer — exactly enough</option>
+              <option value="surplus">Surplus</option>
+              <option value="no-target">No open target</option>
+            </select>
+          </label>
+          {hasFilters ? (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                setHubFilter("all");
+                setStatusFilter("all");
+              }}
+              className="inline-flex h-11 items-center gap-2 rounded-md px-3 text-base font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="size-4" aria-hidden="true" />
+              Clear filters
+            </button>
+          ) : null}
+        </div>
+        <div
+          className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm"
+          aria-label="Status legend"
+        >
+          <span className="inline-flex items-center gap-2 text-muted-foreground">
+            <CircleAlert className="size-4 text-destructive" aria-hidden="true" />
+            Red: needs stock
+          </span>
+          <span className="inline-flex items-center gap-2 text-muted-foreground">
+            <CircleAlert className="size-4 text-warning-foreground" aria-hidden="true" />
+            Yellow: exactly enough, no spare
+          </span>
+          <span className="inline-flex items-center gap-2 text-muted-foreground">
+            <CircleCheck className="size-4 text-success" aria-hidden="true" />
+            Green: stock above requirement
+          </span>
+          <span className="text-muted-foreground">Gray: no open target</span>
+        </div>
+      </section>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-base text-muted-foreground">
+          Required quantity comes from each SubHub’s remaining assigned target and its Bill of
+          Materials. Current stock is shown separately for each SubHub.
+        </p>
+        {loading ? (
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            Refreshing…
+          </p>
+        ) : null}
       </div>
 
-      <Panel title="Shortage matrix" description={`Requirement − current stock · ${visibleRows.length} of ${data.rows.length} parts · each cell is calculated from live MongoDB data`}>
-        {loading && !data.rows.length ? <p className="px-5 py-8 text-sm text-muted-foreground">Loading shortage matrix…</p> : null}
-        {!loading && !visibleRows.length ? <p className="px-5 py-8 text-sm text-muted-foreground">No parts match the current filters.</p> : null}
-        {visibleRows.length ? <div className="overflow-x-auto">
-          <table className="w-full min-w-[1040px] text-sm">
-            <thead>
-              <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="sticky left-0 bg-card px-5 py-3 text-left font-medium">Subpart</th>
-                {data.hubs.map((hub) => (
-                  <th key={hub.id} title={`${hub.name} · ${hub.managerName}`} className="max-w-28 px-3 py-3 text-center font-medium">
-                    {hub.name}
-                  </th>
-                ))}
-                <th className="px-5 py-3 text-right font-medium">Net</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleRows.map((row) => {
-                return (
-                  <tr key={row.code} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
-                    <td className="sticky left-0 bg-card px-5 py-3">
-                      <p className="font-medium">
-                        <Link to="/part/$code" params={{ code: row.code }} className="hover:text-primary">
-                          {row.name}
-                        </Link>
-                      </p>
-                      <p className="tabular text-xs text-muted-foreground">{row.code} · {row.material}</p>
-                    </td>
-                    {data.hubs.map((hub) => {
-                      const cell = row.cells[hub.id];
-                      const gap = cell?.gap ?? 0;
-                      return <td key={hub.id} title={`Requirement ${formatNumber(cell?.requirement ?? 0)} · Stock ${formatNumber(cell?.stock ?? 0)}`} className="px-3 py-3 text-center">
-                        <span
-                          className={`tabular inline-block min-w-16 rounded px-2 py-1 text-xs font-semibold ${
-                            gap > 0 ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success"
-                          }`}
-                        >
-                          {gap > 0 ? formatNumber(gap) : `−${formatNumber(-gap)}`}
-                        </span>
-                      </td>;
-                    })}
-                    <td
-                      className={`tabular px-5 py-3 text-right font-semibold ${row.net > 0 ? "text-destructive" : "text-success"}`}
-                    >
-                      {row.net > 0 ? formatNumber(row.net) : `−${formatNumber(-row.net)}`}
-                    </td>
+      <section className="panel overflow-hidden">
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold">Parts and stock by SubHub</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Showing {formatNumber(firstVisibleRow)}–{formatNumber(lastVisibleRow)} of{" "}
+              {formatNumber(visibleRows.length)} matching rows ({formatNumber(totalHubRows)} total)
+            </p>
+          </div>
+        </header>
+        {loading && !data.rows.length ? (
+          <p className="px-5 py-10 text-center text-base text-muted-foreground" aria-live="polite">
+            Loading shortage details…
+          </p>
+        ) : visibleRows.length ? (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[980px] text-base">
+                <thead className="bg-muted/30 text-left text-sm uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="min-w-56 px-4 py-3 font-semibold">
+                      Subpart name
+                    </th>
+                    <th scope="col" className="min-w-36 px-4 py-3 font-semibold">
+                      Code
+                    </th>
+                    <th scope="col" className="min-w-44 px-4 py-3 font-semibold">
+                      SubHub
+                    </th>
+                    <th scope="col" className="min-w-40 px-4 py-3 text-right font-semibold">
+                      <span className="block">Required quantity</span>
+                      <span className="mt-0.5 block text-xs font-normal normal-case tracking-normal">
+                        open targets
+                      </span>
+                    </th>
+                    <th scope="col" className="min-w-32 px-4 py-3 text-right font-semibold">
+                      Current stock
+                    </th>
+                    <th scope="col" className="min-w-48 px-4 py-3 font-semibold">
+                      Stock status
+                    </th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div> : null}
-      </Panel>
-
-      <Panel title="Action log" description="MongoDB procurement actions linked to parts currently in deficit">
-        {data.actions.length ? <ul className="divide-y divide-border">
-          {data.actions.map((action) => (
-            <li key={action.id} className="flex flex-wrap items-center gap-3 px-5 py-3 text-sm">
-              <Tag tone={action.status === "Delivery done" ? "good" : "info"}>{action.hubName}</Tag>
-              <span className="font-medium">{action.item}</span>
-              {action.quantity !== null ? <span className="tabular text-muted-foreground">{formatNumber(action.quantity)} units</span> : null}
-              <span className="ml-auto text-xs text-muted-foreground">
-                {action.note} · {action.actor} · {formatShortDate(action.createdAt)}
-              </span>
-            </li>
-          ))}
-        </ul> : <p className="px-5 py-8 text-sm text-muted-foreground">No procurement actions are currently linked to an open shortage.</p>}
-      </Panel>
+                </thead>
+                <tbody>
+                  {pageRows.map(({ part, hub, cell, status }) => (
+                    <tr
+                      key={`${part.code}-${hub.id}`}
+                      className="border-t border-border/70 hover:bg-muted/30"
+                    >
+                      <td className="whitespace-nowrap px-4 py-4 font-semibold">{part.name}</td>
+                      <td className="tabular whitespace-nowrap px-4 py-4 text-sm">
+                        <Link
+                          to="/part/$code"
+                          params={{ code: part.code }}
+                          className="text-primary underline-offset-2 hover:underline"
+                        >
+                          {part.code}
+                        </Link>
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-4">{hub.name}</td>
+                      <td className="tabular px-4 py-4 text-right font-medium">
+                        {formatNumber(cell.requirement)}
+                      </td>
+                      <td className="tabular px-4 py-4 text-right font-semibold">
+                        {formatNumber(cell.stock)}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-sm font-semibold ${statusStyles[status]}`}
+                          title={`Required ${formatNumber(cell.requirement)} · current stock ${formatNumber(cell.stock)}`}
+                        >
+                          {getStatusLabel(status, cell.requirement, cell.stock, formatNumber)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <TablePagination
+              total={visibleRows.length}
+              page={page}
+              pageSize={pageSize}
+              showPageSizeSelect={false}
+              onPageChange={setPage}
+              onPageSizeChange={() => undefined}
+            />
+          </>
+        ) : (
+          <p className="px-5 py-10 text-center text-base text-muted-foreground">
+            {data.hubs.length === 0
+              ? "No active SubHubs are available to compare yet."
+              : hasFilters
+                ? "No subparts match these filters. Try another SubHub or stock status."
+                : "No shortage details are available yet."}
+          </p>
+        )}
+      </section>
     </Shell>
   );
 }

@@ -1,0 +1,54 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+
+:root {
+  --radius: 0.5rem;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --color-background: oklch(1 0 0);
+  --color-foreground: oklch(0.24 0.03 255);
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.24 0.03 255);
+  --color-primary: oklch(0.45 0.11 245);
+  --color-primary-foreground: oklch(0.99 0.004 250);
+  --color-secondary: oklch(0.94 0.008 250);
+  --color-secondary-foreground: oklch(0.3 0.03 255);
+  --color-muted: oklch(0.955 0.006 250);
+  --color-muted-foreground: oklch(0.53 0.025 255);
+  --color-accent: oklch(0.74 0.15 62);
+  --color-accent-foreground: oklch(0.24 0.05 60);
+  --color-destructive: oklch(0.55 0.2 25);
+  --color-destructive-foreground: oklch(0.99 0.004 250);
+  --color-success: oklch(0.6 0.13 155);
+  --color-success-foreground: oklch(0.99 0.004 250);
+  --color-warning: oklch(0.78 0.15 78);
+  --color-warning-foreground: oklch(0.26 0.05 70);
+  --color-border: oklch(0.9 0.008 250);
+  --color-input: oklch(0.9 0.008 250);
+  --color-ring: oklch(0.45 0.11 245);
+  --color-sidebar: oklch(1 0 0);
+  --color-sidebar-foreground: oklch(0.32 0.03 255);
+  --color-sidebar-primary: oklch(0.45 0.11 245);
+  --color-sidebar-primary-foreground: oklch(0.99 0.004 250);
+  --color-sidebar-accent: oklch(0.955 0.008 250);
+  --color-sidebar-border: oklch(0.91 0.008 250);
+  --shadow-card: 0 1px 2px oklch(0.4 0.05 250 / 0.06), 0 8px 24px -12px oklch(0.4 0.05 250 / 0.18);
+}
+
+.shortages-preview {
+  min-height: 100vh;
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}
+
+.shortages-preview .tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.shortages-preview .panel {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
+}
