@@ -1,21 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
   AlertTriangle,
   ArrowRight,
   ChevronDown,
   ClipboardList,
   Edit3,
-  History,
   Plus,
   RefreshCw,
   Save,
@@ -26,8 +15,9 @@ import {
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/auth/AuthContext";
+import { ProductionTargetsNav } from "@/components/erp/ProductionTargetsNav";
 import { Shell } from "@/components/erp/Shell";
-import { Kpi, Panel, Tag } from "@/components/erp/bits";
+import { Tag } from "@/components/erp/bits";
 import { TablePagination } from "@/components/erp/TablePagination";
 import { getAdminProductionDashboardFn, getProductionOrderActivityFn, listAssignableSubhubsFn, reassignProductionOrderFn, setAdminHubCapacityFn } from "@/production";
 import { deleteProductionOrderFn, updateProductionOrderFn } from "@/production";
@@ -52,24 +42,7 @@ function statusTone(status: ProductionOrder["status"]): "good" | "warn" | "bad" 
   return "neutral";
 }
 
-type OrderDateField = "all" | "assigned" | "due";
-type OrderSort = "assigned-newest" | "assigned-oldest" | "due-soonest" | "due-latest" | "target-high" | "remaining-high" | "progress-high";
 type SaveHubCapacity = (subhubUserId: string, capacityUnits: number | null) => Promise<{ ok: true } | { ok: false; message: string }>;
-
-function dateOnly(value: string) {
-  if (!value.includes("T")) return value.slice(0, 10);
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value.slice(0, 10);
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Kolkata",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).formatToParts(parsed).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]),
-  );
-  return `${parts["year"]}-${parts["month"]}-${parts["day"]}`;
-}
 
 function formatOrderDate(value: string) {
   const parsed = new Date(value.includes("T") ? value : `${value}T00:00:00.000Z`);
@@ -92,9 +65,6 @@ function Orders() {
   const [search, setSearch] = useState("");
   const [subhubFilter, setSubhubFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<ProductionOrder["status"] | "all">("all");
-  const [dateField, setDateField] = useState<OrderDateField>("all");
-  const [dateValue, setDateValue] = useState("");
-  const [sort, setSort] = useState<OrderSort>("assigned-newest");
   const [orderPage, setOrderPage] = useState(1);
   const [orderPageSize, setOrderPageSize] = useState(10);
   const [savingCapacityId, setSavingCapacityId] = useState("");
@@ -119,10 +89,6 @@ function Orders() {
     void load();
   }, [load]);
 
-  const totalTarget = orders.reduce((sum, order) => sum + order.target, 0);
-  const totalProduced = orders.reduce((sum, order) => sum + order.produced, 0);
-  const totalRemaining = orders.reduce((sum, order) => sum + order.remaining, 0);
-  const completion = totalTarget ? Math.round((totalProduced / totalTarget) * 100) : 0;
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
     const filtered = orders.filter((order) => {
@@ -138,25 +104,14 @@ function Orders() {
       const matchesSearch = !query || searchable.includes(query);
       const matchesSubhub = subhubFilter === "all" || order.subhubUserId === subhubFilter;
       const matchesStatus = statusFilter === "all" || order.status === statusFilter;
-      const matchesDate = !dateValue || dateField === "all"
-        || (dateField === "assigned" && dateOnly(order.createdAt) === dateValue)
-        || (dateField === "due" && order.dueDate === dateValue);
-      return matchesSearch && matchesSubhub && matchesStatus && matchesDate;
+      return matchesSearch && matchesSubhub && matchesStatus;
     });
-    return [...filtered].sort((left, right) => {
-      if (sort === "assigned-oldest") return left.createdAt.localeCompare(right.createdAt);
-      if (sort === "due-soonest") return left.dueDate.localeCompare(right.dueDate) || right.createdAt.localeCompare(left.createdAt);
-      if (sort === "due-latest") return right.dueDate.localeCompare(left.dueDate) || right.createdAt.localeCompare(left.createdAt);
-      if (sort === "target-high") return right.target - left.target || right.createdAt.localeCompare(left.createdAt);
-      if (sort === "remaining-high") return right.remaining - left.remaining || right.createdAt.localeCompare(left.createdAt);
-      if (sort === "progress-high") return (right.target ? right.produced / right.target : 0) - (left.target ? left.produced / left.target : 0);
-      return right.createdAt.localeCompare(left.createdAt);
-    });
-  }, [dateField, dateValue, orders, search, sort, statusFilter, subhubFilter]);
+    return [...filtered].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }, [orders, search, statusFilter, subhubFilter]);
 
   useEffect(() => {
     setOrderPage(1);
-  }, [dateField, dateValue, search, sort, statusFilter, subhubFilter]);
+  }, [search, statusFilter, subhubFilter]);
 
   const paginatedOrders = useMemo(() => {
     const pageCount = Math.max(1, Math.ceil(filteredOrders.length / orderPageSize));
@@ -264,43 +219,153 @@ function Orders() {
   return (
     <Shell
       title="Orders & Production Targets"
-      subtitle="Set hub capacity, assign work, and analyze manager-entered production"
+      subtitle="Assign work to SubHubs and track daily production"
       actions={
-        <div className="flex gap-2">
-          <button type="button" onClick={() => void load()} className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm">
-            <RefreshCw className="size-4" /> Refresh
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted disabled:opacity-50"
+          >
+            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Refresh</span>
           </button>
-          <Link to="/production-targets" className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium">
-            <Plus className="size-4" /> Assign target
-          </Link>
-        </div>
       }
     >
-      <div className="space-y-6 p-6">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Kpi label="Assigned target" value={num(totalTarget)} hint={`${orders.length} live orders`} />
-          <Kpi label="Produced" value={num(totalProduced)} tone="good" hint="manager-entered output" />
-          <Kpi label="Remaining" value={num(totalRemaining)} tone="warn" hint="across assigned orders" />
-          <Kpi label="Completion" value={`${completion}%`} tone={completion >= 100 ? "good" : "neutral"} hint="all SubHubs combined" />
-        </div>
-
+      <div className="space-y-5">
+        <ProductionTargetsNav active="orders" />
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
         {capacitySuccess ? <p role="status" className="rounded-md border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-700">{capacitySuccess}</p> : null}
         {orderSuccess ? <p role="status" className="rounded-md border border-emerald-500/25 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-700">{orderSuccess}</p> : null}
-        <details className="panel group">
-          <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-3.5 [&::-webkit-details-marker]:hidden">
-            <div className="min-w-0 flex-1">
-              <h2 className="text-sm font-semibold">Hub capacity & workload</h2>
-              <p className="text-xs text-muted-foreground">Capacity is declared by each Hub Manager. Review live workload and automatic reassignment settings.</p>
+        <section aria-labelledby="production-orders-heading" className="space-y-4">
+          <div>
+            <h2 id="production-orders-heading" className="text-base font-semibold">Production orders</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Search or filter the work assigned to each SubHub.</p>
+          </div>
+          <div className="flex flex-col gap-3 border-y border-border py-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <label className="min-w-56 flex-1 text-xs font-medium text-muted-foreground">
+              Search orders
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Order, SubHub or product"
+                className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal text-foreground outline-none focus:border-primary"
+              />
+            </label>
+            <label className="text-xs font-medium text-muted-foreground sm:min-w-44">
+              SubHub
+              <select
+                value={subhubFilter}
+                onChange={(event) => setSubhubFilter(event.target.value)}
+                className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal text-foreground"
+              >
+                <option value="all">All SubHubs</option>
+                {subhubs.map((subhub) => (
+                  <option key={subhub.id} value={subhub.id}>{subhub.subhubName}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs font-medium text-muted-foreground sm:min-w-40">
+              Status
+              <select
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+                className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm font-normal text-foreground"
+              >
+                <option value="all">All statuses</option>
+                <option value="Unstarted">Not started</option>
+                <option value="In progress">In progress</option>
+                <option value="Complete">Complete</option>
+                <option value="Over target">Over target</option>
+              </select>
+            </label>
+            {(search || subhubFilter !== "all" || statusFilter !== "all") ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setSubhubFilter("all");
+                  setStatusFilter("all");
+                }}
+                className="h-10 px-2 text-sm font-medium text-primary hover:underline"
+              >
+                Clear filters
+              </button>
+            ) : null}
+            <p className="pb-2 text-xs text-muted-foreground sm:ml-auto">
+              {filteredOrders.length} {filteredOrders.length === 1 ? "order" : "orders"}
+            </p>
+          </div>
+          {loading ? (
+            <p className="py-12 text-center text-sm text-muted-foreground">Loading production orders…</p>
+          ) : orders.length === 0 ? (
+            <div className="py-12 text-center">
+              <ClipboardList className="mx-auto size-8 text-muted-foreground" />
+              <p className="mt-3 font-medium">No production orders yet</p>
+              <p className="mt-1 text-sm text-muted-foreground">Assign a target to start tracking daily production.</p>
+              <Link to="/production-targets" className="rule-header mt-4 inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-medium">
+                <Plus className="size-4" /> Assign targets
+              </Link>
             </div>
-            <span className="inline-flex shrink-0 items-center gap-2 text-xs font-medium text-primary">
-              View workload
-              <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
-            </span>
+          ) : !filteredOrders.length ? (
+            <p className="py-12 text-center text-sm text-muted-foreground">No orders match these filters.</p>
+          ) : (
+            <div className="overflow-x-auto border-y border-border">
+              <table className="w-full min-w-[850px] text-sm">
+                <thead className="bg-muted/30 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Order / SubHub</th>
+                    <th className="px-4 py-3 font-medium">Product / variant</th>
+                    <th className="px-4 py-3 text-right font-medium">Target</th>
+                    <th className="px-4 py-3 text-right font-medium">Produced</th>
+                    <th className="px-4 py-3 text-right font-medium">Remaining</th>
+                    <th className="px-4 py-3 font-medium">Due date</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 text-right font-medium">Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedOrders.map((order) => (
+                    <OrderRow
+                      key={order.id}
+                      order={order}
+                      subhubs={subhubs}
+                      activity={activities[order.id] ?? []}
+                      activityLoading={activityLoading === order.id}
+                      reassigning={reassigningOrderId === order.id}
+                      activityOpen={expandedOrderId === order.id}
+                      canManage={isMasterAdmin}
+                      saving={savingOrderId === order.id}
+                      onToggleActivity={() => void toggleActivity(order.id)}
+                      onReassign={(subhubUserId, reason) => void reassignOrder(order.id, subhubUserId, reason)}
+                      onEdit={() => setEditingOrder(order)}
+                      onDelete={() => void deleteTarget(order)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {!loading && filteredOrders.length > 0 ? (
+            <TablePagination
+              total={filteredOrders.length}
+              page={orderPage}
+              pageSize={orderPageSize}
+              onPageChange={setOrderPage}
+              onPageSizeChange={setOrderPageSize}
+            />
+          ) : null}
+        </section>
+
+        <details className="group border-y border-border">
+          <summary className="flex cursor-pointer list-none items-center gap-2 py-3 [&::-webkit-details-marker]:hidden">
+            <span className="text-sm font-medium">SubHub capacity & workload</span>
+            <span className="flex-1 text-xs text-muted-foreground">Advanced settings</span>
+            <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
           </summary>
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-border border-t border-border">
             {loading && !dashboard ? (
-              <p className="p-8 text-center text-sm text-muted-foreground">Loading hub capacity…</p>
+              <p className="py-8 text-center text-sm text-muted-foreground">Loading hub capacity…</p>
             ) : dashboard?.hubs.length ? (
               dashboard.hubs.map((hub) => (
                 <HubCapacityRow
@@ -311,180 +376,39 @@ function Orders() {
                 />
               ))
             ) : (
-              <p className="p-8 text-center text-sm text-muted-foreground">Create an active SubHub Manager to define capacity.</p>
+              <p className="py-8 text-sm text-muted-foreground">No active SubHub Managers are available.</p>
             )}
           </div>
         </details>
 
-        {dashboard ? <ProductionCharts dashboard={dashboard} /> : null}
-
         {dashboard?.recentReassignments.length ? (
-          <details className="panel group">
-            <summary className="flex cursor-pointer list-none items-center gap-3 px-5 py-3.5 [&::-webkit-details-marker]:hidden">
-              <div className="min-w-0 flex-1">
-                <h2 className="text-sm font-semibold">Recent automatic reassignments</h2>
-                <p className="text-xs text-muted-foreground">Orders moved when their previous hub exceeded its configured active target capacity.</p>
-              </div>
-              <span className="inline-flex shrink-0 items-center gap-2 text-xs font-medium text-primary">
-                {dashboard.recentReassignments.length} recent
-                <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+          <details className="group border-b border-border">
+            <summary className="flex cursor-pointer list-none items-center gap-2 py-3 [&::-webkit-details-marker]:hidden">
+              <span className="text-sm font-medium">Recent automatic moves</span>
+              <span className="flex-1 text-xs text-muted-foreground">
+                {dashboard.recentReassignments.length} {dashboard.recentReassignments.length === 1 ? "order" : "orders"}
               </span>
+              <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
             </summary>
-            <div className="divide-y divide-border">
+            <div className="divide-y divide-border border-t border-border">
               {dashboard.recentReassignments.map((reassignment, index) => (
-                <div key={`${reassignment.orderNumber}-${reassignment.createdAt}-${index}`} className="flex flex-wrap items-center gap-3 px-5 py-4 text-sm">
-                  <div className="min-w-48 flex-1">
-                    <p className="font-medium">{reassignment.orderNumber} · {reassignment.variantName}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">{reassignment.productName}</p>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <Tag tone="warn">{reassignment.fromHub}</Tag>
-                    <ArrowRight className="size-4 text-muted-foreground" />
-                    <Tag tone="good">{reassignment.toHub}</Tag>
-                  </div>
-                  <time className="text-xs text-muted-foreground">{reassignment.createdAt.slice(0, 10)}</time>
+                <div key={`${reassignment.orderNumber}-${reassignment.createdAt}-${index}`} className="flex flex-wrap items-center gap-3 py-3 text-sm">
+                  <p className="min-w-48 flex-1 font-medium">{reassignment.orderNumber} · {reassignment.variantName}</p>
+                  <span className="text-xs text-muted-foreground">{reassignment.fromHub}</span>
+                  <ArrowRight className="size-4 text-muted-foreground" aria-hidden="true" />
+                  <span className="text-xs font-medium">{reassignment.toHub}</span>
+                  <time className="text-xs text-muted-foreground">{formatOrderDate(reassignment.createdAt)}</time>
                 </div>
               ))}
             </div>
           </details>
         ) : null}
-
-        <Panel title="Assigned production orders" description="Each order belongs to one SubHub and can be reported against day by day.">
-          {loading ? (
-            <p className="p-8 text-center text-sm text-muted-foreground">Loading live orders…</p>
-          ) : orders.length === 0 ? (
-            <div className="p-10 text-center">
-              <ClipboardList className="mx-auto size-8 text-muted-foreground" />
-              <p className="mt-3 font-medium">No production targets assigned yet</p>
-              <p className="mt-1 text-sm text-muted-foreground">Assign the first order to a SubHub Manager to start collecting daily output.</p>
-               <Link to="/production-targets" className="rule-header mt-4 inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium">
-                <Plus className="size-4" /> Assign target
-               </Link>
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto border-b border-border">
-                <div className="flex min-w-max items-end gap-3 px-5 py-4">
-                  <label className="text-xs font-medium">
-                    Search orders
-                    <input
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Order, SubHub, Float, variant, notes…"
-                      className="mt-1.5 h-9 w-72 rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus:border-primary"
-                    />
-                  </label>
-                  <label className="text-xs font-medium">
-                    SubHub
-                    <select value={subhubFilter} onChange={(event) => setSubhubFilter(event.target.value)} className="mt-1.5 h-9 min-w-48 rounded-md border border-input bg-background px-3 text-sm font-normal">
-                      <option value="all">All SubHubs</option>
-                      {subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.subhubName}</option>)}
-                    </select>
-                  </label>
-                  <label className="text-xs font-medium">
-                    Status
-                    <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} className="mt-1.5 h-9 min-w-40 rounded-md border border-input bg-background px-3 text-sm font-normal">
-                      <option value="all">All statuses</option>
-                      <option value="Unstarted">Unstarted</option>
-                      <option value="In progress">In progress</option>
-                      <option value="Complete">Complete</option>
-                      <option value="Over target">Over target</option>
-                    </select>
-                  </label>
-                  <label className="text-xs font-medium">
-                    Date field
-                    <select
-                      value={dateField}
-                      onChange={(event) => {
-                        const nextField = event.target.value as OrderDateField;
-                        setDateField(nextField);
-                        if (nextField === "all") setDateValue("");
-                      }}
-                      className="mt-1.5 h-9 min-w-36 rounded-md border border-input bg-background px-3 text-sm font-normal"
-                    >
-                      <option value="all">All dates</option>
-                      <option value="assigned">Assigned on</option>
-                      <option value="due">Due on</option>
-                    </select>
-                  </label>
-                  <label className="text-xs font-medium">
-                    Specific date
-                    <input type="date" value={dateValue} onChange={(event) => setDateValue(event.target.value)} disabled={dateField === "all"} className="mt-1.5 h-9 rounded-md border border-input bg-background px-3 text-sm font-normal outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50" />
-                  </label>
-                  <label className="text-xs font-medium">
-                    Sort by
-                    <select value={sort} onChange={(event) => setSort(event.target.value as OrderSort)} className="mt-1.5 h-9 min-w-44 rounded-md border border-input bg-background px-3 text-sm font-normal">
-                      <option value="assigned-newest">Assigned newest</option>
-                      <option value="assigned-oldest">Assigned oldest</option>
-                      <option value="due-soonest">Due date soonest</option>
-                      <option value="due-latest">Due date latest</option>
-                      <option value="target-high">Largest target</option>
-                      <option value="remaining-high">Most remaining</option>
-                      <option value="progress-high">Highest progress</option>
-                    </select>
-                  </label>
-                  <button type="button" onClick={() => { setSearch(""); setSubhubFilter("all"); setStatusFilter("all"); setDateField("all"); setDateValue(""); setSort("assigned-newest"); }} disabled={!search && subhubFilter === "all" && statusFilter === "all" && dateField === "all" && !dateValue && sort === "assigned-newest"} className="h-9 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40">
-                    Reset
-                  </button>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3 text-xs text-muted-foreground">
-                <span>{filteredOrders.length} of {orders.length} assigned orders shown</span>
-                <span>{dateField === "assigned" && dateValue ? `Assigned on ${formatOrderDate(dateValue)}` : dateField === "due" && dateValue ? `Due on ${formatOrderDate(dateValue)}` : "All assignment dates"}</span>
-              </div>
-              {!filteredOrders.length ? (
-                <p className="p-10 text-center text-sm text-muted-foreground">No assigned orders match the current filters.</p>
-              ) : (
-                <>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1320px] text-sm">
-                      <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-                        <tr>
-                          <th className="px-5 py-3 font-medium">Order / SubHub</th>
-                          <th className="px-5 py-3 font-medium">Product variant</th>
-                          <th className="px-5 py-3 text-right font-medium">Target</th>
-                          <th className="px-5 py-3 text-right font-medium">Produced</th>
-                          <th className="px-5 py-3 font-medium">Progress</th>
-                          <th className="px-5 py-3 text-right font-medium">Remaining</th>
-                          <th className="px-5 py-3 font-medium">Assigned</th>
-                          <th className="px-5 py-3 font-medium">Due date</th>
-                          <th className="px-5 py-3 text-right font-medium">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {paginatedOrders.map((order) => (
-                          <OrderRow
-                            key={order.id}
-                            order={order}
-                            subhubs={subhubs}
-                            activity={activities[order.id] ?? []}
-                            activityLoading={activityLoading === order.id}
-                            reassigning={reassigningOrderId === order.id}
-                            activityOpen={expandedOrderId === order.id}
-                            canManage={isMasterAdmin}
-                            saving={savingOrderId === order.id}
-                            onToggleActivity={() => void toggleActivity(order.id)}
-                            onReassign={(subhubUserId, reason) => void reassignOrder(order.id, subhubUserId, reason)}
-                            onEdit={() => setEditingOrder(order)}
-                            onDelete={() => void deleteTarget(order)}
-                          />
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <TablePagination total={filteredOrders.length} page={orderPage} pageSize={orderPageSize} onPageChange={setOrderPage} onPageSizeChange={setOrderPageSize} />
-                </>
-              )}
-            </>
-          )}
-        </Panel>
       </div>
       {editingOrder ? <TargetEditor order={editingOrder} subhubs={subhubs} busy={savingOrderId === editingOrder.id} onClose={() => setEditingOrder(null)} onSave={saveTarget} /> : null}
 
     </Shell>
   );
 }
-
 function HubCapacityRow({
   hub,
   saving,
@@ -708,76 +632,101 @@ function OrderRow({
 
   return (
     <>
-      <tr className="border-b border-border/70 hover:bg-muted/40">
-        <td className="px-5 py-4">
+      <tr className="border-b border-border/70 hover:bg-muted/30">
+        <td className="px-4 py-3">
           <p className="tabular font-semibold">{order.orderNumber}</p>
           <p className="mt-1 text-xs text-muted-foreground">{order.subhubName}</p>
-          {order.notes ? <p className="mt-2 max-w-64 text-xs text-muted-foreground"><span className="font-medium text-foreground">Notes:</span> {order.notes}</p> : null}
-          <button type="button" onClick={onToggleActivity} className="mt-2 text-xs font-medium text-primary hover:underline">
-            {activityLoading ? "Loading activity…" : activityOpen ? "Hide activity" : "View activity"}
+        </td>
+        <td className="px-4 py-3">
+          <p className="font-medium">{order.productName}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{order.variantName} · {order.variantCode}</p>
+        </td>
+        <td className="tabular px-4 py-3 text-right font-medium">{num(order.target)}</td>
+        <td className="tabular px-4 py-3 text-right">{num(order.produced)}</td>
+        <td className="tabular px-4 py-3 text-right font-medium">{num(order.remaining)}</td>
+        <td className="whitespace-nowrap px-4 py-3 text-xs">{formatOrderDate(order.dueDate)}</td>
+        <td className="px-4 py-3"><Tag tone={statusTone(order.status)}>{order.status}</Tag></td>
+        <td className="px-4 py-3 text-right">
+          <button
+            type="button"
+            onClick={onToggleActivity}
+            aria-expanded={activityOpen}
+            className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-sm font-medium text-primary hover:bg-primary/5"
+          >
+            {activityLoading ? "Loading…" : activityOpen ? "Close" : "Manage"}
+            <ChevronDown className={`size-4 transition-transform ${activityOpen ? "rotate-180" : ""}`} />
           </button>
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <select
-              value={destinationId}
-              onChange={(event) => setDestinationId(event.target.value)}
-              aria-label={`Destination SubHub for ${order.orderNumber}`}
-              className="h-8 max-w-44 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary"
-            >
-              {subhubs.map((subhub) => <option key={subhub.id} value={subhub.id}>{subhub.subhubName}</option>)}
-            </select>
-            <button
-              type="button"
-              disabled={reassigning || destinationId === order.subhubUserId}
-              onClick={() => onReassign(destinationId, reason)}
-              className="inline-flex h-8 items-center gap-1 rounded-md border border-input px-2 text-xs font-medium hover:bg-muted disabled:opacity-50"
-            >
-              <ArrowRight className="size-3.5" /> {reassigning ? "Moving…" : "Move order"}
-            </button>
-          </div>
-          {destinationId !== order.subhubUserId ? (
-            <input
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder="Reason (optional)"
-              aria-label={`Reason for moving ${order.orderNumber}`}
-              className="mt-2 h-8 w-full max-w-64 rounded-md border border-input bg-background px-2 text-xs outline-none focus:border-primary"
-            />
-          ) : null}
-          {canManage ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/70 pt-3">
-              <button type="button" onClick={onEdit} disabled={saving} className="inline-flex h-8 items-center gap-1 rounded-md border border-input px-2 text-xs font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50">
-                <Edit3 className="size-3.5" /> Edit target
-              </button>
-              <button type="button" onClick={onDelete} disabled={saving} className="inline-flex h-8 items-center gap-1 rounded-md border border-destructive/25 px-2 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50">
-                <Trash2 className="size-3.5" /> {saving ? "Deleting…" : "Delete"}
-              </button>
-            </div>
-          ) : null}
         </td>
-        <td className="px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{order.productName}</p>
-          <p className="mt-1 font-medium">{order.variantName}</p>
-          <p className="tabular text-xs text-muted-foreground">{order.variantCode}</p>
-        </td>
-        <td className="tabular px-5 py-4 text-right font-semibold">{num(order.target)}</td>
-        <td className="tabular px-5 py-4 text-right">{num(order.produced)}</td>
-        <td className="px-5 py-4">
-          <div className="min-w-32">
-            <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${Math.min(100, order.target ? (order.produced / order.target) * 100 : 0)}%` }} />
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">{order.target ? Math.round((order.produced / order.target) * 100) : 0}% complete</p>
-          </div>
-        </td>
-        <td className="tabular px-5 py-4 text-right font-medium">{num(order.remaining)}</td>
-        <td className="tabular px-5 py-4 text-muted-foreground">{formatOrderDate(order.createdAt)}</td>
-        <td className="tabular px-5 py-4 text-right text-muted-foreground">{order.dueDate}</td>
-        <td className="px-5 py-4 text-right"><Tag tone={statusTone(order.status)}>{order.status}</Tag></td>
       </tr>
       {activityOpen ? (
         <tr className="border-b border-border/70">
-          <td colSpan={9} className="bg-muted/10 px-5 py-4">
-            <ActivityTimeline activities={activity ?? []} loading={activityLoading} />
+          <td colSpan={8} className="bg-muted/10 px-4 py-4">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <section aria-label={`Actions for ${order.orderNumber}`} className="space-y-3">
+                <div>
+                  <h3 className="text-sm font-semibold">Manage {order.orderNumber}</h3>
+                  <p className="mt-1 text-xs text-muted-foreground">Assigned to {order.subhubName}</p>
+                  {order.notes ? <p className="mt-2 text-sm">{order.notes}</p> : null}
+                </div>
+                <label className="block max-w-xl text-sm font-medium">
+                  Move to another SubHub
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    <select
+                      value={destinationId}
+                      onChange={(event) => setDestinationId(event.target.value)}
+                      aria-label={`Destination SubHub for ${order.orderNumber}`}
+                      className="h-10 min-w-48 flex-1 rounded-md border border-input bg-background px-3 text-sm font-normal"
+                    >
+                      {subhubs.map((subhub) => (
+                        <option key={subhub.id} value={subhub.id}>{subhub.subhubName}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={reassigning || destinationId === order.subhubUserId}
+                      onClick={() => onReassign(destinationId, reason)}
+                      className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <ArrowRight className="size-4" /> {reassigning ? "Moving…" : "Move order"}
+                    </button>
+                  </div>
+                </label>
+                {destinationId !== order.subhubUserId ? (
+                  <label className="block max-w-xl text-xs font-medium text-muted-foreground">
+                    Reason for moving <span className="font-normal">(optional)</span>
+                    <input
+                      value={reason}
+                      onChange={(event) => setReason(event.target.value)}
+                      aria-label={`Reason for moving ${order.orderNumber}`}
+                      className="mt-1 block h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-normal text-foreground"
+                    />
+                  </label>
+                ) : null}
+                {canManage ? (
+                  <div className="flex flex-wrap gap-2 border-t border-border pt-3">
+                    <button
+                      type="button"
+                      onClick={onEdit}
+                      disabled={saving}
+                      className="inline-flex min-h-9 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted disabled:opacity-50"
+                    >
+                      <Edit3 className="size-4" /> Edit target
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onDelete}
+                      disabled={saving}
+                      className="inline-flex min-h-9 items-center gap-2 rounded-md border border-destructive/30 px-3 text-sm font-medium text-destructive hover:bg-destructive/5 disabled:opacity-50"
+                    >
+                      <Trash2 className="size-4" /> {saving ? "Deleting…" : "Delete target"}
+                    </button>
+                  </div>
+                ) : null}
+              </section>
+              <section aria-label={`History for ${order.orderNumber}`} className="border-t border-border pt-4 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+                <ActivityTimeline activities={activity ?? []} loading={activityLoading} />
+              </section>
+            </div>
           </td>
         </tr>
       ) : null}
@@ -806,72 +755,6 @@ function ActivityTimeline({ activities, loading }: { activities: ProductionOrder
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function ProductionCharts({ dashboard }: { dashboard: AdminProductionDashboard }) {
-  const productionPoints = dashboard.dailyProduction.length ? dashboard.dailyProduction : dashboard.weeklyProduction;
-  const hubTotals = dashboard.chartHubs.map((hub) => ({
-    label: hub.subhubName,
-    value: productionPoints.reduce((total, point) => total + Number(point[hub.key] ?? 0), 0),
-  }));
-  const weeklyPoints = dashboard.weeklyProduction.slice(-6).map((point) => ({
-    label: point.label.replace("Week of ", ""),
-    value: Number(point.total),
-  }));
-  const chartStyle = {
-    borderRadius: 8,
-    border: "1px solid var(--color-border)",
-    background: "var(--color-card)",
-    fontSize: 12,
-  };
-
-  return (
-    <div className="grid gap-6 xl:grid-cols-2">
-      <Panel title="Production by SubHub" description="Finished units reported in the current period.">
-        {hubTotals.length === 0 || hubTotals.every((hub) => hub.value === 0) ? (
-          <div className="flex h-72 items-center justify-center px-6 text-center text-sm text-muted-foreground">
-            No production reports are available yet.
-          </div>
-        ) : (
-          <div className="h-72 p-4" role="img" aria-label="Column chart showing production by SubHub">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={hubTotals} margin={{ top: 24, right: 12, left: 0, bottom: 8 }}>
-                <CartesianGrid stroke="var(--color-border)" vertical={false} />
-                <XAxis dataKey="label" stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={chartStyle} formatter={(value) => [`${num(Number(value))} units`, "Produced"]} />
-                <Bar dataKey="value" name="Produced" fill="#2563eb" radius={[6, 6, 0, 0]} maxBarSize={72}>
-                  <LabelList dataKey="value" position="top" />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </Panel>
-
-      <Panel title="Weekly production totals" description="Total finished units across all SubHubs.">
-        {weeklyPoints.length === 0 ? (
-          <div className="flex h-72 items-center justify-center px-6 text-center text-sm text-muted-foreground">
-            No weekly production reports are available yet.
-          </div>
-        ) : (
-          <div className="h-72 p-4" role="img" aria-label="Column chart showing weekly production totals">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyPoints} margin={{ top: 24, right: 12, left: 0, bottom: 8 }}>
-                <CartesianGrid stroke="var(--color-border)" vertical={false} />
-                <XAxis dataKey="label" stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="var(--color-muted-foreground)" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={chartStyle} formatter={(value) => [`${num(Number(value))} units`, "Produced"]} />
-                <Bar dataKey="value" name="Produced" fill="#16a34a" radius={[6, 6, 0, 0]} maxBarSize={72}>
-                  <LabelList dataKey="value" position="top" />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </Panel>
     </div>
   );
 }
