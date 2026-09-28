@@ -32,6 +32,7 @@ const nav = [
   { to: "/hubs", label: "Hubs & Stock", icon: Factory, permission: "hubs" },
   { to: "/shortages", label: "Shortages", icon: AlertTriangle, permission: "shortages" },
   {
+    to: "/admin/procurement/orders",
     label: "Procurement",
     icon: Truck,
     permission: "procurement",
@@ -164,23 +165,31 @@ export function Shell({
               const active = pathname.startsWith("/admin/procurement");
               return (
                 <div key={item.label}>
-                  <button
-                    type="button"
-                    aria-expanded={isProcurementSectionOpen}
-                    onClick={() => setProcurementSectionOpen((open) => !open)}
-                    className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-base leading-snug transition-colors ${
-                      active
-                        ? "bg-sidebar-accent font-medium text-sidebar-primary"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent/60"
-                    }`}
-                  >
-                    <item.icon className="size-5 shrink-0" />
-                    <span className="flex-1">{item.label}</span>
+                  <div className="flex items-center gap-1">
+                    <Link
+                      to={item.to}
+                      className={`flex min-w-0 flex-1 items-center gap-3 rounded-md px-3 py-2.5 text-base leading-snug transition-colors ${
+                        active
+                          ? "bg-sidebar-accent font-medium text-sidebar-primary"
+                          : "text-sidebar-foreground hover:bg-sidebar-accent/60"
+                      }`}
+                    >
+                      <item.icon className="size-5 shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                    </Link>
+                    <button
+                      type="button"
+                      aria-label={`${isProcurementSectionOpen ? "Collapse" : "Expand"} Procurement pages`}
+                      aria-expanded={isProcurementSectionOpen}
+                      onClick={() => setProcurementSectionOpen((open) => !open)}
+                      className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground"
+                    >
                     <ChevronDown
                       aria-hidden="true"
                       className={`size-4 transition-transform ${isProcurementSectionOpen ? "rotate-180" : ""}`}
                     />
-                  </button>
+                    </button>
+                  </div>
                   {isProcurementSectionOpen ? (
                     <div className="ml-5 mt-1 space-y-1 border-l border-sidebar-border py-1 pl-3">
                       {item.children.map((child) => {
@@ -271,17 +280,21 @@ export function Shell({
                 const active = pathname.startsWith("/admin/procurement");
                 return (
                   <div key={item.label} className="flex shrink-0 items-center gap-1">
-                    <button
-                      type="button"
-                      aria-expanded={isProcurementSectionOpen}
-                      onClick={() => setProcurementSectionOpen((open) => !open)}
+                    <Link
+                      to={item.to}
                       className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md px-3 py-1.5 text-sm ${
-                        active
-                          ? "bg-secondary font-medium text-foreground"
-                          : "text-muted-foreground"
+                        active ? "bg-secondary font-medium text-foreground" : "text-muted-foreground"
                       }`}
                     >
                       {item.label}
+                    </Link>
+                    <button
+                      type="button"
+                      aria-label={`${isProcurementSectionOpen ? "Collapse" : "Expand"} Procurement pages`}
+                      aria-expanded={isProcurementSectionOpen}
+                      onClick={() => setProcurementSectionOpen((open) => !open)}
+                      className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-secondary"
+                    >
                       <ChevronDown
                         aria-hidden="true"
                         className={`size-3 transition-transform ${isProcurementSectionOpen ? "rotate-180" : ""}`}
