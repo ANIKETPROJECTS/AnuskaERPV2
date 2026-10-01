@@ -3,9 +3,9 @@ type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/consolidated-shortages/Current.tsx": () => import("../components/mockups/consolidated-shortages/Current.tsx"),
   "./components/mockups/consolidated-shortages/Requested.tsx": () => import("../components/mockups/consolidated-shortages/Requested.tsx"),
-  "./components/mockups/procurement-orders/Current.tsx": () => import("../components/mockups/procurement-orders/Current.tsx"),
-  "./components/mockups/procurement-orders/Refreshed.tsx": () => import("../components/mockups/procurement-orders/Refreshed.tsx"),
   "./components/mockups/hr-attendance/AttendanceOverview.tsx": () => import("../components/mockups/hr-attendance/AttendanceOverview.tsx"),
   "./components/mockups/hr-attendance/AttendanceReports.tsx": () => import("../components/mockups/hr-attendance/AttendanceReports.tsx"),
-  "./components/mockups/hr-attendance/Current.tsx": () => import("../components/mockups/hr-attendance/Current.tsx")
+  "./components/mockups/hr-attendance/Current.tsx": () => import("../components/mockups/hr-attendance/Current.tsx"),
+  "./components/mockups/procurement-orders/Current.tsx": () => import("../components/mockups/procurement-orders/Current.tsx"),
+  "./components/mockups/procurement-orders/Refreshed.tsx": () => import("../components/mockups/procurement-orders/Refreshed.tsx")
 };
