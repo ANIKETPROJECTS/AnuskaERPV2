@@ -6,7 +6,6 @@ import { Panel, Tag } from "@/components/erp/bits";
 import { getInventoryItemDetailFn } from "@/inventory";
 import type { InventoryItemDetail } from "@/inventory.server";
 import { num } from "@/lib/erp-data";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/inventory/items/$itemCode")({ component: InventoryItemDetailPage });
 
@@ -33,11 +32,9 @@ function InventoryItemDetailPage() {
       }
     }
   }, [itemCode]);
-  const refresh = useAutoRefresh(load);
-
   useEffect(() => {
-    void refresh(false);
-  }, [itemCode, refresh]);
+    void load();
+  }, [load]);
 
   return (
     <SubHubShell actions={<Link to="/inventory/raw-materials" className="text-sm text-primary hover:underline">Back to inventory</Link>}>

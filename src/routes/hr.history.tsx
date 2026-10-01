@@ -5,7 +5,6 @@ import { Shell } from "@/components/erp/Shell";
 import { TablePagination } from "@/components/erp/TablePagination";
 import { getAdminHeadcountReportFn } from "@/hr";
 import type { AdminHeadcountReport } from "@/hr.server";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/hr/history")({
   head: () => ({ meta: [{ title: "Attendance history — Admin · Gadsons ERP" }] }),
@@ -72,14 +71,11 @@ function AdminHrHistoryPage() {
   const dateRangeRef = useRef({ fromDate, toDate });
   dateRangeRef.current = { fromDate, toDate };
 
-  const load = useCallback(async (isBackgroundRefresh = false) => {
+  const load = useCallback(async () => {
     let requestFromDate = fromDate;
     let requestToDate = toDate;
-    let silent = isBackgroundRefresh;
-    if (!isBackgroundRefresh) {
-      setLoading(true);
-      setError("");
-    }
+    setLoading(true);
+    setError("");
     try {
       while (true) {
         const request: ReportRequest =
@@ -99,11 +95,10 @@ function AdminHrHistoryPage() {
           if (requestFromDate !== latestRange.fromDate || requestToDate !== latestRange.toDate) {
             requestFromDate = latestRange.fromDate;
             requestToDate = latestRange.toDate;
-            silent = false;
             setLoading(true);
             continue;
           }
-          if (!isBackgroundRefresh) setReport(emptyReport);
+          setReport(emptyReport);
           setError("Attendance could not be loaded. Please try again.");
           return;
         }
@@ -112,12 +107,11 @@ function AdminHrHistoryPage() {
         if (requestFromDate !== latestRange.fromDate || requestToDate !== latestRange.toDate) {
           requestFromDate = latestRange.fromDate;
           requestToDate = latestRange.toDate;
-          silent = false;
           setLoading(true);
           continue;
         }
         if (!result.ok) {
-          if (!isBackgroundRefresh) setReport(emptyReport);
+          setReport(emptyReport);
           setError(result.message);
           return;
         }
@@ -126,15 +120,13 @@ function AdminHrHistoryPage() {
         return;
       }
     } finally {
-      if (!silent || !isBackgroundRefresh) setLoading(false);
+      setLoading(false);
     }
   }, [fromDate, toDate]);
 
-  const runRefresh = useAutoRefresh(load);
-
   useEffect(() => {
-    void runRefresh(false);
-  }, [runRefresh, fromDate, toDate]);
+    void load();
+  }, [load]);
 
   useEffect(() => {
     setPage(1);

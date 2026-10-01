@@ -1,11 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { RefreshCw, Search, Send, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { TablePagination } from "@/components/erp/TablePagination";
 import { getShortageDataFn } from "@/shortages";
 import type { ShortageData } from "@/shortages.server";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/shortages")({
   loader: () => getShortageDataFn(),
@@ -80,8 +79,8 @@ function Shortages() {
     setPage(1);
   }, [hubFilter, query, statusFilter, viewMode]);
 
-  async function load(isBackgroundRefresh = false) {
-    if (!isBackgroundRefresh) setLoading(true);
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
       const response = await getShortageDataFn();
       if (response.ok) {
@@ -93,15 +92,13 @@ function Shortages() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Shortage data could not be loaded.");
     } finally {
-      if (!isBackgroundRefresh) setLoading(false);
+      setLoading(false);
     }
-  }
-
-  const runRefresh = useAutoRefresh(load);
+  }, []);
 
   useEffect(() => {
-    if (!result.ok) void runRefresh(false);
-  }, [result.ok, runRefresh]);
+    if (!result.ok) void load();
+  }, [result.ok, load]);
 
   const visibleHubs = useMemo(
     () => (hubFilter === "all" ? data.hubs : data.hubs.filter((hub) => hub.id === hubFilter)),
@@ -152,7 +149,7 @@ function Shortages() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => void runRefresh(false)}
+            onClick={() => void load()}
             disabled={loading}
             className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-card px-3 text-base font-medium hover:bg-muted disabled:cursor-wait disabled:opacity-60"
           >

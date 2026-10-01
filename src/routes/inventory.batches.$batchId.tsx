@@ -5,7 +5,6 @@ import { Panel, Tag } from "@/components/erp/bits";
 import { getBatchDetailFn } from "@/inventory";
 import type { BatchLineage, BatchMovement, InventoryBatch, QualityLog } from "@/inventory.server";
 import { num } from "@/lib/erp-data";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/inventory/batches/$batchId")({ component: BatchDetailPage });
 
@@ -33,10 +32,9 @@ function BatchDetailPage() {
       }
     }
   }, [batchId]);
-  const refresh = useAutoRefresh(load);
   useEffect(() => {
-    void refresh(false);
-  }, [batchId, refresh]);
+    void load();
+  }, [load]);
   return <SubHubShell actions={<Link to="/inventory/batches" className="text-sm text-primary hover:underline">Back to batch register</Link>}><section className="space-y-6 p-6">{error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}{!data ? <p className="text-sm text-muted-foreground">Loading batch traceability…</p> : <><Panel title="Batch traceability" description={`${data.batch.itemName} · ${data.batch.itemCode}`}><div className="flex flex-wrap items-start justify-between gap-4 border-b border-border p-5"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Batch code</p><h1 className="tabular mt-1 text-xl font-semibold">{data.batch.batchCode}</h1></div><Tag tone={data.batch.availableQuantity ? "good" : "warn"}>{data.batch.status}</Tag></div><dl className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">{[["Category", data.batch.category], ["Source", data.batch.source], ["Source reference", data.batch.sourceReference], ["Logged", formatDate(data.batch.loggedAt)], ["Received", num(data.batch.receivedQuantity)], ["Produced", num(data.batch.producedQuantity)], ["Consumed", num(data.batch.consumedQuantity)], ["Defective", num(data.batch.defectiveQuantity)], ["Available", num(data.batch.availableQuantity)]].map(([label, value]) => <div key={label}><dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm font-medium">{value}</dd></div>)}</dl><div className="border-t border-border p-5"><h2 className="text-sm font-semibold">Source metadata</h2><dl className="mt-3 grid gap-3 sm:grid-cols-2">{Object.entries(data.batch.sourceMetadata).length ? Object.entries(data.batch.sourceMetadata).map(([key, value]) => <div key={key} className="rounded border border-border/70 bg-muted/20 px-3 py-2"><dt className="text-xs text-muted-foreground">{labelize(key)}</dt><dd className="mt-1 break-words text-sm">{value}</dd></div>) : <p className="text-sm text-muted-foreground">No additional source metadata recorded.</p>}</dl></div></Panel><Lineage title="Parent input batches" rows={data.parents} parent /><Lineage title="Child output batches" rows={data.children} /><QualityTable logs={data.qualityLogs} /><Ledger movements={data.movements} /></>}</section></SubHubShell>;
 }
 

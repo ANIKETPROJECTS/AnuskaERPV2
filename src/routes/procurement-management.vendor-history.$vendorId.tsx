@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { VendorPurchaseHistory } from "@/components/erp/VendorPurchaseHistory";
 import { getProcurementManagementDataFn } from "@/procurement";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/procurement-management/vendor-history/$vendorId")({
   loader: () => getProcurementManagementDataFn(),
@@ -31,8 +30,8 @@ function VendorHistoryPage() {
     setResult(loaderResult);
   }, [loaderResult]);
 
-  async function refreshData(isBackgroundRefresh: boolean) {
-    if (!isBackgroundRefresh) setRefreshing(true);
+  async function refreshData() {
+    setRefreshing(true);
     try {
       const response = await getProcurementManagementDataFn();
       if (response.ok) {
@@ -44,11 +43,9 @@ function VendorHistoryPage() {
     } catch (error) {
       setRefreshError(error instanceof Error ? error.message : "Unable to refresh vendor purchase history.");
     } finally {
-      if (!isBackgroundRefresh) setRefreshing(false);
+      setRefreshing(false);
     }
   }
-
-  const runRefresh = useAutoRefresh(refreshData);
 
   if (!result.ok) {
     return (
@@ -58,7 +55,7 @@ function VendorHistoryPage() {
         </p>
         <button
           type="button"
-          onClick={() => void runRefresh(false)}
+          onClick={() => void refreshData()}
           disabled={refreshing}
           className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md border border-input px-4 text-sm font-semibold hover:bg-muted disabled:opacity-50"
         >
@@ -78,7 +75,7 @@ function VendorHistoryPage() {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => void runRefresh(false)}
+              onClick={() => void refreshData()}
               disabled={refreshing}
               className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted disabled:opacity-50"
             >

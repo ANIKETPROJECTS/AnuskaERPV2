@@ -2,7 +2,6 @@ import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 import { ArrowRight, Save } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { getManagerHeadcountDataFn, saveManagerHeadcountFn, updateManagerHeadcountFn } from "@/hr";
 import type { ManagerHeadcountData } from "@/hr.server";
 
@@ -60,8 +59,8 @@ function SubhubHrPage() {
   const [notice, setNotice] = useState("");
   const today = data.date || currentDate();
 
-  const load = useCallback(async (isBackgroundRefresh = false) => {
-    if (!isBackgroundRefresh) setLoading(true);
+  const load = useCallback(async () => {
+    setLoading(true);
     setError("");
     try {
       const result = await getManagerHeadcountDataFn();
@@ -73,17 +72,13 @@ function SubhubHrPage() {
     } catch {
       setError("Today’s count could not be loaded. Please try again.");
     } finally {
-      if (!isBackgroundRefresh) setLoading(false);
+      setLoading(false);
     }
   }, []);
 
-  const refresh = useAutoRefresh(load, {
-    canRefresh: () => !editing && !saving && !countInput.trim(),
-  });
-
   useEffect(() => {
-    void refresh(false);
-  }, [refresh]);
+    void load();
+  }, [load]);
 
   useEffect(() => {
     if (!saving) {

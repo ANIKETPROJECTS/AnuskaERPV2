@@ -7,7 +7,6 @@ import { SubHubShell } from "@/components/erp/SubHubShell";
 import { getProcurementOrderFn } from "@/procurement";
 import { getAuthStateFn } from "@/auth";
 import type { ProcurementStatus } from "@/procurement.server";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { z } from "zod";
 
 export const Route = createFileRoute("/po/$id")({
@@ -77,8 +76,8 @@ function PurchaseDetail() {
     setRefreshError("");
   }, [loaderOrder]);
 
-  async function refreshOrder(isBackgroundRefresh: boolean) {
-    if (!isBackgroundRefresh) setRefreshing(true);
+  async function refreshOrder() {
+    setRefreshing(true);
     try {
       const result = await getProcurementOrderFn({ data: { id, panel } });
       if (result.ok) {
@@ -90,11 +89,9 @@ function PurchaseDetail() {
     } catch (error) {
       setRefreshError(error instanceof Error ? error.message : "Unable to refresh this purchase order.");
     } finally {
-      if (!isBackgroundRefresh) setRefreshing(false);
+      setRefreshing(false);
     }
   }
-
-  const runRefresh = useAutoRefresh(refreshOrder);
 
   const visibleStatusSteps: ProcurementStatus[] = ["Order placed", "Dispatch done", "Delivery done"];
   const currentIndex =
@@ -169,7 +166,7 @@ function PurchaseDetail() {
     <div className="flex flex-wrap gap-2">
       <button
         type="button"
-        onClick={() => void runRefresh(false)}
+        onClick={() => void refreshOrder()}
         disabled={refreshing}
         className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted disabled:opacity-50"
       >

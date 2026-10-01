@@ -3,7 +3,6 @@ import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { TablePagination } from "@/components/erp/TablePagination";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { getManagerHeadcountHistoryFn } from "@/hr";
 import type { ManagerHeadcountHistory } from "@/hr.server";
 
@@ -68,8 +67,8 @@ function SubhubHrHistoryPage() {
   const pageSize = 25;
   const today = currentDate();
 
-  const load = useCallback(async (isBackgroundRefresh = false) => {
-    if (!isBackgroundRefresh) setLoading(true);
+  const load = useCallback(async () => {
+    setLoading(true);
     setError("");
     const request: HistoryRequest =
       fromDate || toDate
@@ -82,25 +81,23 @@ function SubhubHrHistoryPage() {
     try {
       const result = await getManagerHeadcountHistoryFn({ data: request });
       if (!result.ok) {
-        if (!isBackgroundRefresh) setHistory(emptyHistory);
+        setHistory(emptyHistory);
         setError(result.message);
         return;
       }
       setHistory(result.data);
     } catch {
-      if (!isBackgroundRefresh) setHistory(emptyHistory);
+      setHistory(emptyHistory);
       setError("Attendance could not be loaded. Please try again.");
     } finally {
-      if (!isBackgroundRefresh) setLoading(false);
+      setLoading(false);
     }
   }, [fromDate, toDate]);
 
-  const refresh = useAutoRefresh(load);
-
   useEffect(() => {
-    void refresh(false);
+    void load();
     setPage(1);
-  }, [load, refresh]);
+  }, [load]);
 
   const orderedEntries = [...history.entries].sort((left, right) =>
     right.date.localeCompare(left.date),

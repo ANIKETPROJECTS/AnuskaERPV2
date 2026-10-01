@@ -6,7 +6,6 @@ import { getManagerProductionDataFn, getProductionOrderActivityFn } from "@/prod
 import type { ProductionOrder, ProductionOrderActivity, ProductionReport } from "@/production.server";
 import { num } from "@/lib/erp-data";
 import { demoActivities, demoOrder, demoReports } from "@/lib/production-demo";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/subhub/production/orders/$orderId")({
   head: () => ({ meta: [{ title: "Order details — Hub Manager · SubHub" }] }),
@@ -64,11 +63,9 @@ function ProductionOrderDetails() {
       }
     }
   }, [orderId]);
-  const refresh = useAutoRefresh(load);
-
   useEffect(() => {
-    void refresh(false);
-  }, [orderId, refresh]);
+    void load();
+  }, [load]);
 
   return (
     <SubHubShell actions={<Link to="/subhub/production" className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"><ArrowLeft className="size-4" /> Back to assigned orders</Link>}>

@@ -1,11 +1,10 @@
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouter, useRouterState } from "@tanstack/react-router";
 import { AlertCircle, ArrowRight, Check, Minus, Plus } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { createProcurementItemRequestFn, getSubhubItemRequestHistoryFn } from "@/procurement";
 import type { ProcurementItemRequest } from "@/procurement.server";
 import { num } from "@/lib/erp-data";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/subhub/request-items")({
   loader: () => getSubhubItemRequestHistoryFn(),
@@ -33,6 +32,7 @@ function RequestItemsRoute() {
 
 function RequestItemsPage() {
   const result = Route.useLoaderData();
+  const router = useRouter();
   const [requests, setRequests] = useState<ProcurementItemRequest[]>(() =>
     result.ok ? result.requests : [],
   );
@@ -41,27 +41,7 @@ function RequestItemsPage() {
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(result.ok ? "" : result.message);
-  const [historyError, setHistoryError] = useState("");
   const [notice, setNotice] = useState("");
-  const requestListVersionRef = useRef(0);
-  useAutoRefresh(
-    async () => {
-      const requestListVersion = requestListVersionRef.current;
-      try {
-        const latest = await getSubhubItemRequestHistoryFn();
-        if (requestListVersion !== requestListVersionRef.current) return;
-        if (!latest.ok) {
-          setHistoryError(latest.message);
-          return;
-        }
-        setRequests(latest.requests);
-        setHistoryError("");
-      } catch {
-        setHistoryError("Your request history could not be refreshed. Check your connection and try again.");
-      }
-    },
-    { canRefresh: () => !busy },
-  );
   const sortedRequests = useMemo(
     () => [...requests].sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
     [requests],
@@ -92,12 +72,16 @@ function RequestItemsPage() {
         setError(response.message);
         return;
       }
-      requestListVersionRef.current += 1;
       setRequests((current) => [response.request, ...current]);
       setItemName("");
       setQuantity("1");
       setNotes("");
       setNotice("Your request was sent to Procurement Management.");
+      try {
+        await router.invalidate();
+      } catch {
+        setNotice("Your request was sent. Refresh the history page to see the latest records.");
+      }
     } catch {
       setError("Your request could not be sent. Check your connection and try again.");
     } finally {
@@ -164,12 +148,6 @@ function RequestItemsPage() {
               </span>
             </div>
           </div>
-          {historyError ? (
-            <p role="alert" className="border-b border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-              {historyError}
-            </p>
-          ) : null}
-
           <form
             id="subhub-item-request-form"
             onSubmit={(event) => void submit(event)}

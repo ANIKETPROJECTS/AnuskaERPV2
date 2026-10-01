@@ -6,7 +6,6 @@ import { TablePagination } from "@/components/erp/TablePagination";
 import { getSubhubItemRequestHistoryFn } from "@/procurement";
 import type { ProcurementItemRequest } from "@/procurement.server";
 import { num } from "@/lib/erp-data";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { Route as RequestItemsRoute } from "./subhub.request-items";
 
 export const Route = createFileRoute("/subhub/request-items/history")({
@@ -29,7 +28,7 @@ function RequestItemsHistoryPage() {
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 25;
-  const refresh = useAutoRefresh(async () => {
+  async function refresh() {
     try {
       const latest = await getSubhubItemRequestHistoryFn();
       if (!latest.ok) {
@@ -41,7 +40,7 @@ function RequestItemsHistoryPage() {
     } catch {
       setHistoryError("Request history could not be refreshed. Check your connection and try again.");
     }
-  });
+  }
 
   useEffect(() => {
     if (result.ok) {
@@ -103,7 +102,7 @@ function RequestItemsHistoryPage() {
             </span>
             <button
               type="button"
-              onClick={() => void refresh(false)}
+              onClick={() => void refresh()}
               className="min-h-11 rounded-md border border-destructive/25 px-4 font-medium hover:bg-destructive/5"
             >
               Try again

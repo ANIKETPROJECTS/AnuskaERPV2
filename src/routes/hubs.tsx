@@ -1,13 +1,12 @@
 import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { ArrowRight, RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { HubModuleNav } from "@/components/erp/HubModuleNav";
 import { Shell } from "@/components/erp/Shell";
 import { Tag } from "@/components/erp/bits";
 import { getAdminProductionDashboardFn } from "@/production";
 import type { AdminProductionDashboard, HubSummary } from "@/production.server";
 import { num } from "@/lib/erp-data";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/hubs")({
   head: () => ({
@@ -57,8 +56,8 @@ function Hubs() {
   const [activeView, setActiveView] = useState<HubView>("hubs");
   const isHubsOverview = pathname === "/hubs" || pathname === "/hubs/";
 
-  async function load(isBackgroundRefresh = false) {
-    if (!isBackgroundRefresh) setLoading(true);
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
       const result = await getAdminProductionDashboardFn();
       if (result.ok) {
@@ -70,15 +69,13 @@ function Hubs() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "SubHub data could not be loaded.");
     } finally {
-      if (!isBackgroundRefresh) setLoading(false);
+      setLoading(false);
     }
-  }
-
-  const runRefresh = useAutoRefresh(load, { enabled: isHubsOverview });
+  }, []);
 
   useEffect(() => {
-    if (isHubsOverview) void runRefresh(false);
-  }, [isHubsOverview, runRefresh]);
+    if (isHubsOverview) void load();
+  }, [isHubsOverview, load]);
 
   if (pathname !== "/hubs" && pathname !== "/hubs/") {
     return <Outlet />;
@@ -89,7 +86,7 @@ function Hubs() {
       title="Hubs & Stock"
       subtitle="SubHub production, stock, and assigned output"
       actions={
-        <button type="button" onClick={() => void runRefresh(false)} disabled={loading} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input px-3 py-2 text-base font-medium hover:bg-muted disabled:opacity-50">
+        <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input px-3 py-2 text-base font-medium hover:bg-muted disabled:opacity-50">
           <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh
         </button>
       }

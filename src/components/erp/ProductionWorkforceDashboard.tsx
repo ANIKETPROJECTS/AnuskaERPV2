@@ -9,7 +9,6 @@ import type {
 import { HubModuleNav } from "@/components/erp/HubModuleNav";
 import { Shell } from "@/components/erp/Shell";
 import { num } from "@/lib/erp-data";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import {
   groupHeadcountByDate,
   todayInIndia,
@@ -120,15 +119,15 @@ function ProductionWorkforceDashboard() {
     applyRange,
   } = useAdminHeadcountReport(defaultDateRange);
 
-  const loadProduction = useCallback(async (isBackgroundRefresh = false) => {
-    if (!isBackgroundRefresh) {
-      setLoading(true);
-      setError("");
-    }
+  const loadProduction = useCallback(async () => {
+    setLoading(true);
+    setError("");
     try {
       const result = await getAdminProductionWorkforceDataFn();
       if (result.ok) {
         setData(result.data);
+        setOrderPage(0);
+        setReportPage(0);
         setError("");
       } else {
         setError(result.message);
@@ -136,15 +135,13 @@ function ProductionWorkforceDashboard() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Production data could not be loaded.");
     } finally {
-      if (!isBackgroundRefresh) setLoading(false);
+      setLoading(false);
     }
   }, []);
 
-  const runProductionRefresh = useAutoRefresh(loadProduction);
-
   useEffect(() => {
-    void runProductionRefresh(false);
-  }, [runProductionRefresh]);
+    void loadProduction();
+  }, [loadProduction]);
 
   const filteredReports = useMemo(
     () => (data?.reports ?? []).filter((row) => filterMatches(row, appliedFilters)),
@@ -254,7 +251,7 @@ function ProductionWorkforceDashboard() {
       startDate: appliedFilters.startDate,
       endDate: appliedFilters.endDate,
     });
-    await runProductionRefresh(false);
+    await loadProduction();
   }
 
   const productionFiltersVisible = activeView !== "workforce";

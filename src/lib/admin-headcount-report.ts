@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getAdminHeadcountReportFn } from "@/hr";
 import type { AdminHeadcountEntry, AdminHeadcountReport, AdminHeadcountSummary } from "@/hr.server";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export type HeadcountDateRange = {
   startDate: string;
@@ -129,13 +128,10 @@ export function useAdminHeadcountReport(initialRange: HeadcountDateRange = { sta
     setAppliedRange({ ...range });
   }, []);
 
-  const load = useCallback(async (isBackgroundRefresh = false) => {
+  const load = useCallback(async () => {
     let requestRange = appliedRange;
-    let silent = isBackgroundRefresh;
-    if (!silent) {
-      setLoading(true);
-      setError("");
-    }
+    setLoading(true);
+    setError("");
 
     try {
       while (true) {
@@ -153,7 +149,6 @@ export function useAdminHeadcountReport(initialRange: HeadcountDateRange = { sta
           const latestRange = appliedRangeRef.current;
           if (requestRange.startDate !== latestRange.startDate || requestRange.endDate !== latestRange.endDate) {
             requestRange = latestRange;
-            silent = false;
             setLoading(true);
             continue;
           }
@@ -162,33 +157,30 @@ export function useAdminHeadcountReport(initialRange: HeadcountDateRange = { sta
             setReport(result.data);
             setError("");
           } else {
-            if (!isBackgroundRefresh) setReport(emptyAdminHeadcountReport);
+            setReport(emptyAdminHeadcountReport);
             setError(result.message);
           }
         } catch {
           const latestRange = appliedRangeRef.current;
           if (requestRange.startDate !== latestRange.startDate || requestRange.endDate !== latestRange.endDate) {
             requestRange = latestRange;
-            silent = false;
             setLoading(true);
             continue;
           }
 
-          if (!isBackgroundRefresh) setReport(emptyAdminHeadcountReport);
+          setReport(emptyAdminHeadcountReport);
           setError("Attendance could not be loaded. Please try again.");
         }
         return;
       }
     } finally {
-      if (!silent || !isBackgroundRefresh) setLoading(false);
+      setLoading(false);
     }
   }, [appliedRange]);
 
-  const runRefresh = useAutoRefresh(load);
-
   useEffect(() => {
-    void runRefresh(false);
-  }, [appliedRange, runRefresh]);
+    void load();
+  }, [load]);
 
   return { report, loading, error, appliedRange, applyRange };
 }

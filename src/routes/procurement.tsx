@@ -19,7 +19,7 @@ import {
   Store,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { DateRange } from "react-day-picker";
 import { z } from "zod";
 import type { Panel as ProcurementPanel } from "@/auth.server";
@@ -45,7 +45,6 @@ import {
 import type { HubMaterialNeed, HubTransferSourceOption, ProcurementData, ProcurementItemRequest, ProcurementOrder, ProcurementStatus, ProcurementVendor } from "@/procurement.server";
 import { MISCELLANEOUS_VENDOR_ID, ONE_OFF_MATERIAL_CODE, PROCUREMENT_STATUSES } from "@/lib/procurement-types";
 import { useRawMaterials } from "@/lib/raw-material-store";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/procurement")({
   validateSearch: z.object({ panel: z.enum(["admin", "subhub", "procurement"]).optional() }),
@@ -193,11 +192,6 @@ export function ProcurementPage({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(result.ok ? "" : result.message);
   const [notice, setNotice] = useState("");
-  const [mutationCount, setMutationCount] = useState(0);
-  const mutationCountRef = useRef(0);
-  const [needsDraftOpen, setNeedsDraftOpenState] = useState(false);
-  const needsDraftOpenRef = useRef(false);
-  const canSafelyRefreshRef = useRef<() => boolean>(() => true);
 
   useEffect(() => {
     if (result.ok) {
@@ -212,14 +206,13 @@ export function ProcurementPage({
     if (panel === "procurement" && activeTab === "requests") setNotice("");
   }, [activeTab, panel]);
 
-  async function reload(isBackgroundRefresh = false) {
-    if (!isBackgroundRefresh) setLoading(true);
+  async function reload() {
+    setLoading(true);
     try {
       const response = dataSource === "management"
         ? await getProcurementManagementDataFn()
         : await getProcurementDataFn({ data: { panel } });
       if (response.ok) {
-        if (!canSafelyRefreshRef.current()) return;
         setData(response.data);
         setError("");
       } else {
@@ -228,34 +221,9 @@ export function ProcurementPage({
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to refresh procurement data.");
     } finally {
-      if (!isBackgroundRefresh) setLoading(false);
+      setLoading(false);
     }
   }
-
-  function setMutationActive(active: boolean) {
-    const nextCount = Math.max(0, mutationCountRef.current + (active ? 1 : -1));
-    mutationCountRef.current = nextCount;
-    setMutationCount(nextCount);
-  }
-
-  function canSafelyRefresh() {
-    return (
-      !showOrderForm &&
-      !vendorFormMode &&
-      !selectedVendorId &&
-      !needsDraftOpenRef.current &&
-      !needsDraftOpen &&
-      mutationCount === 0 &&
-      mutationCountRef.current === 0
-    );
-  }
-
-  canSafelyRefreshRef.current = canSafelyRefresh;
-  const setNeedsDraftOpen = useCallback((active: boolean) => {
-    needsDraftOpenRef.current = active;
-    setNeedsDraftOpenState(active);
-  }, []);
-  const runRefresh = useAutoRefresh(reload, { canRefresh: () => canSafelyRefreshRef.current() });
 
   const filteredOrders = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -357,18 +325,15 @@ export function ProcurementPage({
   async function updateOrderStatus(order: ProcurementOrder, status: ProcurementStatus) {
     if (status === order.status) return;
     setNotice("");
-    setMutationActive(true);
     try {
       const response = await updateProcurementOrderStatusFn({ data: { id: order.id, status, panel } });
       if (!response.ok) setError(response.message);
       else {
         setNotice(`${order.orderNumber} changed from ${order.status} to ${status}.`);
-        await runRefresh(false);
+        await reload();
       }
     } catch (mutationError) {
       setError(mutationError instanceof Error ? mutationError.message : "Unable to update this order.");
-    } finally {
-      setMutationActive(false);
     }
   }
 
@@ -379,7 +344,6 @@ export function ProcurementPage({
       ? "Its order history will remain available for reporting."
       : "This vendor has no order history and will be permanently removed.";
     if (!window.confirm(`${actionLabel} ${vendor.name}? ${actionDescription}`)) return;
-    setMutationActive(true);
     try {
       const response = await deleteOrArchiveVendorFn({ data: { id: vendor.id, panel: panel as "admin" | "procurement" } });
       if (!response.ok) {
@@ -388,11 +352,9 @@ export function ProcurementPage({
       }
       setNotice(`${vendor.name} ${response.action === "archived" ? "was archived safely" : "was deleted"}.`);
       if (selectedVendorId === vendor.id) setSelectedVendorId("");
-      await runRefresh(false);
+      await reload();
     } catch (mutationError) {
       setError(mutationError instanceof Error ? mutationError.message : "Unable to update this vendor.");
-    } finally {
-      setMutationActive(false);
     }
   }
 
@@ -485,7 +447,7 @@ export function ProcurementPage({
         </div> : null}
         <div className="flex flex-wrap gap-2">
           {canManageProcurement && activeTab === "vendors" && !showDedicatedView ? <button type="button" onClick={openCreateVendor} className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted"><Plus className="size-5" /> Add vendor</button> : null}
-          {activeTab !== "orders" && activeTab !== "needs" && !(showDedicatedView && activeTab === "requests") ? <button type="button" onClick={() => void runRefresh(false)} disabled={loading || !canSafelyRefresh()} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-semibold hover:bg-muted disabled:opacity-50"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh</button> : null}
+          {activeTab !== "orders" && activeTab !== "needs" && !(showDedicatedView && activeTab === "requests") ? <button type="button" onClick={() => void reload()} disabled={loading} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-semibold hover:bg-muted disabled:opacity-50"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /> Refresh</button> : null}
         </div>
       </div> : null}
 
@@ -576,22 +538,21 @@ export function ProcurementPage({
           ) : null}
         </>
       ) : null}
-      {activeTab === "needs" ? <HubMaterialNeeds data={data} panel={panel as "admin" | "procurement"} onDraftStateChange={setNeedsDraftOpen} onSaved={async (message) => { setNotice(message); await runRefresh(false); }} /> : null}
+      {activeTab === "needs" ? <HubMaterialNeeds data={data} panel={panel as "admin" | "procurement"} onSaved={async (message) => { setNotice(message); await reload(); }} /> : null}
       {activeTab === "requests" ? (
         <ItemRequestsTable
           requests={data.itemRequests}
           panel={panel as "admin" | "procurement"}
-          onMutationChange={setMutationActive}
           onUpdated={async (message) => {
             if (panel === "procurement") setNotice("");
             else setNotice(message);
-            await runRefresh(false);
+            await reload();
           }}
         />
       ) : null}
 
-      {showOrderForm ? <OrderForm data={data} isAdmin={canManageProcurement} panel={panel as "admin" | "procurement"} onClose={() => setShowOrderForm(false)} onSaved={async (message) => { setShowOrderForm(false); setNotice(message); await runRefresh(false); }} /> : null}
-      {vendorFormMode ? <VendorForm mode={vendorFormMode} vendor={editingVendor} panel={panel as "admin" | "procurement"} onClose={() => setVendorFormMode(null)} onSaved={async (message) => { setVendorFormMode(null); setNotice(message); await runRefresh(false); }} /> : null}
+      {showOrderForm ? <OrderForm data={data} isAdmin={canManageProcurement} panel={panel as "admin" | "procurement"} onClose={() => setShowOrderForm(false)} onSaved={async (message) => { setShowOrderForm(false); setNotice(message); await reload(); }} /> : null}
+      {vendorFormMode ? <VendorForm mode={vendorFormMode} vendor={editingVendor} panel={panel as "admin" | "procurement"} onClose={() => setVendorFormMode(null)} onSaved={async (message) => { setVendorFormMode(null); setNotice(message); await reload(); }} /> : null}
     </div>
   );
 
@@ -648,7 +609,7 @@ function SectionHeading({
   );
 }
 
-function HubMaterialNeeds({ data, panel, onDraftStateChange, onSaved }: { data: ProcurementData; panel: "admin" | "procurement"; onDraftStateChange: (active: boolean) => void; onSaved: (message: string) => Promise<void> }) {
+function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; panel: "admin" | "procurement"; onSaved: (message: string) => Promise<void> }) {
   const hubs = useMemo(() => data.subhubs.map((hub) => ({
     ...hub,
     needs: data.materialNeeds.filter((need) => need.subhubUserId === hub.id),
@@ -656,8 +617,6 @@ function HubMaterialNeeds({ data, panel, onDraftStateChange, onSaved }: { data: 
   const [selectedHubId, setSelectedHubId] = useState<string | null>(null);
   const [orderHub, setOrderHub] = useState<string | null>(null);
   const [transferHub, setTransferHub] = useState<string | null>(null);
-
-  useEffect(() => () => onDraftStateChange(false), [onDraftStateChange]);
 
   if (!hubs.length) {
     return <div className="panel p-8 text-center text-sm text-muted-foreground">No active SubHubs are available.</div>;
@@ -749,10 +708,7 @@ function HubMaterialNeeds({ data, panel, onDraftStateChange, onSaved }: { data: 
               {shortageCount > 0 ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    onDraftStateChange(true);
-                    setTransferHub(selectedHub.id);
-                  }}
+                  onClick={() => setTransferHub(selectedHub.id)}
                   className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-semibold hover:bg-muted"
                 >
                   <ArrowLeftRight aria-hidden="true" className="size-4" />
@@ -762,10 +718,7 @@ function HubMaterialNeeds({ data, panel, onDraftStateChange, onSaved }: { data: 
               <button
                 type="button"
                 disabled={!shortageCount}
-                onClick={() => {
-                  onDraftStateChange(true);
-                  setOrderHub(selectedHub.id);
-                }}
+                onClick={() => setOrderHub(selectedHub.id)}
                 className="inline-flex min-h-10 items-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <PackagePlus aria-hidden="true" className="size-4" />
@@ -833,13 +786,9 @@ function HubMaterialNeeds({ data, panel, onDraftStateChange, onSaved }: { data: 
           data={data}
           needs={selectedNeeds}
           panel={panel}
-          onClose={() => {
-            setOrderHub(null);
-            onDraftStateChange(false);
-          }}
+          onClose={() => setOrderHub(null)}
           onSaved={async (message) => {
             setOrderHub(null);
-            onDraftStateChange(false);
             await onSaved(message);
           }}
         />
@@ -850,13 +799,9 @@ function HubMaterialNeeds({ data, panel, onDraftStateChange, onSaved }: { data: 
           destinationHubName={selectedHub.name}
           needs={selectedNeeds}
           panel={panel}
-          onClose={() => {
-            setTransferHub(null);
-            onDraftStateChange(false);
-          }}
+          onClose={() => setTransferHub(null)}
           onSaved={async (message) => {
             setTransferHub(null);
-            onDraftStateChange(false);
             await onSaved(message);
           }}
         />
@@ -1196,12 +1141,10 @@ function ShortageOrderForm({ data, needs, panel, onClose, onSaved }: { data: Pro
 function ItemRequestsTable({
   requests,
   panel,
-  onMutationChange,
   onUpdated,
 }: {
   requests: ProcurementItemRequest[];
   panel: "admin" | "procurement";
-  onMutationChange: (active: boolean) => void;
   onUpdated: (message: string) => Promise<void>;
 }) {
   const [busyId, setBusyId] = useState("");
@@ -1266,7 +1209,6 @@ function ItemRequestsTable({
   async function update(request: ProcurementItemRequest, status: "Approved" | "Declined") {
     setBusyId(request.id);
     setError("");
-    onMutationChange(true);
     try {
       const result = await updateProcurementItemRequestFn({
         data: { id: request.id, status, response: "", panel },
@@ -1280,7 +1222,6 @@ function ItemRequestsTable({
       setError("Unable to update this item request. Please try again.");
     } finally {
       setBusyId("");
-      onMutationChange(false);
     }
   }
   return (

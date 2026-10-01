@@ -26,13 +26,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getOperationsDashboardFn } from "@/dashboard";
 import type { OperationsDashboard } from "@/dashboard";
 import { Shell } from "@/components/erp/Shell";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
 import { inr, num } from "@/lib/erp-data";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -81,8 +80,8 @@ function Dashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  async function load(isBackgroundRefresh = false) {
-    if (!isBackgroundRefresh) setRefreshing(true);
+  const load = useCallback(async () => {
+    setRefreshing(true);
     try {
       const result = await getOperationsDashboardFn();
       if (result.ok) {
@@ -95,15 +94,13 @@ function Dashboard() {
       setError(cause instanceof Error ? cause.message : "Dashboard data could not be loaded.");
     } finally {
       setLoading(false);
-      if (!isBackgroundRefresh) setRefreshing(false);
+      setRefreshing(false);
     }
-  }
-
-  const runRefresh = useAutoRefresh(load);
+  }, []);
 
   useEffect(() => {
-    void runRefresh(false);
-  }, [runRefresh]);
+    void load();
+  }, [load]);
 
   if (loading && !data) {
     return (
@@ -118,7 +115,7 @@ function Dashboard() {
       <Shell title="Operations Dashboard" subtitle="Live ERP summary">
         <div className="panel p-6">
           <p role="alert" className="text-sm text-destructive">{error || "Dashboard data could not be loaded."}</p>
-          <button type="button" onClick={() => void runRefresh(false)} className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">
+          <button type="button" onClick={() => void load()} className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">
             <RefreshCw className="size-4" /> Retry
           </button>
         </div>
@@ -181,7 +178,7 @@ function Dashboard() {
       title="Operations Dashboard"
       subtitle={`Live ERP summary · ${data.hr.month || "current period"} · ${production.hubs.length} active SubHubs`}
       actions={
-        <button type="button" onClick={() => void runRefresh(false)} disabled={refreshing} className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium disabled:opacity-60">
+        <button type="button" onClick={() => void load()} disabled={refreshing} className="rule-header inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium disabled:opacity-60">
           <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} /> {refreshing ? "Refreshing…" : "Refresh data"}
         </button>
       }

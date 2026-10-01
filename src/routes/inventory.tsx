@@ -7,7 +7,6 @@ import { TablePagination } from "@/components/erp/TablePagination";
 import { adjustSubhubInventoryBatchFn, getSubhubInventoryFn } from "@/inventory";
 import type { BatchMovement, InventoryBatch, InventoryItem, SubhubInventoryData } from "@/inventory.server";
 import { num } from "@/lib/erp-data";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export type View = "inventory" | "raw-materials" | "final-products" | "history" | "quality" | "quality-history" | "batches";
 
@@ -38,17 +37,15 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
   const [data, setData] = useState(emptyData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const hasQualityDraftsRef = useRef(false);
   const loadRequestIdRef = useRef(0);
 
-  const load = useCallback(async (isBackgroundRefresh = false) => {
+  const load = useCallback(async () => {
     const requestId = ++loadRequestIdRef.current;
-    if (!isBackgroundRefresh) setLoading(true);
+    setLoading(true);
     const requestView = view === "raw-materials" || view === "final-products" ? "inventory" : view;
     try {
       const result = await getSubhubInventoryFn({ data: { view: requestView } });
       if (requestId !== loadRequestIdRef.current) return;
-      if (isBackgroundRefresh && view === "quality" && hasQualityDraftsRef.current) return;
       if (result.ok) {
         setData(result.data);
         setError("");
@@ -60,22 +57,14 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
         setError("Inventory data could not be loaded. Check your connection and try again.");
       }
     } finally {
-      if (requestId === loadRequestIdRef.current && !isBackgroundRefresh) setLoading(false);
+      if (requestId === loadRequestIdRef.current) setLoading(false);
     }
   }, [view]);
 
-  const refresh = useAutoRefresh(load, {
-    enabled: view !== "batches" && view !== "history",
-    canRefresh: () => view !== "quality" || !hasQualityDraftsRef.current,
-  });
-  const updateQualityDraftState = useCallback((hasDrafts: boolean) => {
-    hasQualityDraftsRef.current = hasDrafts;
-  }, []);
-
   useEffect(() => {
     if (view === "batches" || view === "history") return;
-    void refresh(false);
-  }, [view, refresh]);
+    void load();
+  }, [view, load]);
 
   if (view === "batches" || view === "history") {
     return <Navigate to="/inventory/raw-materials" replace />;
@@ -108,8 +97,7 @@ export function InventoryManagement({ initialView }: { initialView: View }) {
           <QualityManagement
             data={data}
             loading={loading}
-            onSaved={() => load(false)}
-            onDraftStateChange={updateQualityDraftState}
+            onSaved={load}
           />
         ) : null}
         {view === "quality-history" ? <QualityManagementHistory data={data} loading={loading} /> : null}
@@ -155,16 +143,10 @@ function BatchRegister({ batches, loading }: { batches: InventoryBatch[]; loadin
   return <Panel title="Batch register" description="Source-reconciled receipt, molding, final-product, manual and legacy batches."><div className="filter-toolbar border-b border-border p-4"><label className="relative min-w-[220px] flex-1 text-xs font-medium text-muted-foreground">Search<label className="relative mt-1 block"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><input aria-label="Search batches" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Batch, item or source" className="h-9 w-full rounded-md border border-input pl-9 pr-3 text-sm" /></label></label><label className="text-xs font-medium text-muted-foreground">Category<select value={category} onChange={(event) => setCategory(event.target.value)}><option value="all">All categories</option><option>Raw Material</option><option>Float</option></select></label><label className="text-xs font-medium text-muted-foreground">Source<select value={source} onChange={(event) => setSource(event.target.value)}><option value="all">All sources</option>{[...new Set(batches.map((batch) => batch.source))].map((value) => <option key={value}>{value}</option>)}</select></label><label className="text-xs font-medium text-muted-foreground">Status<select value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">All statuses</option><option>Available</option><option>Depleted</option></select></label><label className="text-xs font-medium text-muted-foreground">Sort<select value={sortKey} onChange={(event) => setSortKey(event.target.value as typeof sortKey)}><option value="loggedAt">Logged date</option><option value="batchCode">Batch code</option><option value="availableQuantity">Available</option></select></label><button type="button" onClick={() => setDirection(direction === "asc" ? "desc" : "asc")} className="h-9 rounded-md border border-input bg-white px-3 text-sm">{direction === "asc" ? "Oldest / A–Z" : "Newest / Z–A"}</button></div>{loading ? <p className="p-8 text-center text-sm text-muted-foreground">Loading batches…</p> : <><div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-sm"><thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="px-5 py-3">Batch code</th><th className="px-5 py-3">Item / source</th><th className="px-5 py-3 text-right">Received</th><th className="px-5 py-3 text-right">Produced</th><th className="px-5 py-3 text-right">Consumed</th><th className="px-5 py-3 text-right">Defective</th><th className="px-5 py-3 text-right">Available</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Logged</th></tr></thead><tbody>{visible.map((batch) => <tr key={batch.id} className="border-b border-border/70"><td className="tabular px-5 py-3 text-xs font-medium"><Link to="/inventory/batches/$batchId" params={{ batchId: batch.id }} className="text-primary hover:underline">{batch.batchCode}</Link></td><td className="px-5 py-3"><p className="font-medium">{batch.itemName}</p><p className="text-xs text-muted-foreground">{batch.itemCode} · {batch.source}</p></td><td className="tabular px-5 py-3 text-right">{num(batch.receivedQuantity)}</td><td className="tabular px-5 py-3 text-right">{num(batch.producedQuantity)}</td><td className="tabular px-5 py-3 text-right">{num(batch.consumedQuantity)}</td><td className="tabular px-5 py-3 text-right">{num(batch.defectiveQuantity)}</td><td className="tabular px-5 py-3 text-right font-semibold">{num(batch.availableQuantity)}</td><td className="px-5 py-3"><Tag tone={batch.availableQuantity ? "good" : "warn"}>{batch.status}</Tag></td><td className="tabular whitespace-nowrap px-5 py-3 text-xs text-muted-foreground">{batch.loggedAt.slice(0, 16).replace("T", " ")}</td></tr>)}</tbody></table></div><TablePagination total={rows.length} page={page} pageSize={15} pageSizeOptions={[15]} onPageChange={setPage} onPageSizeChange={() => undefined} /></>}</Panel>;
 }
 
-function QualityManagement({
-  data,
-  loading,
-  onSaved,
-  onDraftStateChange,
-}: {
+function QualityManagement({ data, loading, onSaved }: {
   data: SubhubInventoryData;
   loading: boolean;
   onSaved: () => Promise<void>;
-  onDraftStateChange: (hasDrafts: boolean) => void;
 }) {
   const [changes, setChanges] = useState<Record<string, { quantity: string; reason: string; reasonOption: string }>>({});
   const [saving, setSaving] = useState(false);
@@ -194,78 +176,53 @@ function QualityManagement({
     const quantity = Number(draft?.quantity);
     return draft?.quantity.trim() && Number.isInteger(quantity) && quantity >= 0 && quantity !== item.quantity ? count + 1 : count;
   }, 0), [data.items, changes]);
-  const hasDrafts = useMemo(
-    () =>
-      Object.values(changes).some(
-        (draft) => draft.quantity.trim() || draft.reason.trim() || draft.reasonOption,
-      ),
-    [changes],
-  );
-  useEffect(() => {
-    onDraftStateChange(hasDrafts || saving);
-  }, [hasDrafts, onDraftStateChange, saving]);
-  const hasAnyDraft = (drafts: typeof changes) =>
-    Object.values(drafts).some(
-      (draft) => draft.quantity.trim() || draft.reason.trim() || draft.reasonOption,
-    );
   useEffect(() => setPage(1), [query, categoryFilter, stockFilter]);
   const updateChange = (code: string, field: "quantity" | "reason", value: string) => {
-    const next = {
-      ...changes,
-      [code]: {
-        quantity: changes[code]?.quantity ?? "",
-        reason: changes[code]?.reason ?? "",
-        reasonOption: changes[code]?.reasonOption ?? "",
-        [field]: value,
-      },
-    };
-    setChanges(next);
-    onDraftStateChange(hasAnyDraft(next) || saving);
+    setChanges((current) => ({ ...current, [code]: { quantity: current[code]?.quantity ?? "", reason: current[code]?.reason ?? "", reasonOption: current[code]?.reasonOption ?? "", [field]: value } }));
     setMessage("");
     setError("");
   };
   const updateQuantity = (code: string, value: string, currentQuantity: number) => {
-    const existing = changes[code];
-    const nextCount = value.trim() === "" ? Number.NaN : Number(value);
-    const reasonOption = value.trim() === ""
-      ? ""
-      : Number.isInteger(nextCount) && nextCount !== currentQuantity
-        ? nextCount > currentQuantity ? "quantity-increase" : "quantity-decrease"
-        : Number.isInteger(nextCount) && nextCount === currentQuantity ? "" : existing?.reasonOption ?? "";
-    const selected = qualityReasonOptions.find((option) => option.value === reasonOption);
-    const next = {
-      ...changes,
-      [code]: {
-        quantity: value,
-        reason: reasonOption === "custom" ? existing?.reason ?? "" : reasonOption ? selected?.label ?? "" : "",
-        reasonOption,
-      },
-    };
-    setChanges(next);
-    onDraftStateChange(hasAnyDraft(next) || saving);
+    setChanges((current) => {
+      const existing = current[code];
+      const nextCount = value.trim() === "" ? Number.NaN : Number(value);
+      const reasonOption = value.trim() === ""
+        ? ""
+        : Number.isInteger(nextCount) && nextCount !== currentQuantity
+          ? nextCount > currentQuantity ? "quantity-increase" : "quantity-decrease"
+          : Number.isInteger(nextCount) && nextCount === currentQuantity ? "" : existing?.reasonOption ?? "";
+      const selected = qualityReasonOptions.find((option) => option.value === reasonOption);
+      return {
+        ...current,
+        [code]: {
+          quantity: value,
+          reason: reasonOption === "custom" ? existing?.reason ?? "" : reasonOption ? selected?.label ?? "" : "",
+          reasonOption,
+        },
+      };
+    });
     setMessage("");
     setError("");
   };
   const updateReasonOption = (code: string, reasonOption: string) => {
     const selected = qualityReasonOptions.find((option) => option.value === reasonOption);
-    const next = {
-      ...changes,
+    setChanges((current) => ({
+      ...current,
       [code]: {
-        quantity: changes[code]?.quantity ?? "",
+        quantity: current[code]?.quantity ?? "",
         reason: reasonOption === "custom" || !reasonOption ? "" : selected?.label ?? "",
         reasonOption,
       },
-    };
-    setChanges(next);
-    onDraftStateChange(hasAnyDraft(next) || saving);
+    }));
     setMessage("");
     setError("");
   };
   const clearChange = (code: string) => {
-    const next = { ...changes };
-    delete next[code];
-    setChanges(next);
-    onDraftStateChange(hasAnyDraft(next) || saving);
+    setChanges((current) => {
+      const next = { ...current };
+      delete next[code];
+      return next;
+    });
     setMessage("");
     setError("");
   };
@@ -291,8 +248,6 @@ function QualityManagement({
       return;
     }
     setSaving(true);
-    onDraftStateChange(true);
-    let savedChanges = false;
     try {
       const result = await adjustSubhubInventoryBatchFn({
         data: {
@@ -309,14 +264,12 @@ function QualityManagement({
       } else {
         setMessage(`${adjustments.length} inventory count update${adjustments.length === 1 ? "" : "s"} saved.`);
         setChanges({});
-        savedChanges = true;
         await onSaved();
       }
     } catch {
       setError("Inventory adjustments could not be saved. Check your connection and try again.");
     } finally {
       setSaving(false);
-      onDraftStateChange(savedChanges ? false : hasDrafts);
     }
   }
 

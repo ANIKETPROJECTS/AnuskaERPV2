@@ -8,7 +8,6 @@ import { Tag } from "@/components/erp/bits";
 import { getAdminHubDetailFn } from "@/production";
 import type { AdminHubDetail, HubSummary } from "@/production.server";
 import { num } from "@/lib/erp-data";
-import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/hubs/$hubId")({
   head: () => ({
@@ -56,11 +55,9 @@ function HubDetailsView({ hubId }: { hubId: string }) {
   const [error, setError] = useState("");
   const [activeView, setActiveView] = useState<HubDetailView>("overview");
 
-  const load = useCallback(async (isBackgroundRefresh = false) => {
-    if (!isBackgroundRefresh) {
-      setLoading(true);
-      setError("");
-    }
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
     try {
       const result = await getAdminHubDetailFn({ data: { hubId } });
       if (result.ok) setData(result.data);
@@ -68,15 +65,13 @@ function HubDetailsView({ hubId }: { hubId: string }) {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Hub details could not be refreshed.");
     } finally {
-      if (!isBackgroundRefresh) setLoading(false);
+      setLoading(false);
     }
   }, [hubId]);
 
-  const runRefresh = useAutoRefresh(load);
-
   useEffect(() => {
-    void runRefresh(false);
-  }, [runRefresh]);
+    void load();
+  }, [load]);
 
   if (loading && !data) {
     return (
@@ -114,7 +109,7 @@ function HubDetailsView({ hubId }: { hubId: string }) {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => void runRefresh(false)}
+            onClick={() => void load()}
             disabled={loading}
             className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input px-3 py-2 text-base font-medium hover:bg-muted disabled:opacity-50"
           >
