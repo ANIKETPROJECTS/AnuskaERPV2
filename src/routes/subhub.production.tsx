@@ -36,7 +36,7 @@ function DailyProductionManager() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [hasUnsavedWork, setHasUnsavedWork] = useState(false);
   const hasUnsavedWorkRef = useRef(false);
-  const loadInFlightRef = useRef(false);
+  const loadRequestIdRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -48,11 +48,12 @@ function DailyProductionManager() {
   }
 
   const load = useCallback(async (showLoading = true) => {
-    if (loadInFlightRef.current) return;
-    loadInFlightRef.current = true;
+    const requestId = ++loadRequestIdRef.current;
     if (showLoading) setLoading(true);
     try {
       const result = await getManagerProductionDataFn();
+      if (requestId !== loadRequestIdRef.current) return;
+      if (!showLoading && hasUnsavedWorkRef.current) return;
       if (result.ok) {
         setData(result.data);
         setError("");
@@ -61,11 +62,12 @@ function DailyProductionManager() {
         setError(result.message);
       }
     } catch {
+      if (requestId !== loadRequestIdRef.current) return;
+      if (!showLoading && hasUnsavedWorkRef.current) return;
       setData(emptyData);
       setError("Work could not be loaded. Check your connection and try again.");
     } finally {
-      loadInFlightRef.current = false;
-      if (showLoading) setLoading(false);
+      if (requestId === loadRequestIdRef.current) setLoading(false);
     }
   }, []);
 
@@ -156,7 +158,7 @@ function DailyProductionManager() {
         {data.orders.length ? (
           <button
             type="button"
-            onClick={() => void load(false)}
+            onClick={() => void load()}
             disabled={loading || hasUnsavedWork}
             title={
               hasUnsavedWork ? "Save your changes before refreshing." : "Refresh assigned work"
@@ -164,7 +166,7 @@ function DailyProductionManager() {
             className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-card px-3 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            {loading ? "Refreshing…" : "Refresh"}
           </button>
         ) : null}
       </div>

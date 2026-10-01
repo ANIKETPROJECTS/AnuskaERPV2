@@ -53,6 +53,7 @@ function SubhubHrPage() {
   const [countInput, setCountInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingSlow, setSavingSlow] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const today = data.date || currentDate();
@@ -77,6 +78,17 @@ function SubhubHrPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!saving) {
+      setSavingSlow(false);
+      return;
+    }
+
+    setSavingSlow(false);
+    const timeout = window.setTimeout(() => setSavingSlow(true), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [saving]);
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -139,6 +151,11 @@ function SubhubHrPage() {
             className="rounded-md border border-success/25 bg-success/5 px-4 py-3 text-base text-success"
           >
             {notice}
+          </p>
+        ) : null}
+        {savingSlow ? (
+          <p role="status" className="rounded-md border border-border bg-muted/40 px-4 py-3 text-base">
+            Attendance is still being recorded. Please wait and don’t submit it again.
           </p>
         ) : null}
 
