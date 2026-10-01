@@ -294,14 +294,14 @@ function describePeriod(range: HeadcountDateRange) {
 function downloadCsv(entries: AdminHeadcountEntry[]) {
   if (entries.length === 0) return;
   const rows: Array<Array<string | number>> = [
-    ["Date", "SubHub", "Manager", "People present", "Registered by", "Recorded at"],
+    ["Date", "SubHub", "Manager", "Present", "Entered By", "Updated (IST)"],
     ...entries.map((entry) => [
-      entry.date,
+      formatHeadcountDate(entry.date),
       entry.subhubName,
       entry.subhubManagerName || "",
       entry.presentCount,
       entry.recordedByName,
-      entry.updatedAt,
+      formatRecordedAt(entry.updatedAt),
     ]),
   ];
   const csv = rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
@@ -312,6 +312,22 @@ function downloadCsv(entries: AdminHeadcountEntry[]) {
   anchor.download = "attendance-report.csv";
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+function formatRecordedAt(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  const formatted = new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Kolkata",
+  }).format(date);
+  return `${formatted} IST`;
 }
 
 function csvCell(value: string | number) {
