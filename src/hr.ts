@@ -1,6 +1,25 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { assignEmployeeToShift, createEmployee, createShift, getAdminAttendanceReport, getAdminEmployeeAttendanceHistory, getAdminHeadcountReport, getAdminHrData, getAdminSubhubDetails, getEmployeeAttendanceHistory, getManagerAttendanceReport, getManagerHeadcountData, getManagerHeadcountHistory, getManagerHrData, saveAttendance, saveManagerHeadcount, updateEmployee, updateShift } from "./hr.server";
+import {
+  assignEmployeeToShift,
+  createEmployee,
+  createShift,
+  getAdminAttendanceReport,
+  getAdminEmployeeAttendanceHistory,
+  getAdminHeadcountReport,
+  getAdminHrData,
+  getAdminSubhubDetails,
+  getEmployeeAttendanceHistory,
+  getManagerAttendanceReport,
+  getManagerHeadcountData,
+  getManagerHeadcountHistory,
+  getManagerHrData,
+  saveAttendance,
+  saveManagerHeadcount,
+  updateEmployee,
+  updateManagerHeadcount,
+  updateShift,
+} from "./hr.server";
 import { ATTENDANCE_STATUSES } from "./hr.server";
 
 const managerSchema = z.object({ month: z.string(), date: z.string().optional() });
@@ -48,6 +67,9 @@ export const getManagerHeadcountHistoryFn = createServerFn({ method: "GET" })
     }),
   );
 export const saveManagerHeadcountFn = createServerFn({ method: "POST" }).validator(headcountSchema).handler(({ data }) => saveManagerHeadcount(data));
+export const updateManagerHeadcountFn = createServerFn({ method: "POST" })
+  .validator(headcountSchema)
+  .handler(({ data }) => updateManagerHeadcount(data));
 export const getEmployeeAttendanceHistoryFn = createServerFn({ method: "GET" }).validator(employeeHistorySchema).handler(({ data }) =>
   getEmployeeAttendanceHistory({
     employeeId: data.employeeId,

@@ -2,7 +2,7 @@ import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 import { ArrowRight, Save } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
-import { getManagerHeadcountDataFn, saveManagerHeadcountFn } from "@/hr";
+import { getManagerHeadcountDataFn, saveManagerHeadcountFn, updateManagerHeadcountFn } from "@/hr";
 import type { ManagerHeadcountData } from "@/hr.server";
 
 export const Route = createFileRoute("/subhub/hr")({
@@ -54,6 +54,7 @@ function SubhubHrPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingSlow, setSavingSlow] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const today = data.date || currentDate();
@@ -102,7 +103,9 @@ function SubhubHrPage() {
 
     setSaving(true);
     try {
-      const result = await saveManagerHeadcountFn({ data: { presentCount } });
+      const result = editing
+        ? await updateManagerHeadcountFn({ data: { presentCount } })
+        : await saveManagerHeadcountFn({ data: { presentCount } });
       if (!result.ok) {
         setError(result.message);
         return;
@@ -116,12 +119,34 @@ function SubhubHrPage() {
         ],
       }));
       setCountInput("");
-      setNotice("Today’s attendance was recorded.");
+      setEditing(false);
+      setNotice(
+        editing && "changed" in result && !result.changed
+          ? `No change was made; today’s count is already ${result.record.presentCount}.`
+          : editing
+            ? "Today’s attendance was updated."
+            : "Today’s attendance was recorded.",
+      );
     } catch {
       setError("Today’s count could not be saved. Please try again.");
     } finally {
       setSaving(false);
     }
+  }
+
+  function startEditing() {
+    if (data.presentCount === null) return;
+    setCountInput(String(data.presentCount));
+    setEditing(true);
+    setError("");
+    setNotice("");
+  }
+
+  function cancelEditing() {
+    setCountInput("");
+    setEditing(false);
+    setError("");
+    setNotice("");
   }
 
   return (
@@ -167,7 +192,7 @@ function SubhubHrPage() {
             </p>
           </header>
 
-          {data.presentCount === null ? (
+          {data.presentCount === null || editing ? (
             <form
               onSubmit={(event) => void save(event)}
               className="space-y-5 border-b border-border py-5"
@@ -189,16 +214,36 @@ function SubhubHrPage() {
                 />
               </label>
               <p id="headcount-help" className="text-base text-muted-foreground">
-                Enter today’s total once. It cannot be changed after it is recorded.
+                {editing
+                  ? "Correct today’s total. Earlier dates remain locked."
+                  : "Enter today’s total. You can correct it later today; earlier dates remain locked."}
               </p>
-              <button
-                type="submit"
-                disabled={loading || saving}
-                className="inline-flex min-h-12 items-center gap-2 rounded-md bg-primary px-5 text-base font-semibold text-primary-foreground disabled:opacity-50"
-              >
-                <Save className="size-4" aria-hidden="true" />
-                {saving ? "Recording…" : "Record today’s attendance"}
-              </button>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="submit"
+                  disabled={loading || saving}
+                  className="inline-flex min-h-12 items-center gap-2 rounded-md bg-primary px-5 text-base font-semibold text-primary-foreground disabled:opacity-50"
+                >
+                  <Save className="size-4" aria-hidden="true" />
+                  {saving
+                    ? editing
+                      ? "Saving correction…"
+                      : "Recording…"
+                    : editing
+                      ? "Save correction"
+                      : "Record today’s attendance"}
+                </button>
+                {editing ? (
+                  <button
+                    type="button"
+                    onClick={cancelEditing}
+                    disabled={saving}
+                    className="inline-flex min-h-12 items-center rounded-md border border-input bg-white px-5 text-base font-semibold hover:bg-muted disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                ) : null}
+              </div>
             </form>
           ) : (
             <div className="border-b border-border py-5">
@@ -213,6 +258,14 @@ function SubhubHrPage() {
                   "the SubHub manager"}
               </p>
               <p className="mt-1 text-sm text-muted-foreground">{formatDate(today)}</p>
+              <button
+                type="button"
+                onClick={startEditing}
+                disabled={loading || saving}
+                className="mt-4 inline-flex min-h-10 items-center rounded-md border border-input bg-white px-4 text-sm font-semibold hover:bg-muted disabled:opacity-50"
+              >
+                Edit today’s count
+              </button>
             </div>
           )}
         </section>

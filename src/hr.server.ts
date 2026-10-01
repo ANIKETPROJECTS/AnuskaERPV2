@@ -1297,6 +1297,79 @@ export async function saveManagerHeadcount(input: {
   return { ok: true, record: serializeHeadcount(record) };
 }
 
+export async function updateManagerHeadcount(input: {
+  presentCount: number;
+}): Promise<
+  { ok: true; record: HeadcountRecord; changed: boolean } | { ok: false; message: string }
+> {
+  const current = await getCurrentUserRecord("subhub");
+  if (!isSubhub(current)) {
+    return { ok: false, message: "Only SubHub Managers can correct today's presence." };
+  }
+  if (!isPositiveInteger(input.presentCount)) {
+    return { ok: false, message: "Enter a positive whole number of people present today." };
+  }
+
+  const date = todayInIndia();
+  const db = await getMongoDb(current.databaseName);
+  await ensureHrIndexes(db);
+  const client = await getMongoClient();
+  const session = client.startSession();
+  const now = new Date();
+  let recordNotFound = false;
+  let changed = false;
+
+  try {
+    await session.withTransaction(async () => {
+      recordNotFound = false;
+      changed = false;
+      const records = db.collection<HeadcountDocument>("hr_headcount");
+      const existing = await records.findOne({ date }, { session });
+      if (!existing) {
+        recordNotFound = true;
+        return;
+      }
+      if (existing.presentCount === input.presentCount) return;
+
+      const updated = await records.updateOne(
+        { _id: existing._id, date, presentCount: existing.presentCount },
+        { $set: { presentCount: input.presentCount, updatedAt: now } },
+        { session },
+      );
+      if (!updated.modifiedCount) {
+        throw new Error("Today's count changed before this correction was saved.");
+      }
+
+      await db.collection<HeadcountChangeDocument>("hr_headcount_changes").insertOne(
+        {
+          _id: randomUUID(),
+          date,
+          action: "Updated",
+          previousPresentCount: existing.presentCount,
+          presentCount: input.presentCount,
+          actorUserId: current._id,
+          actorName: current.name,
+          changedAt: now,
+        },
+        { session },
+      );
+      changed = true;
+    });
+  } catch (error) {
+    console.error("[hr] Failed to update a headcount and its audit record.", error);
+    return { ok: false, message: "Today's count could not be updated. Please try again." };
+  } finally {
+    await session.endSession();
+  }
+
+  if (recordNotFound) {
+    return { ok: false, message: "Today's count was not found. Refresh the page and try again." };
+  }
+  const record = await db.collection<HeadcountDocument>("hr_headcount").findOne({ date });
+  if (!record) return { ok: false, message: "Today's headcount could not be loaded. Please refresh." };
+  return { ok: true, record: serializeHeadcount(record), changed };
+}
+
 export async function getAdminHeadcountReport(input: {
   rangeType: "all" | "month" | "date" | "week" | "range";
   month?: string;
