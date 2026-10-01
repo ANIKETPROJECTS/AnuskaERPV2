@@ -1,10 +1,12 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { AlertCircle, ArrowLeft, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { TablePagination } from "@/components/erp/TablePagination";
+import { getSubhubItemRequestHistoryFn } from "@/procurement";
 import type { ProcurementItemRequest } from "@/procurement.server";
 import { num } from "@/lib/erp-data";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { Route as RequestItemsRoute } from "./subhub.request-items";
 
 export const Route = createFileRoute("/subhub/request-items/history")({
@@ -17,14 +19,39 @@ const noRequests: ProcurementItemRequest[] = [];
 
 function RequestItemsHistoryPage() {
   const result = RequestItemsRoute.useLoaderData();
-  const router = useRouter();
+  const [requests, setRequests] = useState<ProcurementItemRequest[]>(() =>
+    result.ok ? result.requests : noRequests,
+  );
+  const [historyError, setHistoryError] = useState(result.ok ? "" : result.message);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<RequestStatusFilter>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 25;
-  const requests = result.ok ? result.requests : noRequests;
+  const refresh = useAutoRefresh(async () => {
+    try {
+      const latest = await getSubhubItemRequestHistoryFn();
+      if (!latest.ok) {
+        setHistoryError(latest.message);
+        return;
+      }
+      setRequests(latest.requests);
+      setHistoryError("");
+    } catch {
+      setHistoryError("Request history could not be refreshed. Check your connection and try again.");
+    }
+  });
+
+  useEffect(() => {
+    if (result.ok) {
+      setRequests(result.requests);
+      setHistoryError("");
+    } else {
+      setHistoryError(result.message);
+    }
+  }, [result]);
+
   const filteredRequests = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return requests
@@ -65,18 +92,18 @@ function RequestItemsHistoryPage() {
       }
     >
       <section className="px-6 pb-6">
-        {!result.ok ? (
+        {historyError ? (
           <div
             role="alert"
             className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-base text-destructive"
           >
             <span className="inline-flex items-start gap-2">
               <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              {result.message}
+              {historyError}
             </span>
             <button
               type="button"
-              onClick={() => void router.invalidate()}
+              onClick={() => void refresh(false)}
               className="min-h-11 rounded-md border border-destructive/25 px-4 font-medium hover:bg-destructive/5"
             >
               Try again

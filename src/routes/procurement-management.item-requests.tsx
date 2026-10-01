@@ -14,5 +14,5 @@ export const Route = createFileRoute("/procurement-management/item-requests")({
 });
 
 function ItemRequestsPage() {
-  return <ProcurementPage result={Route.useLoaderData()} view="requests" />;
+  return <ProcurementPage result={Route.useLoaderData()} view="requests" dataSource="management" />;
 }

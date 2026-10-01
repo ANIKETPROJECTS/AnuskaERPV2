@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowDownCircle, ArrowUpCircle, Package } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { Panel, Tag } from "@/components/erp/bits";
 import { getInventoryItemDetailFn } from "@/inventory";
 import type { InventoryItemDetail } from "@/inventory.server";
 import { num } from "@/lib/erp-data";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/inventory/items/$itemCode")({ component: InventoryItemDetailPage });
 
@@ -13,17 +14,30 @@ function InventoryItemDetailPage() {
   const { itemCode } = Route.useParams();
   const [data, setData] = useState<InventoryItemDetail | null>(null);
   const [error, setError] = useState("");
+  const loadRequestIdRef = useRef(0);
 
-  useEffect(() => {
-    void getInventoryItemDetailFn({ data: { itemCode } }).then((result) => {
+  const load = useCallback(async () => {
+    const requestId = ++loadRequestIdRef.current;
+    try {
+      const result = await getInventoryItemDetailFn({ data: { itemCode } });
+      if (requestId !== loadRequestIdRef.current) return;
       if (result.ok) {
         setData(result.data);
         setError("");
       } else {
         setError(result.message);
       }
-    });
+    } catch {
+      if (requestId === loadRequestIdRef.current) {
+        setError("Item details could not be refreshed. Check your connection and try again.");
+      }
+    }
   }, [itemCode]);
+  const refresh = useAutoRefresh(load);
+
+  useEffect(() => {
+    void refresh(false);
+  }, [itemCode, refresh]);
 
   return (
     <SubHubShell actions={<Link to="/inventory/raw-materials" className="text-sm text-primary hover:underline">Back to inventory</Link>}>

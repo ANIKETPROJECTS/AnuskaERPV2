@@ -14,5 +14,5 @@ export const Route = createFileRoute("/procurement-management/vendors")({
 });
 
 function VendorManagementPage() {
-  return <ProcurementPage result={Route.useLoaderData()} view="vendors" />;
+  return <ProcurementPage result={Route.useLoaderData()} view="vendors" dataSource="management" />;
 }

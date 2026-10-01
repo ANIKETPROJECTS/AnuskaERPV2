@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, ClipboardList, History } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { getManagerProductionDataFn, getProductionOrderActivityFn } from "@/production";
 import type { ProductionOrder, ProductionOrderActivity, ProductionReport } from "@/production.server";
 import { num } from "@/lib/erp-data";
 import { demoActivities, demoOrder, demoReports } from "@/lib/production-demo";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/subhub/production/orders/$orderId")({
   head: () => ({ meta: [{ title: "Order details — Hub Manager · SubHub" }] }),
@@ -23,30 +24,51 @@ function ProductionOrderDetails() {
   const { orderId } = Route.useParams();
   const [data, setData] = useState<PageData | null>(null);
   const [error, setError] = useState("");
+  const dataRef = useRef(data);
+  const loadRequestIdRef = useRef(0);
+  dataRef.current = data;
 
-  useEffect(() => {
-    let active = true;
-    void Promise.all([
-      getManagerProductionDataFn(),
-      getProductionOrderActivityFn({ data: { orderId, panel: "subhub" } }),
-    ]).then(([managerResult, activityResult]) => {
-      if (!active) return;
+  const load = useCallback(async () => {
+    const requestId = ++loadRequestIdRef.current;
+    try {
+      const [managerResult, activityResult] = await Promise.all([
+        getManagerProductionDataFn(),
+        getProductionOrderActivityFn({ data: { orderId, panel: "subhub" } }),
+      ]);
+      if (requestId !== loadRequestIdRef.current) return;
+      if (!managerResult.ok) {
+        setError(managerResult.message);
+        return;
+      }
       const order = managerResult.ok ? managerResult.data.orders.find((item) => item.id === orderId) : undefined;
       if (!order) {
-        setData({ order: { ...demoOrder, id: orderId }, reports: demoReports.map((report) => ({ ...report, orderId })), activities: demoActivities.map((activity) => ({ ...activity, orderId })), demo: true });
+        if (dataRef.current && !dataRef.current.demo) {
+          setError("This order is no longer assigned to the current SubHub.");
+          return;
+        }
+        if (!dataRef.current) {
+          setData({ order: { ...demoOrder, id: orderId }, reports: demoReports.map((report) => ({ ...report, orderId })), activities: demoActivities.map((activity) => ({ ...activity, orderId })), demo: true });
+        }
+        setError("");
         return;
       }
       setData({
         order,
         reports: managerResult.data.reports.filter((report) => report.orderId === orderId),
-        activities: activityResult.ok ? activityResult.activities : [],
+        activities: activityResult.ok ? activityResult.activities : dataRef.current?.activities ?? [],
       });
-      setError("");
-    }).catch(() => {
-      if (active) setError("The order details could not be loaded.");
-    });
-    return () => { active = false; };
+      setError(activityResult.ok ? "" : activityResult.message);
+    } catch {
+      if (requestId === loadRequestIdRef.current) {
+        setError("The order details could not be refreshed. Check your connection and try again.");
+      }
+    }
   }, [orderId]);
+  const refresh = useAutoRefresh(load);
+
+  useEffect(() => {
+    void refresh(false);
+  }, [orderId, refresh]);
 
   return (
     <SubHubShell actions={<Link to="/subhub/production" className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"><ArrowLeft className="size-4" /> Back to assigned orders</Link>}>

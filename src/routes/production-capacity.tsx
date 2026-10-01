@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { HubCapacityRow } from "@/components/erp/HubCapacityRow";
 import { ProductionTargetsNav } from "@/components/erp/ProductionTargetsNav";
 import { Shell } from "@/components/erp/Shell";
 import { getAdminProductionDashboardFn, setAdminHubCapacityFn } from "@/production";
 import type { AdminProductionDashboard } from "@/production.server";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/production-capacity")({
   head: () => ({
@@ -23,37 +24,97 @@ function ProductionCapacity() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [savingCapacityId, setSavingCapacityId] = useState("");
+  const dirtyCapacityRowsRef = useRef(new Set<string>());
+  const savingCapacityIdRef = useRef("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    const result = await getAdminProductionDashboardFn();
-    if (result.ok) setDashboard(result.data);
-    else setError(result.message);
-    setLoading(false);
+  const markCapacityRowDirty = useCallback((subhubUserId: string, isDirty: boolean) => {
+    if (isDirty) dirtyCapacityRowsRef.current.add(subhubUserId);
+    else dirtyCapacityRowsRef.current.delete(subhubUserId);
   }, []);
 
+  const load = useCallback(async (isBackgroundRefresh = false) => {
+    if (
+      isBackgroundRefresh &&
+      (dirtyCapacityRowsRef.current.size > 0 || savingCapacityIdRef.current)
+    ) {
+      return;
+    }
+    if (!isBackgroundRefresh) {
+      setLoading(true);
+      setError("");
+    }
+    try {
+      const result = await getAdminProductionDashboardFn();
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+
+      setDashboard((current) => {
+        if (!current) return result.data;
+        const protectedIds = new Set(dirtyCapacityRowsRef.current);
+        if (savingCapacityIdRef.current) protectedIds.add(savingCapacityIdRef.current);
+        if (protectedIds.size === 0) return result.data;
+
+        const existingHubs = new Map(current.hubs.map((hub) => [hub.userId, hub]));
+        return {
+          ...result.data,
+          hubs: result.data.hubs.map((hub) =>
+            protectedIds.has(hub.userId) ? existingHubs.get(hub.userId) ?? hub : hub,
+          ),
+        };
+      });
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "SubHub capacity data could not be loaded.");
+    } finally {
+      if (!isBackgroundRefresh) setLoading(false);
+    }
+  }, []);
+
+  const runRefresh = useAutoRefresh(load, {
+    canRefresh: () => dirtyCapacityRowsRef.current.size === 0 && !savingCapacityIdRef.current,
+  });
+
   useEffect(() => {
-    void load();
-  }, [load]);
+    void runRefresh(false);
+  }, [runRefresh]);
 
   async function saveHubCapacity(subhubUserId: string, capacityUnits: number | null) {
     setSavingCapacityId(subhubUserId);
+    savingCapacityIdRef.current = subhubUserId;
     setSuccess("");
     setError("");
-    const result = await setAdminHubCapacityFn({ data: { subhubUserId, capacityUnits } });
-    if (!result.ok) {
-      setError(result.message);
-    } else {
-      setSuccess(
-        `Hub capacity updated${result.reassignments.length
-          ? ` · ${result.reassignments.length} order${result.reassignments.length === 1 ? "" : "s"} automatically reassigned`
-          : ""}.`,
-      );
-      await load();
+    try {
+      const result = await setAdminHubCapacityFn({ data: { subhubUserId, capacityUnits } });
+      if (!result.ok) {
+        setError(result.message);
+      } else {
+        dirtyCapacityRowsRef.current.delete(subhubUserId);
+        setDashboard((current) =>
+          current
+            ? {
+                ...current,
+                hubs: current.hubs.map((hub) =>
+                  hub.userId === subhubUserId ? { ...hub, capacityUnits } : hub,
+                ),
+              }
+            : current,
+        );
+        setSuccess(
+          `Hub capacity updated${result.reassignments.length
+            ? ` · ${result.reassignments.length} order${result.reassignments.length === 1 ? "" : "s"} automatically reassigned`
+            : ""}.`,
+        );
+        savingCapacityIdRef.current = "";
+        setSavingCapacityId("");
+        await runRefresh(false);
+      }
+      return result;
+    } finally {
+      savingCapacityIdRef.current = "";
+      setSavingCapacityId("");
     }
-    setSavingCapacityId("");
-    return result;
   }
 
   return (
@@ -63,7 +124,7 @@ function ProductionCapacity() {
       actions={
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={() => void runRefresh(false)}
           disabled={loading}
           className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted disabled:opacity-50"
         >
@@ -116,6 +177,7 @@ function ProductionCapacity() {
                       key={hub.userId}
                       hub={hub}
                       saving={savingCapacityId === hub.userId}
+                      onDirtyChange={markCapacityRowDirty}
                       onSave={saveHubCapacity}
                     />
                   ))

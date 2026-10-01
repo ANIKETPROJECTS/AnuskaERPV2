@@ -14,6 +14,7 @@ import { TablePagination } from "@/components/erp/TablePagination";
 import { listAssignableSubhubsFn, listProductionOrdersFn } from "@/production";
 import type { AssignableSubhub, ProductionOrder } from "@/production.server";
 import { num } from "@/lib/erp-data";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/orders")({
   head: () => ({
@@ -49,19 +50,26 @@ function Orders() {
   const [orderPage, setOrderPage] = useState(1);
   const orderPageSize = 25;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [ordersResult, subhubResult] = await Promise.all([listProductionOrdersFn(), listAssignableSubhubsFn()]);
-    if (ordersResult.ok) setOrders(ordersResult.orders);
-    else setError(ordersResult.message);
-    if (subhubResult.ok) setSubhubs(subhubResult.subhubs);
-    else setError(subhubResult.message);
-    setLoading(false);
+  const load = useCallback(async (isBackgroundRefresh = false) => {
+    if (!isBackgroundRefresh) setLoading(true);
+    try {
+      const [ordersResult, subhubResult] = await Promise.all([listProductionOrdersFn(), listAssignableSubhubsFn()]);
+      if (ordersResult.ok) setOrders(ordersResult.orders);
+      else setError(ordersResult.message);
+      if (subhubResult.ok) setSubhubs(subhubResult.subhubs);
+      else setError(subhubResult.message);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Production orders could not be loaded.");
+    } finally {
+      if (!isBackgroundRefresh) setLoading(false);
+    }
   }, []);
 
+  const runRefresh = useAutoRefresh(load);
+
   useEffect(() => {
-    void load();
-  }, [load]);
+    void runRefresh(false);
+  }, [runRefresh]);
 
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -101,7 +109,7 @@ function Orders() {
       actions={
           <button
             type="button"
-            onClick={() => void load()}
+            onClick={() => void runRefresh(false)}
             disabled={loading}
             className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input px-3 text-sm font-medium hover:bg-muted disabled:opacity-50"
           >

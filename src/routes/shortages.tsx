@@ -5,6 +5,7 @@ import { Shell } from "@/components/erp/Shell";
 import { TablePagination } from "@/components/erp/TablePagination";
 import { getShortageDataFn } from "@/shortages";
 import type { ShortageData } from "@/shortages.server";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/shortages")({
   loader: () => getShortageDataFn(),
@@ -77,19 +78,30 @@ function Shortages() {
 
   useEffect(() => {
     setPage(1);
-  }, [data.hubs, data.rows, hubFilter, query, statusFilter, viewMode]);
+  }, [hubFilter, query, statusFilter, viewMode]);
 
-  async function load() {
-    setLoading(true);
-    const response = await getShortageDataFn();
-    if (response.ok) {
-      setData(response.data);
-      setError("");
-    } else {
-      setError(response.message);
+  async function load(isBackgroundRefresh = false) {
+    if (!isBackgroundRefresh) setLoading(true);
+    try {
+      const response = await getShortageDataFn();
+      if (response.ok) {
+        setData(response.data);
+        setError("");
+      } else {
+        setError(response.message);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Shortage data could not be loaded.");
+    } finally {
+      if (!isBackgroundRefresh) setLoading(false);
     }
-    setLoading(false);
   }
+
+  const runRefresh = useAutoRefresh(load);
+
+  useEffect(() => {
+    if (!result.ok) void runRefresh(false);
+  }, [result.ok, runRefresh]);
 
   const visibleHubs = useMemo(
     () => (hubFilter === "all" ? data.hubs : data.hubs.filter((hub) => hub.id === hubFilter)),
@@ -140,7 +152,7 @@ function Shortages() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => void load()}
+            onClick={() => void runRefresh(false)}
             disabled={loading}
             className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-card px-3 text-base font-medium hover:bg-muted disabled:cursor-wait disabled:opacity-60"
           >

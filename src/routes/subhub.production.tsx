@@ -3,6 +3,7 @@ import { ClipboardCheck, RefreshCw, Save } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { HubManagerWorkCard } from "@/components/erp/HubManagerWorkCard";
 import { SubHubShell } from "@/components/erp/SubHubShell";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { getManagerProductionDataFn, saveDailyProductionFn } from "@/production";
 import type { ManagerProductionData } from "@/production.server";
 
@@ -36,6 +37,7 @@ function DailyProductionManager() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [hasUnsavedWork, setHasUnsavedWork] = useState(false);
   const hasUnsavedWorkRef = useRef(false);
+  const savingRef = useRef(false);
   const loadRequestIdRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -47,13 +49,13 @@ function DailyProductionManager() {
     setHasUnsavedWork(value);
   }
 
-  const load = useCallback(async (showLoading = true) => {
+  const load = useCallback(async (showLoading = true, allowWhileSaving = false) => {
     const requestId = ++loadRequestIdRef.current;
     if (showLoading) setLoading(true);
     try {
       const result = await getManagerProductionDataFn();
       if (requestId !== loadRequestIdRef.current) return;
-      if (!showLoading && hasUnsavedWorkRef.current) return;
+      if (!showLoading && !allowWhileSaving && (hasUnsavedWorkRef.current || savingRef.current)) return;
       if (result.ok) {
         setData(result.data);
         setError("");
@@ -63,7 +65,7 @@ function DailyProductionManager() {
       }
     } catch {
       if (requestId !== loadRequestIdRef.current) return;
-      if (!showLoading && hasUnsavedWorkRef.current) return;
+      if (!showLoading && !allowWhileSaving && (hasUnsavedWorkRef.current || savingRef.current)) return;
       setData(emptyData);
       setError("Work could not be loaded. Check your connection and try again.");
     } finally {
@@ -71,22 +73,14 @@ function DailyProductionManager() {
     }
   }, []);
 
+  const refresh = useAutoRefresh(
+    (isBackgroundRefresh) => load(!isBackgroundRefresh),
+    { canRefresh: () => !hasUnsavedWorkRef.current && !savingRef.current },
+  );
+
   useEffect(() => {
-    void load();
-    const refreshWhenActive = () => {
-      if (document.visibilityState === "visible" && !hasUnsavedWorkRef.current) {
-        void load(false);
-      }
-    };
-    window.addEventListener("focus", refreshWhenActive);
-    document.addEventListener("visibilitychange", refreshWhenActive);
-    const interval = window.setInterval(refreshWhenActive, 30_000);
-    return () => {
-      window.removeEventListener("focus", refreshWhenActive);
-      document.removeEventListener("visibilitychange", refreshWhenActive);
-      window.clearInterval(interval);
-    };
-  }, [load]);
+    void refresh(false);
+  }, [refresh]);
 
   const reportsForDate = useMemo(
     () => data.reports.filter((report) => report.date === selectedDate),
@@ -112,6 +106,7 @@ function DailyProductionManager() {
   async function saveProduction(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     if (!data.orders.length) return;
+    savingRef.current = true;
     setSaving(true);
     setError("");
     try {
@@ -137,11 +132,12 @@ function DailyProductionManager() {
       } else {
         setSaved(true);
         updateUnsavedWork(false);
-        await load(false);
+        await load(false, true);
       }
     } catch {
       setError("Production could not be saved. Check your connection and try again.");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -158,7 +154,7 @@ function DailyProductionManager() {
         {data.orders.length ? (
           <button
             type="button"
-            onClick={() => void load()}
+            onClick={() => void refresh(false)}
             disabled={loading || hasUnsavedWork}
             title={
               hasUnsavedWork ? "Save your changes before refreshing." : "Refresh assigned work"
@@ -185,7 +181,7 @@ function DailyProductionManager() {
           </p>
           <button
             type="button"
-            onClick={() => void load()}
+            onClick={() => void refresh(false)}
             className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-md border border-input bg-card px-4 text-sm font-medium hover:bg-muted"
           >
             <RefreshCw className="size-4" />

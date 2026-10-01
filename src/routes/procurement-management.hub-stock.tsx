@@ -14,5 +14,5 @@ export const Route = createFileRoute("/procurement-management/hub-stock")({
 });
 
 function HubStockPage() {
-  return <ProcurementPage result={Route.useLoaderData()} view="needs" />;
+  return <ProcurementPage result={Route.useLoaderData()} view="needs" dataSource="management" />;
 }

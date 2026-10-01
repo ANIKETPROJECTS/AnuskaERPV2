@@ -1,10 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Shell } from "@/components/erp/Shell";
 import { TablePagination } from "@/components/erp/TablePagination";
 import { getAdminHeadcountReportFn } from "@/hr";
 import type { AdminHeadcountReport } from "@/hr.server";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/hr/history")({
   head: () => ({ meta: [{ title: "Attendance history — Admin · Gadsons ERP" }] }),
@@ -68,38 +69,76 @@ function AdminHrHistoryPage() {
   const [page, setPage] = useState(1);
   const pageSize = 25;
   const today = currentDate();
+  const dateRangeRef = useRef({ fromDate, toDate });
+  dateRangeRef.current = { fromDate, toDate };
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    const request: ReportRequest =
-      fromDate || toDate
-        ? {
-            rangeType: "range",
-            ...(fromDate ? { startDate: fromDate } : {}),
-            ...(toDate ? { endDate: toDate } : {}),
-          }
-        : { rangeType: "all" };
+  const load = useCallback(async (isBackgroundRefresh = false) => {
+    let requestFromDate = fromDate;
+    let requestToDate = toDate;
+    let silent = isBackgroundRefresh;
+    if (!isBackgroundRefresh) {
+      setLoading(true);
+      setError("");
+    }
     try {
-      const result = await getAdminHeadcountReportFn({ data: request });
-      if (!result.ok) {
-        setReport(emptyReport);
-        setError(result.message);
+      while (true) {
+        const request: ReportRequest =
+          requestFromDate || requestToDate
+            ? {
+                rangeType: "range",
+                ...(requestFromDate ? { startDate: requestFromDate } : {}),
+                ...(requestToDate ? { endDate: requestToDate } : {}),
+              }
+            : { rangeType: "all" };
+
+        let result;
+        try {
+          result = await getAdminHeadcountReportFn({ data: request });
+        } catch {
+          const latestRange = dateRangeRef.current;
+          if (requestFromDate !== latestRange.fromDate || requestToDate !== latestRange.toDate) {
+            requestFromDate = latestRange.fromDate;
+            requestToDate = latestRange.toDate;
+            silent = false;
+            setLoading(true);
+            continue;
+          }
+          if (!isBackgroundRefresh) setReport(emptyReport);
+          setError("Attendance could not be loaded. Please try again.");
+          return;
+        }
+
+        const latestRange = dateRangeRef.current;
+        if (requestFromDate !== latestRange.fromDate || requestToDate !== latestRange.toDate) {
+          requestFromDate = latestRange.fromDate;
+          requestToDate = latestRange.toDate;
+          silent = false;
+          setLoading(true);
+          continue;
+        }
+        if (!result.ok) {
+          if (!isBackgroundRefresh) setReport(emptyReport);
+          setError(result.message);
+          return;
+        }
+        setReport(result.data);
+        setError("");
         return;
       }
-      setReport(result.data);
-    } catch {
-      setReport(emptyReport);
-      setError("Attendance could not be loaded. Please try again.");
     } finally {
-      setLoading(false);
+      if (!silent || !isBackgroundRefresh) setLoading(false);
     }
   }, [fromDate, toDate]);
 
+  const runRefresh = useAutoRefresh(load);
+
   useEffect(() => {
-    void load();
+    void runRefresh(false);
+  }, [runRefresh, fromDate, toDate]);
+
+  useEffect(() => {
     setPage(1);
-  }, [load]);
+  }, [fromDate, toDate]);
 
   const orderedEntries = [...report.entries].sort(
     (left, right) =>

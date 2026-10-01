@@ -6,6 +6,7 @@ import type { MasterQualityData } from "@/inventory.server";
 import { Kpi, Panel, Tag } from "@/components/erp/bits";
 import { Shell } from "@/components/erp/Shell";
 import { num } from "@/lib/erp-data";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/quality-management")({
   head: () => ({
@@ -30,21 +31,28 @@ function QualityManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function load() {
-    setLoading(true);
-    const result = await getMasterQualityManagementFn();
-    if (result.ok) {
-      setData(result.data);
-      setError("");
-    } else {
-      setError(result.message);
+  async function load(isBackgroundRefresh = false) {
+    if (!isBackgroundRefresh) setLoading(true);
+    try {
+      const result = await getMasterQualityManagementFn();
+      if (result.ok) {
+        setData(result.data);
+        setError("");
+      } else {
+        setError(result.message);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Quality report could not be loaded.");
+    } finally {
+      if (!isBackgroundRefresh) setLoading(false);
     }
-    setLoading(false);
   }
 
+  const runRefresh = useAutoRefresh(load);
+
   useEffect(() => {
-    void load();
-  }, []);
+    void runRefresh(false);
+  }, [runRefresh]);
 
   const filteredLogs = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -56,7 +64,7 @@ function QualityManagement() {
     <Shell
       title="Quality Management"
       subtitle="Cross-SubHub quality deductions from live workspace inventory"
-      actions={<button type="button" onClick={() => void load()} className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm"><RefreshCw className="size-4" /> Refresh report</button>}
+      actions={<button type="button" onClick={() => void runRefresh(false)} className="inline-flex items-center gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm"><RefreshCw className="size-4" /> Refresh report</button>}
     >
       <div className="space-y-6">
         {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}

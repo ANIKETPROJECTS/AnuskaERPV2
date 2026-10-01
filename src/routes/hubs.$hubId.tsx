@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, Boxes, RefreshCw } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { HubBatchBrowser } from "@/components/erp/HubBatchBrowser";
 import { HubModuleNav } from "@/components/erp/HubModuleNav";
 import { Shell } from "@/components/erp/Shell";
@@ -8,6 +8,7 @@ import { Tag } from "@/components/erp/bits";
 import { getAdminHubDetailFn } from "@/production";
 import type { AdminHubDetail, HubSummary } from "@/production.server";
 import { num } from "@/lib/erp-data";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export const Route = createFileRoute("/hubs/$hubId")({
   head: () => ({
@@ -46,37 +47,20 @@ function dateTime(value: string | null | undefined) {
 
 function HubDetails() {
   const { hubId } = Route.useParams();
+  return <HubDetailsView key={hubId} hubId={hubId} />;
+}
+
+function HubDetailsView({ hubId }: { hubId: string }) {
   const [data, setData] = useState<AdminHubDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeView, setActiveView] = useState<HubDetailView>("overview");
 
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setData(null);
-    setError("");
-    setActiveView("overview");
-    void getAdminHubDetailFn({ data: { hubId } })
-      .then((result) => {
-        if (!active) return;
-        if (result.ok) setData(result.data);
-        else setError(result.message);
-      })
-      .catch((cause: unknown) => {
-        if (active) setError(cause instanceof Error ? cause.message : "Hub details could not be loaded.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [hubId]);
-
-  async function refresh() {
-    setLoading(true);
-    setError("");
+  const load = useCallback(async (isBackgroundRefresh = false) => {
+    if (!isBackgroundRefresh) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const result = await getAdminHubDetailFn({ data: { hubId } });
       if (result.ok) setData(result.data);
@@ -84,9 +68,15 @@ function HubDetails() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Hub details could not be refreshed.");
     } finally {
-      setLoading(false);
+      if (!isBackgroundRefresh) setLoading(false);
     }
-  }
+  }, [hubId]);
+
+  const runRefresh = useAutoRefresh(load);
+
+  useEffect(() => {
+    void runRefresh(false);
+  }, [runRefresh]);
 
   if (loading && !data) {
     return (
@@ -124,7 +114,7 @@ function HubDetails() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => void refresh()}
+            onClick={() => void runRefresh(false)}
             disabled={loading}
             className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input px-3 py-2 text-base font-medium hover:bg-muted disabled:opacity-50"
           >

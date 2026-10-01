@@ -12,10 +12,12 @@ export function HubCapacityRow({
   hub,
   saving,
   onSave,
+  onDirtyChange,
 }: {
   hub: HubSummary;
   saving: boolean;
   onSave: SaveHubCapacity;
+  onDirtyChange: (subhubUserId: string, isDirty: boolean) => void;
 }) {
   const [capacityValue, setCapacityValue] = useState(hub.capacityUnits === null ? "" : String(hub.capacityUnits));
   const [validationError, setValidationError] = useState("");
@@ -30,7 +32,8 @@ export function HubCapacityRow({
 
   useEffect(() => {
     setCapacityValue(hub.capacityUnits === null ? "" : String(hub.capacityUnits));
-  }, [hub.capacityUnits]);
+    onDirtyChange(hub.userId, false);
+  }, [hub.capacityUnits, hub.userId, onDirtyChange]);
 
   async function submitCapacity() {
     const trimmed = capacityValue.trim();
@@ -84,7 +87,14 @@ export function HubCapacityRow({
                 min="1"
                 step="1"
                 value={capacityValue}
-                onChange={(event) => setCapacityValue(event.target.value)}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setCapacityValue(nextValue);
+                  onDirtyChange(
+                    hub.userId,
+                    nextValue !== (hub.capacityUnits === null ? "" : String(hub.capacityUnits)),
+                  );
+                }}
                 placeholder="No limit"
                 className="tabular h-8 min-w-0 w-20 bg-transparent px-1 text-right text-base font-semibold outline-none"
               />

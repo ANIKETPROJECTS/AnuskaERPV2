@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getAdminHeadcountReportFn } from "@/hr";
 import type { AdminHeadcountEntry, AdminHeadcountReport, AdminHeadcountSummary } from "@/hr.server";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 
 export type HeadcountDateRange = {
   startDate: string;
@@ -121,48 +122,73 @@ export function useAdminHeadcountReport(initialRange: HeadcountDateRange = { sta
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [appliedRange, setAppliedRange] = useState<HeadcountDateRange>(() => ({ ...initialRange }));
+  const appliedRangeRef = useRef(appliedRange);
+  appliedRangeRef.current = appliedRange;
 
   const applyRange = useCallback((range: HeadcountDateRange) => {
     setAppliedRange({ ...range });
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setError("");
+  const load = useCallback(async (isBackgroundRefresh = false) => {
+    let requestRange = appliedRange;
+    let silent = isBackgroundRefresh;
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
 
-    const request =
-      appliedRange.startDate || appliedRange.endDate
-        ? {
-            rangeType: "range" as const,
-            ...(appliedRange.startDate ? { startDate: appliedRange.startDate } : {}),
-            ...(appliedRange.endDate ? { endDate: appliedRange.endDate } : {}),
+    try {
+      while (true) {
+        const request =
+          requestRange.startDate || requestRange.endDate
+            ? {
+                rangeType: "range" as const,
+                ...(requestRange.startDate ? { startDate: requestRange.startDate } : {}),
+                ...(requestRange.endDate ? { endDate: requestRange.endDate } : {}),
+              }
+            : { rangeType: "all" as const };
+
+        try {
+          const result = await getAdminHeadcountReportFn({ data: request });
+          const latestRange = appliedRangeRef.current;
+          if (requestRange.startDate !== latestRange.startDate || requestRange.endDate !== latestRange.endDate) {
+            requestRange = latestRange;
+            silent = false;
+            setLoading(true);
+            continue;
           }
-        : { rangeType: "all" as const };
 
-    void getAdminHeadcountReportFn({ data: request })
-      .then((result) => {
-        if (!active) return;
-        if (result.ok) {
-          setReport(result.data);
-        } else {
-          setReport(emptyAdminHeadcountReport);
-          setError(result.message);
+          if (result.ok) {
+            setReport(result.data);
+            setError("");
+          } else {
+            if (!isBackgroundRefresh) setReport(emptyAdminHeadcountReport);
+            setError(result.message);
+          }
+        } catch {
+          const latestRange = appliedRangeRef.current;
+          if (requestRange.startDate !== latestRange.startDate || requestRange.endDate !== latestRange.endDate) {
+            requestRange = latestRange;
+            silent = false;
+            setLoading(true);
+            continue;
+          }
+
+          if (!isBackgroundRefresh) setReport(emptyAdminHeadcountReport);
+          setError("Attendance could not be loaded. Please try again.");
         }
-      })
-      .catch(() => {
-        if (!active) return;
-        setReport(emptyAdminHeadcountReport);
-        setError("Attendance could not be loaded. Please try again.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
+        return;
+      }
+    } finally {
+      if (!silent || !isBackgroundRefresh) setLoading(false);
+    }
   }, [appliedRange]);
+
+  const runRefresh = useAutoRefresh(load);
+
+  useEffect(() => {
+    void runRefresh(false);
+  }, [appliedRange, runRefresh]);
 
   return { report, loading, error, appliedRange, applyRange };
 }

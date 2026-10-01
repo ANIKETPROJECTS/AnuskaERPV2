@@ -1,11 +1,13 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ArrowLeft, CheckCircle2, Circle, Package } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Circle, Package, RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthContext";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
 import { getProcurementOrderFn } from "@/procurement";
 import { getAuthStateFn } from "@/auth";
 import type { ProcurementStatus } from "@/procurement.server";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { z } from "zod";
 
 export const Route = createFileRoute("/po/$id")({
@@ -20,7 +22,7 @@ export const Route = createFileRoute("/po/$id")({
     if (!panel) throw notFound();
     const result = await getProcurementOrderFn({ data: { id: params.id, panel } });
     if (!result.ok) throw notFound();
-    return { order: result.order };
+    return { order: result.order, panel };
   },
   head: ({ loaderData }) => {
     if (!loaderData) return { meta: [{ title: "Purchase unavailable — Gadsons ERP" }, { name: "robots", content: "noindex" }] };
@@ -60,10 +62,40 @@ function PurchaseMissing() {
 }
 
 function PurchaseDetail() {
-  const { order } = Route.useLoaderData();
+  const loaderData = Route.useLoaderData();
+  const { id } = Route.useParams();
+  const { order: loaderOrder, panel } = loaderData;
   const { vendorHistoryId } = Route.useSearch();
   const { user } = useAuth();
   const isSubHub = user?.panel === "subhub";
+  const [order, setOrder] = useState(loaderOrder);
+  const [refreshError, setRefreshError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    setOrder(loaderOrder);
+    setRefreshError("");
+  }, [loaderOrder]);
+
+  async function refreshOrder(isBackgroundRefresh: boolean) {
+    if (!isBackgroundRefresh) setRefreshing(true);
+    try {
+      const result = await getProcurementOrderFn({ data: { id, panel } });
+      if (result.ok) {
+        setOrder(result.order);
+        setRefreshError("");
+      } else {
+        setRefreshError(result.message);
+      }
+    } catch (error) {
+      setRefreshError(error instanceof Error ? error.message : "Unable to refresh this purchase order.");
+    } finally {
+      if (!isBackgroundRefresh) setRefreshing(false);
+    }
+  }
+
+  const runRefresh = useAutoRefresh(refreshOrder);
+
   const visibleStatusSteps: ProcurementStatus[] = ["Order placed", "Dispatch done", "Delivery done"];
   const currentIndex =
     order.status === "Payment done" ? 0 : visibleStatusSteps.indexOf(order.status);
@@ -133,37 +165,59 @@ function PurchaseDetail() {
   const subtitle = `${order.items.length === 1 ? order.materialName : `${order.items.length} materials`} · ${order.vendorName} · ${order.subhubName}`;
   const backLinkClassName =
     "inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted";
-  const actions =
-    user?.panel === "procurement" && vendorHistoryId ? (
-      <Link
-        to="/procurement-management/vendor-history/$vendorId"
-        params={{ vendorId: vendorHistoryId }}
-        className={backLinkClassName}
+  const actions = (
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        onClick={() => void runRefresh(false)}
+        disabled={refreshing}
+        className="inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted disabled:opacity-50"
       >
-        <ArrowLeft className="size-5" />
-        Back to vendor history
-      </Link>
-    ) : user?.panel === "procurement" ? (
-      <Link to="/procurement-management" className={backLinkClassName}>
-        <ArrowLeft className="size-5" />
-        Back to procurement
-      </Link>
-    ) : (
-      <Link
-        to="/procurement"
-        search={{ panel: user?.panel ?? "admin" }}
-        className={backLinkClassName}
-      >
-        <ArrowLeft className="size-5" />
-        Back to procurement
-      </Link>
-    );
+        <RefreshCw className={`size-5 ${refreshing ? "animate-spin" : ""}`} />
+        {refreshing ? "Refreshing…" : "Refresh"}
+      </button>
+      {user?.panel === "procurement" && vendorHistoryId ? (
+        <Link
+          to="/procurement-management/vendor-history/$vendorId"
+          params={{ vendorId: vendorHistoryId }}
+          className={backLinkClassName}
+        >
+          <ArrowLeft className="size-5" />
+          Back to vendor history
+        </Link>
+      ) : user?.panel === "procurement" ? (
+        <Link to="/procurement-management" className={backLinkClassName}>
+          <ArrowLeft className="size-5" />
+          Back to procurement
+        </Link>
+      ) : (
+        <Link
+          to="/procurement"
+          search={{ panel: user?.panel ?? "admin" }}
+          className={backLinkClassName}
+        >
+          <ArrowLeft className="size-5" />
+          Back to procurement
+        </Link>
+      )}
+    </div>
+  );
+  const refreshedContent = (
+    <>
+      {refreshError ? (
+        <p role="alert" className="border-l-4 border-destructive bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          Showing the last loaded purchase order. {refreshError}
+        </p>
+      ) : null}
+      {content}
+    </>
+  );
   return user?.panel === "subhub" ? (
     <SubHubShell headerTitle={title} actions={actions}>
-      <div className="space-y-6 px-6 py-5">{content}</div>
+      <div className="space-y-6 px-6 py-5">{refreshedContent}</div>
     </SubHubShell>
   ) : (
-    <Shell title={title} subtitle={subtitle} actions={actions}>{content}</Shell>
+    <Shell title={title} subtitle={subtitle} actions={actions}>{refreshedContent}</Shell>
   );
 }
 
