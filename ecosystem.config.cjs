@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: "lumina-erp",
+      name: "Gadson-erp",
       script: ".output/server/index.mjs",
       interpreter: "node",
       instances: 1,
@@ -12,7 +12,7 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         HOST: "0.0.0.0",
-        PORT: 3000,
+        PORT: 3022,
       },
     },
   ],
