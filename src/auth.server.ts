@@ -1,5 +1,10 @@
 import { createHash, randomBytes, randomUUID, scrypt as nodeScrypt, timingSafeEqual } from "node:crypto";
-import { deleteCookie, getCookie, setCookie } from "@tanstack/react-start/server";
+import {
+  deleteCookie,
+  getCookie,
+  getRequestProtocol,
+  setCookie,
+} from "@tanstack/react-start/server";
 import type { Db } from "mongodb";
 import { getMongoClient, getMongoDb } from "./mongodb.server";
 
@@ -11,6 +16,10 @@ const SESSION_COOKIES: Record<Panel, string> = {
   procurement: "float_erp_procurement_session",
 };
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
+
+function shouldUseSecureSessionCookie() {
+  return getRequestProtocol({ xForwardedProto: true }) === "https";
+}
 
 export const ACCESS_SECTIONS = [
   "dashboard",
@@ -387,7 +396,7 @@ async function getUserBySession(panel?: Panel): Promise<UserDocument | null> {
     setCookie(SESSION_COOKIES[panel], legacyToken, {
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env["NODE_ENV"] === "production",
+      secure: shouldUseSecureSessionCookie(),
       path: "/",
       maxAge: SESSION_TTL_SECONDS,
     });
@@ -416,7 +425,7 @@ async function createSession(userId: string, panel: Panel): Promise<void> {
   setCookie(SESSION_COOKIES[panel], token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env["NODE_ENV"] === "production",
+    secure: shouldUseSecureSessionCookie(),
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
   });
