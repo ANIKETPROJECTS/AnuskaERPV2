@@ -7,6 +7,7 @@ module.exports = {
       instances: 1,
       exec_mode: "fork",
       autorestart: true,
+      MONGODB_URI: "mongodb+srv://raneaniket23_db_user:rbWgRsLGj7MwIWAi@erp.bscccpk.mongodb.net/?appName=ERP",
       watch: false,
       max_memory_restart: "512M",
       env: {
