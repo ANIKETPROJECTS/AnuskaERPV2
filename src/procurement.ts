@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   createProcurementOrder,
   createBulkProcurementOrders,
+  getBulkProcurementOrderSummary,
   createProcurementItemRequest,
   createHubInventoryTransfer,
   createVendor,
@@ -97,6 +98,10 @@ const bulkOrderSchema = z.object({
   expectedDelivery: z.string().min(10),
   notes: z.string().max(500),
 });
+const bulkOrderSummarySchema = z.object({
+  panel: z.enum(["admin", "procurement"]),
+  bulkOrderId: z.string().min(1).max(64),
+});
 const reassignOrderSchema = z.object({
   id: z.string().min(1),
   subhubUserId: z.string().min(1),
@@ -162,6 +167,9 @@ export const createProcurementOrderFn = createServerFn({ method: "POST" })
 export const createBulkProcurementOrdersFn = createServerFn({ method: "POST" })
   .validator(bulkOrderSchema)
   .handler(({ data }) => createBulkProcurementOrders(data, data.panel));
+export const getBulkProcurementOrderSummaryFn = createServerFn({ method: "POST" })
+  .validator(bulkOrderSummarySchema)
+  .handler(({ data }) => getBulkProcurementOrderSummary(data, data.panel));
 export const updateProcurementOrderStatusFn = createServerFn({ method: "POST" })
   .validator(statusSchema)
   .handler(({ data }) => updateProcurementOrderStatus(data, data.panel));

@@ -1393,6 +1393,47 @@ export async function createBulkProcurementOrders(input: {
   }
 }
 
+export async function getBulkProcurementOrderSummary(input: { bulkOrderId: string }, panel: "admin" | "procurement") {
+  try {
+    currentUserRequired(await getCurrentUserRecord(panel), panel);
+    const db = await getProcurementDb();
+    const orders = await db.collection<ProcurementOrderDocument>("procurement_orders")
+      .find({ bulkOrderId: input.bulkOrderId }).sort({ subhubName: 1, orderNumber: 1 }).toArray();
+    if (!orders.length) return { ok: false as const, message: "Combined order run not found." };
+    const materialTotals = new Map<string, {
+      materialCode: string; materialName: string; quantity: number; totalAmount: number;
+      allocations: Array<{ hubName: string; quantity: number; totalAmount: number }>;
+    }>();
+    for (const order of orders) {
+      for (const item of orderItems(order)) {
+        const total = materialTotals.get(item.materialCode) ?? {
+          materialCode: item.materialCode, materialName: item.materialName, quantity: 0, totalAmount: 0, allocations: [],
+        };
+        total.quantity += item.quantity;
+        total.totalAmount += item.totalAmount;
+        total.allocations.push({ hubName: order.subhubName, quantity: item.quantity, totalAmount: item.totalAmount });
+        materialTotals.set(item.materialCode, total);
+      }
+    }
+    return {
+      ok: true as const,
+      summary: {
+        bulkOrderId: input.bulkOrderId,
+        vendorName: orders[0]!.vendorName,
+        orderDate: dateOnly(orders[0]!.orderDate),
+        expectedDelivery: dateOnly(orders[0]!.expectedDelivery),
+        notes: orders[0]!.notes,
+        orders: orders.length,
+        materials: [...materialTotals.values()].sort((left, right) => left.materialName.localeCompare(right.materialName)),
+        totalQuantity: orders.reduce((sum, order) => sum + order.quantity, 0),
+        totalAmount: orders.reduce((sum, order) => sum + order.totalAmount, 0),
+      },
+    };
+  } catch (error) {
+    return { ok: false as const, message: error instanceof Error ? error.message : "Combined order summary could not be loaded." };
+  }
+}
+
 export async function updateProcurementOrderStatus(
   input: {
     id: string;

@@ -39,6 +39,7 @@ import {
   deleteOrArchiveVendorFn,
   getProcurementDataFn,
   getProcurementManagementDataFn,
+  getBulkProcurementOrderSummaryFn,
   getHubTransferOptionsFn,
   updateProcurementOrderStatusFn,
   updateVendorFn,
@@ -1620,6 +1621,7 @@ function DateRangeFilter({
 }
 
 function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeChange, isAdmin, panel, onStatusChange }: { orders: ProcurementOrder[]; total: number; page: number; pageSize: number; onPageChange: (page: number) => void; onPageSizeChange: (pageSize: number) => void; isAdmin: boolean; panel: "admin" | "subhub" | "procurement"; onStatusChange: (order: ProcurementOrder, status: ProcurementStatus) => void }) {
+  const [bulkSummaryId, setBulkSummaryId] = useState("");
   if (!orders.length) {
     return <EmptyState icon={<ShoppingCart className="size-7" />} title="No procurement orders found" description="Create an order or change the current search and filters." />;
   }
@@ -1648,7 +1650,7 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
                 <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
                   <td className="px-3 py-3">
                     <Link to="/po/$id" params={{ id: order.id }} search={{ panel }} className="font-semibold text-primary hover:underline">{order.orderNumber}</Link>
-                    {order.bulkOrderId ? <p className="mt-1 text-[11px] text-muted-foreground">Bulk run {order.bulkOrderId.slice(0, 8)}</p> : null}
+                    {order.bulkOrderId ? <div className="mt-1"><p className="text-[11px] text-muted-foreground">Bulk run {order.bulkOrderId.slice(0, 8)}</p>{panel !== "subhub" ? <button type="button" onClick={() => setBulkSummaryId(order.bulkOrderId!)} className="text-xs font-semibold text-primary underline underline-offset-2">View combined supplier order</button> : null}</div> : null}
                     {panel !== "subhub" ? <p className="mt-1 text-xs text-muted-foreground">{note || "No notes"}</p> : null}
                   </td>
                   {isAdmin ? <td className="px-3 py-3">{order.subhubName}</td> : null}
@@ -1690,8 +1692,70 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
         showPageSizeSelect={panel !== "subhub"}
         size="md"
       />
+      {bulkSummaryId ? <BulkProcurementSummaryDrawer bulkOrderId={bulkSummaryId} panel={panel === "admin" ? "admin" : "procurement"} onClose={() => setBulkSummaryId("")} /> : null}
     </>
   );
+}
+
+function BulkProcurementSummaryDrawer({ bulkOrderId, panel, onClose }: { bulkOrderId: string; panel: "admin" | "procurement"; onClose: () => void }) {
+  const [result, setResult] = useState<Awaited<ReturnType<typeof getBulkProcurementOrderSummaryFn>> | null>(null);
+  useEffect(() => {
+    let active = true;
+    void getBulkProcurementOrderSummaryFn({ data: { bulkOrderId, panel } })
+      .then((summary) => { if (active) setResult(summary); })
+      .catch((error: unknown) => {
+        if (active) setResult({ ok: false, message: error instanceof Error ? error.message : "Could not load the combined supplier order." });
+      });
+    return () => { active = false; };
+  }, [bulkOrderId, panel]);
+
+  function downloadCsv() {
+    if (!result?.ok) return;
+    const rows = [
+      ["Material", "Code", "Combined quantity", "Combined amount", "Factory allocations"],
+      ...result.summary.materials.map((material) => [
+        material.materialName,
+        material.materialCode,
+        String(material.quantity),
+        material.totalAmount.toFixed(2),
+        material.allocations.map((allocation) => `${allocation.hubName}: ${allocation.quantity}`).join("; "),
+      ]),
+      ["TOTAL", "", String(result.summary.totalQuantity), result.summary.totalAmount.toFixed(2), ""],
+    ];
+    const csv = rows.map((row) => row.map((cell) => {
+      const safeCell = /^[=+\-@\t\r]/.test(cell) ? `'${cell}` : cell;
+      return `"${safeCell.replaceAll('"', '""')}"`;
+    }).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `bulk-order-${bulkOrderId.slice(0, 8)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return <Drawer title="Combined supplier order" subtitle="Consolidated material quantities with the delivery allocation for each factory." onClose={onClose}>
+    <style>{`@media print { body * { visibility: hidden !important; } .bulk-summary-print, .bulk-summary-print * { visibility: visible !important; } .bulk-summary-print { position: fixed !important; inset: 0 !important; width: 100% !important; max-width: none !important; height: auto !important; overflow: visible !important; padding: 24px !important; background: white !important; color: black !important; box-shadow: none !important; } .bulk-summary-no-print { display: none !important; } }`}</style>
+    {!result ? <p>Loading combined supplier order…</p> : !result.ok ? <p role="alert" className="text-destructive">{result.message}</p> : <div className="bulk-summary-print space-y-4">
+      <div>
+        <h3 className="text-xl font-semibold">{result.summary.vendorName}</h3>
+        <p className="text-sm text-muted-foreground">Bulk run {result.summary.bulkOrderId.slice(0, 8)} · Ordered {formatDate(result.summary.orderDate)} · Expected {formatDate(result.summary.expectedDelivery)}</p>
+        <p className="mt-1 text-sm">{result.summary.orders} factory orders · {num(result.summary.totalQuantity)} total units · {inr(result.summary.totalAmount)}</p>
+        {result.summary.notes.trim() ? <p className="mt-2 text-sm"><strong>Notes:</strong> {result.summary.notes}</p> : null}
+      </div>
+      <div className="overflow-x-auto rounded-md border border-border">
+        <table className="w-full min-w-[680px] text-sm">
+          <thead className="border-b border-border bg-muted/30 text-left text-xs uppercase text-muted-foreground"><tr><th className="px-3 py-2">Material</th><th className="px-3 py-2">Code</th><th className="px-3 py-2 text-right">Combined qty</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2">Factory split</th></tr></thead>
+          <tbody>{result.summary.materials.map((material) => <tr key={material.materialCode} className="border-b border-border/70"><td className="px-3 py-2 font-medium">{material.materialName}</td><td className="px-3 py-2">{material.materialCode}</td><td className="px-3 py-2 text-right">{num(material.quantity)}</td><td className="px-3 py-2 text-right">{inr(material.totalAmount)}</td><td className="px-3 py-2">{material.allocations.map((allocation) => `${allocation.hubName}: ${num(allocation.quantity)}`).join(" · ")}</td></tr>)}</tbody>
+          <tfoot><tr className="font-semibold"><td colSpan={2} className="px-3 py-2">Supplier total</td><td className="px-3 py-2 text-right">{num(result.summary.totalQuantity)}</td><td className="px-3 py-2 text-right">{inr(result.summary.totalAmount)}</td><td /></tr></tfoot>
+        </table>
+      </div>
+      <div className="bulk-summary-no-print flex justify-end gap-2">
+        <button type="button" onClick={downloadCsv} className="h-10 rounded-md border border-input px-3 text-sm font-semibold">Download CSV</button>
+        <button type="button" onClick={() => window.print()} className="h-10 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground">Print supplier order</button>
+      </div>
+    </div>}
+  </Drawer>;
 }
 
 function VendorFilters({
