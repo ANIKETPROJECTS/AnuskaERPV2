@@ -1,10 +1,10 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useRouter } from "@tanstack/react-router";
 import { ArrowLeft, CheckCircle2, Circle, Package, RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/components/auth/AuthContext";
 import { Shell } from "@/components/erp/Shell";
 import { SubHubShell } from "@/components/erp/SubHubShell";
-import { getProcurementOrderFn } from "@/procurement";
+import { getProcurementDataFn, getProcurementOrderFn, reassignProcurementOrderFn } from "@/procurement";
 import { getAuthStateFn } from "@/auth";
 import type { ProcurementStatus } from "@/procurement.server";
 import { z } from "zod";
@@ -21,7 +21,10 @@ export const Route = createFileRoute("/po/$id")({
     if (!panel) throw notFound();
     const result = await getProcurementOrderFn({ data: { id: params.id, panel } });
     if (!result.ok) throw notFound();
-    return { order: result.order, panel };
+    const data = panel === "admin" || panel === "procurement"
+      ? await getProcurementDataFn({ data: { panel } })
+      : null;
+    return { order: result.order, panel, subhubs: data?.ok ? data.data.subhubs : [] };
   },
   head: ({ loaderData }) => {
     if (!loaderData) return { meta: [{ title: "Purchase unavailable — Gadsons ERP" }, { name: "robots", content: "noindex" }] };
@@ -63,13 +66,19 @@ function PurchaseMissing() {
 function PurchaseDetail() {
   const loaderData = Route.useLoaderData();
   const { id } = Route.useParams();
-  const { order: loaderOrder, panel } = loaderData;
+  const { order: loaderOrder, panel, subhubs } = loaderData;
   const { vendorHistoryId } = Route.useSearch();
   const { user } = useAuth();
+  const router = useRouter();
   const isSubHub = user?.panel === "subhub";
   const [order, setOrder] = useState(loaderOrder);
   const [refreshError, setRefreshError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [destinationHubId, setDestinationHubId] = useState("");
+  const [moveReason, setMoveReason] = useState("");
+  const [moving, setMoving] = useState(false);
+  const [moveMessage, setMoveMessage] = useState("");
+  const [moveError, setMoveError] = useState("");
 
   useEffect(() => {
     setOrder(loaderOrder);
@@ -90,6 +99,31 @@ function PurchaseDetail() {
       setRefreshError(error instanceof Error ? error.message : "Unable to refresh this purchase order.");
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function moveOrder(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMoving(true);
+    setMoveMessage("");
+    setMoveError("");
+    try {
+      const result = await reassignProcurementOrderFn({
+        data: { id, subhubUserId: destinationHubId, reason: moveReason, panel: panel as "admin" | "procurement" },
+      });
+      if (!result.ok) {
+        setMoveError(result.message);
+      } else {
+        setOrder(result.order);
+        setDestinationHubId("");
+        setMoveReason("");
+        setMoveMessage("Order destination updated.");
+        await router.invalidate();
+      }
+    } catch (error) {
+      setMoveError(error instanceof Error ? error.message : "Order could not be reassigned.");
+    } finally {
+      setMoving(false);
     }
   }
 
@@ -145,6 +179,29 @@ function PurchaseDetail() {
             <Detail label="Created" value={formatTimestamp(order.createdAt)} />
           </dl>
         </section>
+        {(panel === "admin" || panel === "procurement") && order.status !== "Delivery done" ? (
+          <section className="lg:col-span-2">
+            <DetailSectionHeading title="Move order to another SubHub" description="This changes the order destination and keeps an audit trail. Delivered orders cannot be moved." />
+            <form onSubmit={moveOrder} className="grid gap-3 border-b border-border py-4 sm:grid-cols-[1fr_1fr_auto]">
+              <label className="block text-sm font-medium">New destination
+                <select required value={destinationHubId} onChange={(event) => setDestinationHubId(event.target.value)} className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-base">
+                  <option value="">Select SubHub</option>
+                  {subhubs.filter((hub) => hub.id !== order.subhubUserId).map((hub) => <option key={hub.id} value={hub.id}>{hub.name}</option>)}
+                </select>
+              </label>
+              <label className="block text-sm font-medium">Reason for move
+                <input required minLength={3} maxLength={200} value={moveReason} onChange={(event) => setMoveReason(event.target.value)} placeholder="Materials required at another hub" className="mt-1 min-h-11 w-full rounded-md border border-input bg-background px-3 text-base" />
+              </label>
+              <button disabled={moving || !destinationHubId} className="min-h-11 self-end rounded-md bg-primary px-4 font-semibold text-primary-foreground disabled:opacity-50">{moving ? "Moving…" : "Move order"}</button>
+            </form>
+            {moveMessage ? <p role="status" className="pt-2 text-sm text-success">{moveMessage}</p> : null}
+            {moveError ? <p role="alert" className="pt-2 text-sm text-destructive">{moveError}</p> : null}
+            {order.assignmentHistory.length ? <div className="space-y-2 pt-3 text-sm text-muted-foreground">
+              <p className="font-semibold text-foreground">Previous destination changes</p>
+              {order.assignmentHistory.map((entry, index) => <p key={`${entry.changedAt}-${index}`}>{entry.fromHubName} → {entry.toHubName} · {entry.reason} · {entry.changedByName} · {formatTimestamp(entry.changedAt)}</p>)}
+            </div> : null}
+          </section>
+        ) : null}
         <section>
           <DetailSectionHeading title="Materials in this order" />
           <div className="divide-y divide-border border-b border-border">

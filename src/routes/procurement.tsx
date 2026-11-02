@@ -45,6 +45,8 @@ import {
 import type { HubMaterialNeed, HubTransferSourceOption, ProcurementData, ProcurementItemRequest, ProcurementOrder, ProcurementStatus, ProcurementVendor } from "@/procurement.server";
 import { MISCELLANEOUS_VENDOR_ID, ONE_OFF_MATERIAL_CODE, PROCUREMENT_STATUSES } from "@/lib/procurement-types";
 import { useRawMaterials } from "@/lib/raw-material-store";
+import { listProductionOrdersForProcurementFn, reassignProductionOrderFn } from "@/production";
+import type { ProductionOrder } from "@/production.server";
 
 export const Route = createFileRoute("/procurement")({
   validateSearch: z.object({ panel: z.enum(["admin", "subhub", "procurement"]).optional() }),
@@ -476,6 +478,7 @@ export function ProcurementPage({
             {panel !== "subhub" ? <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-base font-semibold">Procurement orders</h2><p className="text-xs text-muted-foreground">{filteredOrders.length} of {data.orders.length} orders</p></div> : null}
             {loading ? <Loading /> : <OrderTable orders={paginatedOrders} total={filteredOrders.length} page={orderPage} pageSize={orderPageSize} onPageChange={setOrderPage} onPageSizeChange={setOrderPageSize} isAdmin={canManageProcurement} panel={panel} onStatusChange={(order, status) => void updateOrderStatus(order, status)} />}
           </section>
+          {panel === "procurement" ? <ProductionOrderMoves subhubs={data.subhubs} /> : null}
         </>
       ) : activeTab === "vendors" ? (
         <>
@@ -2117,6 +2120,84 @@ function VendorForm({
   );
 }
 
+function ProductionOrderMoves({ subhubs }: { subhubs: Array<{ id: string; name: string }> }) {
+  const [orders, setOrders] = useState<ProductionOrder[]>([]);
+  const [destinations, setDestinations] = useState<Record<string, string>>({});
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  async function load() {
+    const result = await listProductionOrdersForProcurementFn();
+    if (result.ok) {
+      setOrders(result.orders);
+      setError("");
+    } else setError(result.message);
+  }
+  useEffect(() => { void load(); }, []);
+
+  async function move(order: ProductionOrder) {
+    setBusyId(order.id);
+    setError("");
+    setNotice("");
+    try {
+      const result = await reassignProductionOrderFn({
+        data: {
+          orderId: order.id,
+          subhubUserId: destinations[order.id] ?? "",
+          reason: reasons[order.id] ?? "",
+          panel: "procurement",
+        },
+      });
+      if (!result.ok) setError(result.message);
+      else {
+        setNotice(`${order.orderNumber} moved to ${result.order.subhubName}.`);
+        setDestinations((previous) => ({ ...previous, [order.id]: "" }));
+        setReasons((previous) => ({ ...previous, [order.id]: "" }));
+        await load();
+      }
+    } catch (moveError) {
+      setError(moveError instanceof Error ? moveError.message : "Production order could not be moved.");
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  return (
+    <section className="space-y-3 border-t border-border pt-5">
+      <div>
+        <h2 className="text-base font-semibold">Move production orders between SubHubs</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Only orders without saved production reports can be moved. Orders with reports stay at their current hub for traceability.</p>
+      </div>
+      {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</p> : null}
+      {notice ? <p role="status" className="rounded-md border border-success/25 bg-success/5 px-3 py-2 text-sm text-success">{notice}</p> : null}
+      {orders.length ? (
+        <div className="divide-y divide-border border-y border-border">
+          {orders.map((order) => (
+            <div key={order.id} className="grid gap-3 py-4 lg:grid-cols-[minmax(180px,1fr)_minmax(150px,1fr)_minmax(180px,1fr)_auto] lg:items-end">
+              <div className="min-w-0">
+                <p className="font-semibold">{order.orderNumber} · {order.productName} {order.variantName}</p>
+                <p className="text-sm text-muted-foreground">{order.subhubName} · {order.remaining.toLocaleString("en-IN")} remaining · due {order.dueDate}</p>
+              </div>
+              <label className="text-sm font-medium">New destination
+                <select value={destinations[order.id] ?? ""} onChange={(event) => setDestinations((previous) => ({ ...previous, [order.id]: event.target.value }))} className="mt-1 min-h-10 w-full rounded-md border border-input bg-background px-3">
+                  <option value="">Select SubHub</option>
+                  {subhubs.filter((hub) => hub.id !== order.subhubUserId).map((hub) => <option key={hub.id} value={hub.id}>{hub.name}</option>)}
+                </select>
+              </label>
+              <label className="text-sm font-medium">Reason
+                <input value={reasons[order.id] ?? ""} maxLength={500} onChange={(event) => setReasons((previous) => ({ ...previous, [order.id]: event.target.value }))} placeholder="Materials needed at another hub" className="mt-1 min-h-10 w-full rounded-md border border-input bg-background px-3" />
+              </label>
+              <button type="button" disabled={busyId === order.id || !destinations[order.id] || (reasons[order.id] ?? "").trim().length < 3} onClick={() => void move(order)} className="min-h-10 rounded-md bg-primary px-4 font-semibold text-primary-foreground disabled:opacity-50">{busyId === order.id ? "Moving…" : "Move order"}</button>
+            </div>
+          ))}
+        </div>
+      ) : !error ? <p className="border-y border-border py-5 text-sm text-muted-foreground">No production orders without reports are available to move.</p> : null}
+    </section>
+  );
+}
+
 function OrderForm({ data, isAdmin, panel, onClose, onSaved }: { data: ProcurementData; isAdmin: boolean; panel: "admin" | "procurement"; onClose: () => void; onSaved: (message: string) => Promise<void> }) {
   const materials = useRawMaterials();
   const [vendorId, setVendorId] = useState("");
@@ -2126,23 +2207,31 @@ function OrderForm({ data, isAdmin, panel, onClose, onSaved }: { data: Procureme
   const [newVendorEmail, setNewVendorEmail] = useState("");
   const [miscellaneousVendorName, setMiscellaneousVendorName] = useState("");
   const [subhubUserId, setSubhubUserId] = useState("");
-  const [materialCode, setMaterialCode] = useState(materials[0]?.code ?? ONE_OFF_MATERIAL_CODE);
-  const [customMaterialName, setCustomMaterialName] = useState("");
-  const [quantity, setQuantity] = useState("");
+  const [items, setItems] = useState([{ materialCode: materials[0]?.code ?? ONE_OFF_MATERIAL_CODE, materialName: "", quantity: "" }]);
   const [orderDate, setOrderDate] = useState(today());
   const [expectedDelivery, setExpectedDelivery] = useState(dateAfter(7));
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const selectedMaterial = materials.find((material) => material.code === materialCode);
   const isMiscellaneousVendor = !addingVendor && vendorId === MISCELLANEOUS_VENDOR_ID;
-  const isOneOffMaterial = materialCode === ONE_OFF_MATERIAL_CODE;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    const parsedQuantity = Number(quantity);
-    if (!Number.isInteger(parsedQuantity) || parsedQuantity < 1) {
-      setError("Enter a whole-number quantity.");
+    const orderItems = items.map((item) => {
+      const quantity = Number(item.quantity);
+      const material = materials.find((candidate) => candidate.code === item.materialCode);
+      return {
+        materialCode: item.materialCode,
+        materialName: item.materialCode === ONE_OFF_MATERIAL_CODE ? item.materialName.trim() : material?.name,
+        quantity,
+      };
+    });
+    if (!orderItems.length || orderItems.some((item) => !Number.isInteger(item.quantity) || item.quantity < 1)) {
+      setError("Enter a whole-number quantity of at least 1 for every material.");
+      return;
+    }
+    if (orderItems.some((item) => item.materialCode === ONE_OFF_MATERIAL_CODE && !item.materialName)) {
+      setError("Enter a name for every one-off material.");
       return;
     }
     if (isAdmin && !subhubUserId) {
@@ -2153,15 +2242,16 @@ function OrderForm({ data, isAdmin, panel, onClose, onSaved }: { data: Procureme
       setError("Enter the new vendor name.");
       return;
     }
-    if (isOneOffMaterial && !customMaterialName.trim()) {
-      setError("Enter the name of the one-off material.");
-      return;
-    }
     setBusy(true);
-    const response = await createProcurementOrderFn({ data: { panel, vendorId: addingVendor ? undefined : vendorId || undefined, newVendor: addingVendor ? { name: newVendorName, phone: newVendorPhone, email: newVendorEmail } : isMiscellaneousVendor && miscellaneousVendorName.trim() ? { name: miscellaneousVendorName, categories: ["Miscellaneous"] } : undefined, subhubUserId: isAdmin ? subhubUserId : undefined, materialCode, materialName: isOneOffMaterial ? customMaterialName : selectedMaterial?.name, quantity: parsedQuantity, orderDate, expectedDelivery, notes } });
-    if (!response.ok) setError(response.message);
-    else await onSaved(`${response.order.orderNumber} was created successfully.`);
-    setBusy(false);
+    try {
+      const response = await createProcurementOrderFn({ data: { panel, vendorId: addingVendor ? undefined : vendorId || undefined, newVendor: addingVendor ? { name: newVendorName, phone: newVendorPhone, email: newVendorEmail } : isMiscellaneousVendor && miscellaneousVendorName.trim() ? { name: miscellaneousVendorName, categories: ["Miscellaneous"] } : undefined, subhubUserId: isAdmin ? subhubUserId : undefined, items: orderItems, orderDate, expectedDelivery, notes } });
+      if (!response.ok) setError(response.message);
+      else await onSaved(`${response.order.orderNumber} with ${response.order.items.length} materials was created successfully.`);
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "The order could not be created.");
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <Drawer
@@ -2212,10 +2302,28 @@ function OrderForm({ data, isAdmin, panel, onClose, onSaved }: { data: Procureme
           )}
         </div>
 
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="font-medium">Materials in this order</p>
+              <p className="text-sm text-muted-foreground">One purchase order can include up to 40 materials for this hub.</p>
+            </div>
+            <button type="button" disabled={items.length >= 40} onClick={() => setItems((previous) => [...previous, { materialCode: materials[0]?.code ?? ONE_OFF_MATERIAL_CODE, materialName: "", quantity: "" }])} className="rounded-md border border-input px-3 py-2 text-sm font-semibold hover:bg-muted disabled:opacity-50">
+              + Add material
+            </button>
+          </div>
+          {items.map((item, index) => (
+            <div key={index} className="grid items-end gap-3 rounded-md border border-border p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_140px_auto]">
+              <RawMaterialPicker materials={materials} value={item.materialCode} onChange={(value) => setItems((previous) => previous.map((row, rowIndex) => rowIndex === index ? { ...row, materialCode: value, materialName: "" } : row))} />
+              {item.materialCode === ONE_OFF_MATERIAL_CODE
+                ? <TextField label="One-off material name" value={item.materialName} required onChange={(value) => setItems((previous) => previous.map((row, rowIndex) => rowIndex === index ? { ...row, materialName: value } : row))} placeholder="Material name" />
+                : <div />}
+              <TextField label="Quantity" type="number" required value={item.quantity} onChange={(value) => setItems((previous) => previous.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: value } : row))} placeholder="1000" />
+              <button type="button" aria-label={`Remove material ${index + 1}`} disabled={items.length === 1} onClick={() => setItems((previous) => previous.filter((_, rowIndex) => rowIndex !== index))} className="min-h-11 rounded-md border border-input px-3 text-sm font-semibold hover:bg-muted disabled:opacity-40">Remove</button>
+            </div>
+          ))}
+        </section>
         <div className="grid gap-4 sm:grid-cols-2">
-          <RawMaterialPicker materials={materials} value={materialCode} onChange={setMaterialCode} />
-          {isOneOffMaterial ? <TextField label="One-off material name" value={customMaterialName} required onChange={setCustomMaterialName} placeholder="Pair of scissors or duct tape" /> : <div />}
-          <TextField label="Quantity" type="number" required value={quantity} onChange={setQuantity} placeholder="1000" />
           <TextField label="Order date" type="date" required value={orderDate} onChange={setOrderDate} />
           <TextField label="Expected delivery" type="date" required value={expectedDelivery} onChange={setExpectedDelivery} />
         </div>

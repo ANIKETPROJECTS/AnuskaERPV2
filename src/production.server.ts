@@ -979,9 +979,16 @@ export async function reassignProductionOrder(input: {
   orderId: string;
   subhubUserId: string;
   reason: string;
+  panel?: "admin" | "procurement";
 }): Promise<{ ok: true; order: ProductionOrder } | { ok: false; message: string }> {
-  const current = await getCurrentUserRecord("admin");
-  if (!isAdmin(current)) return { ok: false, message: "Only Admin users can reassign production orders." };
+  const panel = input.panel ?? "admin";
+  const current = await getCurrentUserRecord(panel);
+  const canReassign = current !== null && (
+    (current.panel === "admin" && (current.role === "master_admin" || current.role === "admin"))
+    || (panel === "procurement" && current.panel === "procurement" && current.active && current.role === "procurement_manager")
+  );
+  if (!canReassign) return { ok: false, message: "You do not have permission to reassign production orders." };
+  if (input.reason.trim().length < 3) return { ok: false, message: "Enter a reason of at least 3 characters." };
 
   const db = await getControlPlaneDatabase();
   const [order, destination] = await Promise.all([
@@ -1026,7 +1033,7 @@ export async function reassignProductionOrder(input: {
     action: "reassigned",
     actorId: current._id,
     actorName: current.name,
-    actorRole: current.role === "master_admin" ? "Master Admin" : "Admin",
+    actorRole: current.role === "master_admin" ? "Master Admin" : panel === "procurement" ? "Procurement Manager" : "Admin",
     summary: `Order manually reassigned from ${fromHub} to ${destination.subhubName}`,
     details: input.reason.trim() || "Reassigned by Admin based on current hub planning.",
   });
@@ -1043,6 +1050,32 @@ export async function reassignProductionOrder(input: {
       },
       reports,
     ),
+  };
+}
+
+export async function listProductionOrdersForProcurement(): Promise<
+  { ok: true; orders: ProductionOrder[] } | { ok: false; orders: ProductionOrder[]; message: string }
+> {
+  const current = await getCurrentUserRecord("procurement");
+  if (!current?.active || current.role !== "procurement_manager") {
+    return { ok: false, orders: [], message: "Only Procurement Managers can view production orders for reassignment." };
+  }
+  const db = await getControlPlaneDatabase();
+  const [orders, users] = await Promise.all([
+    db.collection<ProductionOrderDocument>("production_orders").find().sort({ dueDate: 1, createdAt: -1 }).toArray(),
+    allSubhubUsers(),
+  ]);
+  const reportsByUser = await Promise.all(users.map(async (user) => ({
+    userId: user._id,
+    reports: await reportsForDatabase(user.databaseName),
+  })));
+  return {
+    ok: true,
+    orders: orders.flatMap((order) => {
+      const reports = reportsByUser.find((item) => item.userId === order.subhubUserId)?.reports ?? [];
+      if (reports.some((report) => report.orderId === order._id)) return [];
+      return [summarizeOrder(order, reports)];
+    }),
   };
 }
 

@@ -47,6 +47,17 @@ type StatusHistoryDocument = {
   changedByName: string;
 };
 
+type AssignmentHistoryDocument = {
+  fromHubId: string;
+  fromHubName: string;
+  toHubId: string;
+  toHubName: string;
+  changedAt: Date;
+  changedBy: string;
+  changedByName: string;
+  reason: string;
+};
+
 type ProcurementLineDocument = {
   lineId?: string;
   materialCode: string;
@@ -74,6 +85,7 @@ type ProcurementOrderDocument = {
   notes: string;
   status: ProcurementStatus;
   statusHistory: StatusHistoryDocument[];
+  assignmentHistory?: AssignmentHistoryDocument[];
   createdAt: Date;
   updatedAt: Date;
   createdBy: string;
@@ -133,6 +145,7 @@ export type ProcurementOrder = {
     changedBy: string;
     changedByName: string;
   }>;
+  assignmentHistory: Array<Omit<AssignmentHistoryDocument, "changedAt"> & { changedAt: string }>;
   createdAt: string;
   updatedAt: string;
 };
@@ -330,6 +343,10 @@ function toOrder(document: ProcurementOrderDocument, redactFinancials = false): 
       changedAt: entry.changedAt.toISOString(),
       changedBy: entry.changedBy,
       changedByName: entry.changedByName,
+    })),
+    assignmentHistory: (document.assignmentHistory ?? []).map((entry) => ({
+      ...entry,
+      changedAt: entry.changedAt.toISOString(),
     })),
     createdAt: document.createdAt.toISOString(),
     updatedAt: document.updatedAt.toISOString(),
@@ -1315,6 +1332,58 @@ export async function updateProcurementOrderStatus(
       ok: false,
       message: error instanceof Error ? error.message : "Order status could not be updated.",
     };
+  }
+}
+
+export async function reassignProcurementOrder(input: {
+  id: string;
+  subhubUserId: string;
+  reason: string;
+}, panel: Panel): Promise<{ ok: true; order: ProcurementOrder } | { ok: false; message: string }> {
+  try {
+    if (panel === "subhub") return { ok: false, message: "SubHub users cannot reassign procurement orders." };
+    const user = currentUserRequired(await getCurrentUserRecord(panel), panel);
+    const reason = input.reason.trim();
+    if (reason.length < 3) return { ok: false, message: "Enter a reason of at least 3 characters." };
+    const db = await getProcurementDb();
+    const controlDb = await getControlPlaneDatabase();
+    const [order, destination] = await Promise.all([
+      db.collection<ProcurementOrderDocument>("procurement_orders").findOne({ _id: input.id }),
+      controlDb.collection<UserDocument>("users").findOne({
+        _id: input.subhubUserId,
+        panel: "subhub",
+        role: "subhub",
+        active: true,
+      }),
+    ]);
+    if (!order) return { ok: false, message: "Order not found in your procurement workspace." };
+    if (!destination?.subhubName) return { ok: false, message: "Select an active destination SubHub." };
+    if (destination._id === order.subhubUserId) return { ok: false, message: "Choose a different destination SubHub." };
+    if (order.status === "Delivery done") return { ok: false, message: "Delivered orders cannot be reassigned." };
+    const now = new Date();
+    const assignment: AssignmentHistoryDocument = {
+      fromHubId: order.subhubUserId,
+      fromHubName: order.subhubName,
+      toHubId: destination._id,
+      toHubName: destination.subhubName,
+      changedAt: now,
+      changedBy: user._id,
+      changedByName: user.name,
+      reason,
+    };
+    const update = await db.collection<ProcurementOrderDocument>("procurement_orders").updateOne(
+      { _id: order._id, status: { $ne: "Delivery done" } },
+      {
+        $set: { subhubUserId: destination._id, subhubName: destination.subhubName, updatedAt: now },
+        $push: { assignmentHistory: assignment },
+      },
+    );
+    if (!update.matchedCount) return { ok: false, message: "Delivered orders cannot be reassigned." };
+    const reassigned = await db.collection<ProcurementOrderDocument>("procurement_orders").findOne({ _id: order._id });
+    if (!reassigned) return { ok: false, message: "Order could not be reloaded after reassignment." };
+    return { ok: true, order: toOrder(reassigned) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Order could not be reassigned." };
   }
 }
 

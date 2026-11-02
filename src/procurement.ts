@@ -11,6 +11,7 @@ import {
   getSubhubItemRequestHistory,
   getProcurementOrder,
   updateProcurementOrderStatus,
+  reassignProcurementOrder,
   updateVendor,
   updateProcurementItemRequest,
 } from "./procurement.server";
@@ -80,6 +81,12 @@ const statusSchema = z.object({
   status: z.enum(["Order placed", "Payment done", "Dispatch done", "Delivery done"]),
   panel: z.enum(["admin", "subhub", "procurement"]),
 });
+const reassignOrderSchema = z.object({
+  id: z.string().min(1),
+  subhubUserId: z.string().min(1),
+  reason: z.string().trim().min(3).max(200),
+  panel: z.enum(["admin", "procurement"]),
+});
 const idSchema = z.object({ id: z.string().min(1) });
 const itemRequestSchema = z.object({
   itemName: z.string().trim().min(2).max(160),
@@ -139,6 +146,9 @@ export const createProcurementOrderFn = createServerFn({ method: "POST" })
 export const updateProcurementOrderStatusFn = createServerFn({ method: "POST" })
   .validator(statusSchema)
   .handler(({ data }) => updateProcurementOrderStatus(data, data.panel));
+export const reassignProcurementOrderFn = createServerFn({ method: "POST" })
+  .validator(reassignOrderSchema)
+  .handler(({ data }) => reassignProcurementOrder(data, data.panel));
 export const getProcurementOrderFn = createServerFn({ method: "POST" })
   .validator(idSchema.extend({ panel: z.enum(["admin", "subhub", "procurement"]) }))
   .handler(({ data }) => getProcurementOrder(data.id, data.panel));

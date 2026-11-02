@@ -13,6 +13,7 @@ import {
   listAssignableSubhubs,
   listProductionOrders,
   reassignProductionOrder,
+  listProductionOrdersForProcurement,
   saveDailyProduction,
   searchWorkspace,
   setAdminHubCapacity,
@@ -64,6 +65,7 @@ const reassignSchema = z.object({
   orderId: z.string().min(1),
   subhubUserId: z.string().min(1),
   reason: z.string().max(500),
+  panel: z.enum(["admin", "procurement"]).optional(),
 });
 
 const updateOrderSchema = z.object({
@@ -105,7 +107,13 @@ export const createProductionOrdersFn = createServerFn({ method: "POST" }).valid
 export const saveDailyProductionFn = createServerFn({ method: "POST" }).validator(reportSchema).handler(({ data }) => saveDailyProduction(data));
 export const setAdminHubCapacityFn = createServerFn({ method: "POST" }).validator(capacitySchema).handler(({ data }) => setAdminHubCapacity(data));
 export const getProductionOrderActivityFn = createServerFn({ method: "POST" }).validator(activitySchema).handler(({ data }) => getProductionOrderActivity(data.orderId, data.panel));
-export const reassignProductionOrderFn = createServerFn({ method: "POST" }).validator(reassignSchema).handler(({ data }) => reassignProductionOrder(data));
+export const reassignProductionOrderFn = createServerFn({ method: "POST" }).validator(reassignSchema).handler(({ data }) => reassignProductionOrder({
+  orderId: data.orderId,
+  subhubUserId: data.subhubUserId,
+  reason: data.reason,
+  ...(data.panel ? { panel: data.panel } : {}),
+}));
+export const listProductionOrdersForProcurementFn = createServerFn({ method: "GET" }).handler(() => listProductionOrdersForProcurement());
 export const updateProductionOrderFn = createServerFn({ method: "POST" }).validator(updateOrderSchema).handler(({ data }) => updateProductionOrder(data));
 export const deleteProductionOrderFn = createServerFn({ method: "POST" }).validator(deleteOrderSchema).handler(({ data }) => deleteProductionOrder(data));
 export const searchWorkspaceFn = createServerFn({ method: "POST" }).validator(searchSchema).handler(({ data }) => searchWorkspace(data.query, data.panel, data.scope));
