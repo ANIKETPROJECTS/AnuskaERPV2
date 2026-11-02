@@ -70,6 +70,7 @@ type ProcurementLineDocument = {
 type ProcurementOrderDocument = {
   _id: string;
   orderNumber: string;
+  bulkOrderId?: string;
   vendorId: string;
   vendorName: string;
   subhubUserId: string;
@@ -125,6 +126,7 @@ export type ProcurementVendor = {
 export type ProcurementOrder = {
   id: string;
   orderNumber: string;
+  bulkOrderId?: string;
   vendorId: string;
   vendorName: string;
   subhubUserId: string;
@@ -324,6 +326,7 @@ function toOrder(document: ProcurementOrderDocument, redactFinancials = false): 
   return {
     id: document._id,
     orderNumber: document.orderNumber,
+    ...(document.bulkOrderId ? { bulkOrderId: document.bulkOrderId } : {}),
     vendorId: document.vendorId,
     vendorName: document.vendorName,
     subhubUserId: document.subhubUserId,
@@ -1291,6 +1294,102 @@ export async function createProcurementOrder(
       ok: false,
       message: error instanceof Error ? error.message : "Procurement order could not be created.",
     };
+  }
+}
+
+export async function createBulkProcurementOrders(input: {
+  vendorId: string;
+  allocations: Array<{
+    subhubUserId: string;
+    items: Array<{ materialCode: string; quantity: number; unitPrice: number }>;
+  }>;
+  orderDate: string;
+  expectedDelivery: string;
+  notes: string;
+}, panel: Panel): Promise<
+  { ok: true; bulkOrderId: string; orders: ProcurementOrder[] } | { ok: false; message: string }
+> {
+  try {
+    if (panel === "subhub") return { ok: false, message: "Only Admin and Procurement can create bulk orders." };
+    const user = currentUserRequired(await getCurrentUserRecord(panel), panel);
+    const orderDate = parseDate(input.orderDate);
+    const expectedDelivery = parseDate(input.expectedDelivery);
+    if (!orderDate || !expectedDelivery || expectedDelivery < orderDate) {
+      return { ok: false, message: "Enter valid dates; expected delivery cannot be before the order date." };
+    }
+    if (!input.allocations.length || input.allocations.length > 50) {
+      return { ok: false, message: "Select at least one and no more than 50 factories." };
+    }
+    const db = await getProcurementDb();
+    const controlDb = await getControlPlaneDatabase();
+    const [vendor, hubs] = await Promise.all([
+      db.collection<VendorDocument>("procurement_vendors").findOne({ _id: input.vendorId, status: "active" }),
+      controlDb.collection<UserDocument>("users").find({
+        _id: { $in: input.allocations.map((allocation) => allocation.subhubUserId) },
+        panel: "subhub", role: "subhub", active: true,
+      }).toArray(),
+    ]);
+    if (!vendor) return { ok: false, message: "Select an active vendor." };
+    if (new Set(input.allocations.map((allocation) => allocation.subhubUserId)).size !== input.allocations.length) {
+      return { ok: false, message: "Each factory can appear only once in a bulk order." };
+    }
+    if (hubs.length !== input.allocations.length) return { ok: false, message: "One or more selected factories are no longer active." };
+    const hubById = new Map(hubs.map((hub) => [hub._id, hub]));
+    const now = new Date();
+    const bulkOrderId = randomUUID().replace(/-/g, "");
+    const orders: ProcurementOrderDocument[] = [];
+    for (const allocation of input.allocations) {
+      const hub = hubById.get(allocation.subhubUserId)!;
+      if (!allocation.items.length || allocation.items.length > 40) {
+        return { ok: false, message: `Add 1–40 material lines for ${getHubDisplayName(hub)}.` };
+      }
+      const items: ProcurementLineDocument[] = [];
+      for (const line of allocation.items) {
+        const material = subparts.find((part) => part.code === line.materialCode);
+        if (!material) return { ok: false, message: `Select a valid raw material for ${getHubDisplayName(hub)}.` };
+        if (!Number.isInteger(line.quantity) || line.quantity < 1) {
+          return { ok: false, message: `Enter a whole-number quantity for ${material.name} at ${getHubDisplayName(hub)}.` };
+        }
+        if (!Number.isFinite(line.unitPrice) || line.unitPrice < 0) {
+          return { ok: false, message: `Enter a valid unit price for ${material.name}.` };
+        }
+        items.push({
+          lineId: randomUUID().replace(/-/g, ""),
+          materialCode: material.code,
+          materialName: material.name,
+          quantity: line.quantity,
+          unitPrice: Math.round(line.unitPrice * 100) / 100,
+          totalAmount: Math.round(line.quantity * line.unitPrice * 100) / 100,
+        });
+      }
+      orders.push({
+        _id: randomUUID().replace(/-/g, ""),
+        orderNumber: `PO-${String(Date.now()).slice(-8)}-${orders.length + 1}`,
+        bulkOrderId,
+        vendorId: vendor._id,
+        vendorName: vendor.name,
+        subhubUserId: hub._id,
+        subhubName: getHubDisplayName(hub),
+        materialCode: items[0]!.materialCode,
+        materialName: items[0]!.materialName,
+        items,
+        quantity: items.reduce((sum, item) => sum + item.quantity, 0),
+        unitPrice: items[0]!.unitPrice,
+        totalAmount: items.reduce((sum, item) => sum + item.totalAmount, 0),
+        orderDate,
+        expectedDelivery,
+        notes: clean(input.notes),
+        status: "Order placed",
+        statusHistory: [{ status: "Order placed", changedAt: now, changedBy: user._id, changedByName: user.name }],
+        createdAt: now,
+        updatedAt: now,
+        createdBy: user._id,
+      });
+    }
+    await db.collection<ProcurementOrderDocument>("procurement_orders").insertMany(orders, { ordered: true });
+    return { ok: true, bulkOrderId, orders: orders.map((order) => toOrder(order)) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : "Bulk procurement order could not be created." };
   }
 }
 

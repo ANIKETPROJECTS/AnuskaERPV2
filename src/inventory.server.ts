@@ -2115,3 +2115,51 @@ export async function getMasterQualityManagement(): Promise<
     },
   };
 }
+
+export type MasterRawMaterialStock = {
+  itemCode: string;
+  itemName: string;
+  unit: "pcs";
+  totalQuantity: number;
+  hubs: Array<{ hubId: string; hubName: string; quantity: number }>;
+};
+
+export async function getMasterRawMaterialStock(): Promise<
+  { ok: true; items: MasterRawMaterialStock[] } | { ok: false; items: MasterRawMaterialStock[]; message: string }
+> {
+  const staff = await getCurrentUserRecord("admin");
+  if (staff?.panel !== "admin" || staff.role !== "master_admin" || !staff.active) {
+    return { ok: false, items: [], message: "Only Master Admin can view raw-material stock across factories." };
+  }
+  try {
+    const controlDb = await getControlPlaneDatabase();
+    const hubs = await controlDb.collection<UserDocument>("users")
+      .find({ panel: "subhub", role: "subhub", active: true })
+      .sort({ subhubName: 1, name: 1 }).toArray();
+    const codes = subparts.map((part) => part.code);
+    const snapshots = await Promise.all(hubs.map(async (hub) => {
+      const workspaceDb = await getMongoDb(hub.databaseName);
+      await syncWorkspaceInventoryForUser(hub, workspaceDb);
+      const rows = await workspaceDb.collection<InventoryItemDocument>("inventory_items")
+        .find({ _id: { $in: codes } }, { projection: { _id: 1, quantity: 1 } }).toArray();
+      return { hub, byCode: new Map(rows.map((row) => [row._id, row.quantity])) };
+    }));
+    const items = subparts.map((part) => {
+      const perHub = snapshots.map(({ hub, byCode }) => ({
+        hubId: hub._id,
+        hubName: hub.subhubName ? `${hub.subhubName} · ${hub.name}` : hub.name,
+        quantity: byCode.get(part.code) ?? 0,
+      }));
+      return {
+        itemCode: part.code,
+        itemName: part.name,
+        unit: "pcs" as const,
+        totalQuantity: perHub.reduce((sum, hub) => sum + hub.quantity, 0),
+        hubs: perHub,
+      };
+    });
+    return { ok: true, items };
+  } catch (error) {
+    return { ok: false, items: [], message: error instanceof Error ? error.message : "Factory stock could not be loaded." };
+  }
+}

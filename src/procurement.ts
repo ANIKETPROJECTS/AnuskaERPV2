@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import {
   createProcurementOrder,
+  createBulkProcurementOrders,
   createProcurementItemRequest,
   createHubInventoryTransfer,
   createVendor,
@@ -81,6 +82,21 @@ const statusSchema = z.object({
   status: z.enum(["Order placed", "Payment done", "Dispatch done", "Delivery done"]),
   panel: z.enum(["admin", "subhub", "procurement"]),
 });
+const bulkOrderSchema = z.object({
+  panel: z.enum(["admin", "procurement"]),
+  vendorId: z.string().min(1),
+  allocations: z.array(z.object({
+    subhubUserId: z.string().min(1),
+    items: z.array(z.object({
+      materialCode: z.string().min(1),
+      quantity: z.number().int().positive(),
+      unitPrice: z.number().finite().nonnegative(),
+    })).min(1).max(40),
+  })).min(1).max(50),
+  orderDate: z.string().min(10),
+  expectedDelivery: z.string().min(10),
+  notes: z.string().max(500),
+});
 const reassignOrderSchema = z.object({
   id: z.string().min(1),
   subhubUserId: z.string().min(1),
@@ -143,6 +159,9 @@ export const deleteOrArchiveVendorFn = createServerFn({ method: "POST" })
 export const createProcurementOrderFn = createServerFn({ method: "POST" })
   .validator(orderSchema)
   .handler(({ data }) => createProcurementOrder(data, data.panel));
+export const createBulkProcurementOrdersFn = createServerFn({ method: "POST" })
+  .validator(bulkOrderSchema)
+  .handler(({ data }) => createBulkProcurementOrders(data, data.panel));
 export const updateProcurementOrderStatusFn = createServerFn({ method: "POST" })
   .validator(statusSchema)
   .handler(({ data }) => updateProcurementOrderStatus(data, data.panel));

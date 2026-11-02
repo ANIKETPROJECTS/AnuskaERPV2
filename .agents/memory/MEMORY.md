@@ -10,3 +10,4 @@
 - [Inventory read performance](inventory-read-performance.md) — client pagination must use view-scoped server reads and avoid repeating workspace-wide reconciliation on navigation.
 - [HR headcount scope](hr-headcount-scope.md) — one aggregate daily total per SubHub; today's count can be corrected with an audit entry, while past dates stay locked.
 - [Nested route redirects](tanstack-nested-redirects.md) — parent beforeLoad redirects must match the exact legacy URL or nested pages can loop.
+- [Python tooling metadata](python-tooling-metadata.md) — inspect tracked Python manifests before temporary analysis installs; uninstalling can rewrite project dependencies.

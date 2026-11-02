@@ -28,6 +28,7 @@ const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, permission: "dashboard" },
   { to: "/bom", label: "Bill of Materials", icon: Layers, permission: "bom" },
   { to: "/raw-materials", label: "Raw Materials", icon: Database, permission: "raw-materials" },
+  { to: "/admin/raw-material-stock", label: "Raw Material Stock", icon: PackagePlus, permission: "raw-materials", masterAdminOnly: true },
   { to: "/orders", label: "Orders & Targets", icon: ClipboardList, permission: "orders" },
   { to: "/hubs", label: "Hubs & Stock", icon: Factory, permission: "hubs" },
   { to: "/shortages", label: "Shortages", icon: AlertTriangle, permission: "shortages" },
@@ -122,7 +123,7 @@ export function Shell({
   }, [pathname]);
   const visibleNav = isProcurementPanel
     ? procurementPanelNav
-    : nav.filter((item) => canAccess(user, item.permission));
+    : nav.filter((item) => canAccess(user, item.permission) && (!("masterAdminOnly" in item) || user?.role === "master_admin"));
   const initials =
     user?.name
       .split(" ")

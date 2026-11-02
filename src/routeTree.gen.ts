@@ -26,6 +26,7 @@ import { Route as RawMaterialsRouteImport } from './routes/raw-materials'
 import { Route as ShortagesRouteImport } from './routes/shortages'
 import { Route as SubhubRouteImport } from './routes/subhub'
 import { Route as AdminProcurementRouteImport } from './routes/admin.procurement'
+import { Route as AdminRawMaterialStockRouteImport } from './routes/admin.raw-material-stock'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as BomCodeRouteImport } from './routes/bom.$code'
 import { Route as HrHistoryRouteImport } from './routes/hr.history'
@@ -154,6 +155,11 @@ const SubhubRoute = SubhubRouteImport.update({
 const AdminProcurementRoute = AdminProcurementRouteImport.update({
   id: '/admin/procurement',
   path: '/admin/procurement',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRawMaterialStockRoute = AdminRawMaterialStockRouteImport.update({
+  id: '/admin/raw-material-stock',
+  path: '/admin/raw-material-stock',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
@@ -407,6 +413,7 @@ export interface FileRoutesByFullPath {
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
   '/admin/procurement': typeof AdminProcurementRouteWithChildren
+  '/admin/raw-material-stock': typeof AdminRawMaterialStockRoute
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/bom/$code': typeof BomCodeRoute
   '/hr/history': typeof HrHistoryRoute
@@ -470,6 +477,7 @@ export interface FileRoutesByTo {
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
   '/admin/procurement': typeof AdminProcurementRouteWithChildren
+  '/admin/raw-material-stock': typeof AdminRawMaterialStockRoute
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/bom/$code': typeof BomCodeRoute
   '/hr/history': typeof HrHistoryRoute
@@ -534,6 +542,7 @@ export interface FileRoutesById {
   '/shortages': typeof ShortagesRoute
   '/subhub': typeof SubhubRouteWithChildren
   '/admin/procurement': typeof AdminProcurementRouteWithChildren
+  '/admin/raw-material-stock': typeof AdminRawMaterialStockRoute
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/bom/$code': typeof BomCodeRoute
   '/hr/history': typeof HrHistoryRoute
@@ -599,6 +608,7 @@ export interface FileRouteTypes {
     | '/shortages'
     | '/subhub'
     | '/admin/procurement'
+    | '/admin/raw-material-stock'
     | '/admin/users'
     | '/bom/$code'
     | '/hr/history'
@@ -662,6 +672,7 @@ export interface FileRouteTypes {
     | '/shortages'
     | '/subhub'
     | '/admin/procurement'
+    | '/admin/raw-material-stock'
     | '/admin/users'
     | '/bom/$code'
     | '/hr/history'
@@ -725,6 +736,7 @@ export interface FileRouteTypes {
     | '/shortages'
     | '/subhub'
     | '/admin/procurement'
+    | '/admin/raw-material-stock'
     | '/admin/users'
     | '/bom/$code'
     | '/hr/history'
@@ -789,6 +801,7 @@ export interface RootRouteChildren {
   ShortagesRoute: typeof ShortagesRoute
   SubhubRoute: typeof SubhubRouteWithChildren
   AdminProcurementRoute: typeof AdminProcurementRouteWithChildren
+  AdminRawMaterialStockRoute: typeof AdminRawMaterialStockRoute
   AdminUsersRoute: typeof AdminUsersRouteWithChildren
   HubCodeRoute: typeof HubCodeRoute
   PartCodeRoute: typeof PartCodeRoute
@@ -917,6 +930,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/procurement'
       fullPath: '/admin/procurement'
       preLoaderRoute: typeof AdminProcurementRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/raw-material-stock': {
+      id: '/admin/raw-material-stock'
+      path: '/admin/raw-material-stock'
+      fullPath: '/admin/raw-material-stock'
+      preLoaderRoute: typeof AdminRawMaterialStockRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/users': {
@@ -1445,6 +1465,7 @@ const rootRouteChildren: RootRouteChildren = {
   ShortagesRoute: ShortagesRoute,
   SubhubRoute: SubhubRouteWithChildren,
   AdminProcurementRoute: AdminProcurementRouteWithChildren,
+  AdminRawMaterialStockRoute: AdminRawMaterialStockRoute,
   AdminUsersRoute: AdminUsersRouteWithChildren,
   HubCodeRoute: HubCodeRoute,
   PartCodeRoute: PartCodeRoute,

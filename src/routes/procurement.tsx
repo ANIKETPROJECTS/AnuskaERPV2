@@ -33,6 +33,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import {
   createHubInventoryTransferFn,
   createProcurementOrderFn,
+  createBulkProcurementOrdersFn,
   updateProcurementItemRequestFn,
   createVendorFn,
   deleteOrArchiveVendorFn,
@@ -620,6 +621,7 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
   const [selectedHubId, setSelectedHubId] = useState<string | null>(null);
   const [orderHub, setOrderHub] = useState<string | null>(null);
   const [transferHub, setTransferHub] = useState<string | null>(null);
+  const [massOrderOpen, setMassOrderOpen] = useState(false);
 
   if (!hubs.length) {
     return <div className="panel p-8 text-center text-sm text-muted-foreground">No active SubHubs are available.</div>;
@@ -632,10 +634,13 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
       <section aria-label="SubHub stock overview">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
           <div>
-            <h2 className="text-base font-semibold">Choose a hub</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Select a card to review its stock and shortages.</p>
+            <h2 className="text-base font-semibold">Choose a hub or place a combined order</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Review factory shortages or create purchase orders for several factories in one run.</p>
           </div>
-          <p className="text-xs text-muted-foreground">{num(hubs.length)} hubs</p>
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-muted-foreground">{num(hubs.length)} hubs</p>
+            {panel === "admin" || panel === "procurement" ? <button type="button" onClick={() => setMassOrderOpen(true)} className="min-h-10 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground">Create combined order</button> : null}
+          </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {hubs.map((hub) => {
@@ -680,6 +685,7 @@ function HubMaterialNeeds({ data, panel, onSaved }: { data: ProcurementData; pan
             );
           })}
         </div>
+        {massOrderOpen ? <MassProcurementOrderForm data={data} needs={data.materialNeeds.filter((need) => need.shortageQuantity > 0)} panel={panel} onClose={() => setMassOrderOpen(false)} onSaved={async (message) => { setMassOrderOpen(false); await onSaved(message); }} /> : null}
       </section>
     );
   }
@@ -1141,6 +1147,70 @@ function ShortageOrderForm({ data, needs, panel, onClose, onSaved }: { data: Pro
   </Drawer>;
 }
 
+function MassProcurementOrderForm({ data, needs, panel, onClose, onSaved }: { data: ProcurementData; needs: HubMaterialNeed[]; panel: "admin" | "procurement"; onClose: () => void; onSaved: (message: string) => Promise<void> }) {
+  const [vendorId, setVendorId] = useState("");
+  const [quantities, setQuantities] = useState<Record<string, string>>({});
+  const [prices, setPrices] = useState<Record<string, string>>({});
+  const [orderDate, setOrderDate] = useState(today());
+  const [expectedDelivery, setExpectedDelivery] = useState(dateAfter(7));
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const keyOf = (need: HubMaterialNeed) => `${need.subhubUserId}:${need.itemCode}`;
+  const hubs = [...new Set(needs.map((need) => need.subhubUserId))];
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    const allocations = hubs.map((subhubUserId) => ({
+      subhubUserId,
+      items: needs.filter((need) => need.subhubUserId === subhubUserId).map((need) => ({
+        materialCode: need.itemCode,
+        quantity: Number(quantities[keyOf(need)] ?? need.shortageQuantity),
+        unitPrice: Number(prices[keyOf(need)] ?? ""),
+      })).filter((item) => item.quantity > 0),
+    })).filter((allocation) => allocation.items.length);
+    if (!allocations.length) return setError("Enter at least one positive material quantity.");
+    if (allocations.some((allocation) => allocation.items.some((item) => !Number.isFinite(item.unitPrice) || item.unitPrice < 0))) {
+      return setError("Enter a valid unit price for every ordered material.");
+    }
+    setBusy(true);
+    const result = await createBulkProcurementOrdersFn({ data: { panel, vendorId, allocations, orderDate, expectedDelivery, notes } });
+    if (!result.ok) {
+      setError(result.message);
+      setBusy(false);
+      return;
+    }
+    await onSaved(`Bulk run ${result.bulkOrderId.slice(0, 8)} created ${result.orders.length} factory orders for ${result.orders.reduce((sum, order) => sum + order.items.length, 0)} material lines.`);
+    setBusy(false);
+  }
+
+  return <Drawer title="Create combined factory order" subtitle="Submit shortages for multiple factories together. Each factory receives a linked purchase order." onClose={onClose}>
+    <form onSubmit={(event) => void submit(event)} className="space-y-5 text-sm">
+      <label className="block font-medium">Vendor<select required value={vendorId} onChange={(event) => setVendorId(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3">
+        <option value="">Choose an active vendor</option>{data.vendors.filter((vendor) => vendor.status === "active").map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}
+      </select></label>
+      {!needs.length ? <p className="rounded-md bg-muted p-4 text-muted-foreground">There are no material shortages to order across active factories.</p> : <div className="max-h-[48vh] space-y-4 overflow-y-auto pr-1">
+        {hubs.map((hubId) => {
+          const hubName = needs.find((need) => need.subhubUserId === hubId)?.subhubName ?? hubId;
+          return <section key={hubId} className="rounded-md border border-border">
+            <h3 className="border-b border-border px-3 py-2 font-semibold">{hubName}</h3>
+            {needs.filter((need) => need.subhubUserId === hubId).map((need) => <div key={need.itemCode} className="grid grid-cols-[minmax(0,1fr)_5.5rem_6rem] items-center gap-2 border-b border-border/70 px-3 py-3 last:border-0">
+              <div className="min-w-0"><p className="truncate font-medium">{need.itemName}</p><p className="text-xs text-muted-foreground">Shortage {num(need.shortageQuantity)}</p></div>
+              <input aria-label={`${need.itemName} quantity for ${hubName}`} type="number" min="0" step="1" value={quantities[keyOf(need)] ?? String(need.shortageQuantity)} onChange={(event) => setQuantities((current) => ({ ...current, [keyOf(need)]: event.target.value }))} className="h-10 w-full rounded-md border border-input px-2 text-right" />
+              <input aria-label={`${need.itemName} unit price`} required type="number" min="0" step="0.01" placeholder="Unit price" value={prices[keyOf(need)] ?? ""} onChange={(event) => setPrices((current) => ({ ...current, [keyOf(need)]: event.target.value }))} className="h-10 w-full rounded-md border border-input px-2 text-right" />
+            </div>)}
+          </section>;
+        })}
+      </div>}
+      <div className="grid gap-3 sm:grid-cols-2"><TextField label="Order date" type="date" required value={orderDate} onChange={setOrderDate} /><TextField label="Expected delivery" type="date" required value={expectedDelivery} onChange={setExpectedDelivery} /></div>
+      <label className="block font-medium">Notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={2} maxLength={500} className="mt-1 w-full rounded-md border border-input px-3 py-2" /></label>
+      {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-3 text-destructive">{error}</p> : null}
+      <DrawerActions busy={busy} submitLabel="Create combined orders" onClose={onClose} />
+    </form>
+  </Drawer>;
+}
+
 function ItemRequestsTable({
   requests,
   panel,
@@ -1578,6 +1648,7 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
                 <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
                   <td className="px-3 py-3">
                     <Link to="/po/$id" params={{ id: order.id }} search={{ panel }} className="font-semibold text-primary hover:underline">{order.orderNumber}</Link>
+                    {order.bulkOrderId ? <p className="mt-1 text-[11px] text-muted-foreground">Bulk run {order.bulkOrderId.slice(0, 8)}</p> : null}
                     {panel !== "subhub" ? <p className="mt-1 text-xs text-muted-foreground">{note || "No notes"}</p> : null}
                   </td>
                   {isAdmin ? <td className="px-3 py-3">{order.subhubName}</td> : null}
