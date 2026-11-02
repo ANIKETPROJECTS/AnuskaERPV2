@@ -2,6 +2,7 @@ modules = ["web", "python-base-3.13", "nodejs-22"]
 
 [nix]
 channel = "stable-25_05"
+packages = ["whisper-cpp"]
 
 [agent]
 expertMode = true
