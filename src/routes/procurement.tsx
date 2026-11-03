@@ -592,7 +592,17 @@ export function ProcurementPage({
 }
 
 type OrderBuilderLine = { id: string; materialCode: string; materialName: string; quantity: string; unitPrice: string };
-type OrderBuilderAllocation = { id: string; subhubUserId: string; items: OrderBuilderLine[] };
+type OrderBuilderAllocation = {
+  id: string;
+  subhubUserId: string;
+  vendorId: string;
+  addingVendor: boolean;
+  newVendorName: string;
+  newVendorPhone: string;
+  newVendorEmail: string;
+  miscellaneousVendorName: string;
+  items: OrderBuilderLine[];
+};
 
 export function ProcurementOrderBuilderPage({
   result,
@@ -617,21 +627,19 @@ export function ProcurementOrderBuilderPage({
   const [allocations, setAllocations] = useState<OrderBuilderAllocation[]>(() => [{
     id: "factory-1",
     subhubUserId: data.subhubs[0]?.id ?? "",
+    vendorId: "",
+    addingVendor: false,
+    newVendorName: "",
+    newVendorPhone: "",
+    newVendorEmail: "",
+    miscellaneousVendorName: "",
     items: [{ id: "line-1", materialCode: materials[0]?.code ?? ONE_OFF_MATERIAL_CODE, materialName: "", quantity: "", unitPrice: "" }],
   }]);
-  const [vendorId, setVendorId] = useState("");
-  const [addingVendor, setAddingVendor] = useState(false);
-  const [newVendorName, setNewVendorName] = useState("");
-  const [newVendorPhone, setNewVendorPhone] = useState("");
-  const [newVendorEmail, setNewVendorEmail] = useState("");
-  const [miscellaneousVendorName, setMiscellaneousVendorName] = useState("");
   const [orderDate, setOrderDate] = useState(today());
   const [expectedDelivery, setExpectedDelivery] = useState(dateAfter(7));
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(result.ok ? "" : result.message);
-  const usedHubIds = allocations.map((allocation) => allocation.subhubUserId).filter(Boolean);
-
   function updateAllocation(id: string, update: (allocation: OrderBuilderAllocation) => OrderBuilderAllocation) {
     setAllocations((current) => current.map((allocation) => allocation.id === id ? update(allocation) : allocation));
   }
@@ -640,28 +648,39 @@ export function ProcurementOrderBuilderPage({
     event.preventDefault();
     setError("");
     if (!result.ok) return setError(result.message);
-    if (!addingVendor && !vendorId) return setError("Choose an active vendor or add a new vendor.");
-    if (addingVendor && !newVendorName.trim()) return setError("Enter the new vendor name.");
     if (!allocations.length || allocations.some((allocation) => !allocation.subhubUserId)) return setError("Choose a factory for every allocation.");
-    if (new Set(usedHubIds).size !== usedHubIds.length) return setError("Choose a different factory for each allocation.");
+    if (allocations.some((allocation) => allocation.addingVendor ? !allocation.newVendorName.trim() : !allocation.vendorId)) {
+      return setError("Choose a vendor or add a new vendor for every factory order.");
+    }
     if (allocations.some((allocation) => !allocation.items.length || allocation.items.some((item) => !Number.isInteger(Number(item.quantity)) || Number(item.quantity) < 1 || !Number.isFinite(Number(item.unitPrice || 0)) || Number(item.unitPrice || 0) < 0))) {
       return setError("Enter a whole-number quantity of at least 1 and a valid unit price for every material.");
     }
     if (allocations.some((allocation) => allocation.items.some((item) => item.materialCode === ONE_OFF_MATERIAL_CODE && !item.materialName.trim()))) {
       return setError("Enter a name for every one-off material.");
     }
+    const vendorAssignmentKeys = allocations.map((allocation) => {
+      const vendorKey = allocation.addingVendor
+        ? `new:${allocation.newVendorName.trim().toLowerCase()}`
+        : allocation.vendorId === MISCELLANEOUS_VENDOR_ID
+          ? `misc:${allocation.miscellaneousVendorName.trim().toLowerCase()}`
+          : allocation.vendorId;
+      return `${allocation.subhubUserId}:${vendorKey}`;
+    });
+    if (new Set(vendorAssignmentKeys).size !== vendorAssignmentKeys.length) {
+      return setError("Combine materials from the same factory and vendor into one allocation.");
+    }
     setBusy(true);
     try {
       const result = await createBulkProcurementOrdersFn({ data: {
         panel,
-        vendorId: addingVendor ? undefined : vendorId,
-        newVendor: addingVendor
-          ? { name: newVendorName.trim(), phone: newVendorPhone.trim(), email: newVendorEmail.trim() }
-          : vendorId === MISCELLANEOUS_VENDOR_ID && miscellaneousVendorName.trim()
-            ? { name: miscellaneousVendorName.trim(), categories: ["Miscellaneous"] }
-            : undefined,
         allocations: allocations.map((allocation) => ({
           subhubUserId: allocation.subhubUserId,
+          vendorId: allocation.addingVendor ? undefined : allocation.vendorId,
+          newVendor: allocation.addingVendor
+            ? { name: allocation.newVendorName.trim(), phone: allocation.newVendorPhone.trim(), email: allocation.newVendorEmail.trim() }
+            : allocation.vendorId === MISCELLANEOUS_VENDOR_ID && allocation.miscellaneousVendorName.trim()
+              ? { name: allocation.miscellaneousVendorName.trim(), categories: ["Miscellaneous"] }
+              : undefined,
           items: allocation.items.map((item) => ({
             materialCode: item.materialCode,
             ...(item.materialCode === ONE_OFF_MATERIAL_CODE ? { materialName: item.materialName.trim() } : {}),
@@ -690,22 +709,8 @@ export function ProcurementOrderBuilderPage({
     {!result.ok ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 p-4 text-destructive">{result.message}</p> : <form onSubmit={(event) => void submit(event)} className="mx-auto max-w-5xl space-y-6">
       <section className="rounded-lg border border-border bg-card p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div><h2 className="text-lg font-semibold">Supplier and order details</h2><p className="mt-1 text-sm text-muted-foreground">One supplier and delivery schedule apply to all factory orders in this run.</p></div>
-          <div className="text-sm text-muted-foreground">{allocations.length} {allocations.length === 1 ? "factory" : "factories"} selected</div>
-        </div>
-        <div className="mt-5">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-3"><p className="font-medium">{addingVendor ? "New vendor" : "Vendor"}</p><button type="button" onClick={() => { setAddingVendor((value) => !value); setVendorId(""); }} className="font-semibold text-primary hover:underline">{addingVendor ? "Choose existing vendor" : "+ Add new vendor"}</button></div>
-          {addingVendor ? <div className="grid gap-3 sm:grid-cols-3">
-            <label className="text-sm font-medium">Vendor name<input required value={newVendorName} onChange={(event) => setNewVendorName(event.target.value)} maxLength={120} className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3" /></label>
-            <label className="text-sm font-medium">Phone<input value={newVendorPhone} onChange={(event) => setNewVendorPhone(event.target.value)} maxLength={40} className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3" /></label>
-            <label className="text-sm font-medium">Email<input type="email" value={newVendorEmail} onChange={(event) => setNewVendorEmail(event.target.value)} maxLength={160} className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3" /></label>
-          </div> : <>
-            <select required value={vendorId} onChange={(event) => setVendorId(event.target.value)} className="h-11 w-full rounded-md border border-input bg-background px-3">
-              <option value="">Select active vendor</option><option value={MISCELLANEOUS_VENDOR_ID}>Miscellaneous</option>
-              {data.vendors.filter((vendor) => vendor.status === "active").map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}{vendor.categories.length ? ` · ${vendor.categories.join(", ")}` : ""}</option>)}
-            </select>
-            {vendorId === MISCELLANEOUS_VENDOR_ID ? <label className="mt-3 block text-sm font-medium">Miscellaneous supplier name (optional)<input value={miscellaneousVendorName} onChange={(event) => setMiscellaneousVendorName(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3" placeholder="Local hardware shop" /></label> : null}
-          </>}
+          <div><h2 className="text-lg font-semibold">Order details</h2><p className="mt-1 text-sm text-muted-foreground">Choose a supplier for each factory allocation. Dates and notes apply to the full run.</p></div>
+          <div className="text-sm text-muted-foreground">{allocations.length} order {allocations.length === 1 ? "allocation" : "allocations"}</div>
         </div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <TextField label="Order date" type="date" required value={orderDate} onChange={setOrderDate} />
@@ -716,21 +721,32 @@ export function ProcurementOrderBuilderPage({
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div><h2 className="text-lg font-semibold">Factory allocations</h2><p className="mt-1 text-sm text-muted-foreground">Each selected factory receives its own linked purchase order.</p></div>
-          <button type="button" disabled={allocations.length >= Math.min(data.subhubs.length, 50)} onClick={() => {
+          <div><h2 className="text-lg font-semibold">Factory and supplier orders</h2><p className="mt-1 text-sm text-muted-foreground">Each allocation creates one factory purchase order for its selected supplier. A factory can have multiple suppliers.</p></div>
+          <button type="button" disabled={allocations.length >= 50} onClick={() => {
             const id = `factory-${nextId.current++}`;
-            setAllocations((current) => [...current, { id, subhubUserId: "", items: [makeLine()] }]);
-          }} className="inline-flex h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-semibold hover:bg-muted disabled:opacity-50"><Plus className="size-4" /> Add factory</button>
+            setAllocations((current) => [...current, { id, subhubUserId: "", vendorId: "", addingVendor: false, newVendorName: "", newVendorPhone: "", newVendorEmail: "", miscellaneousVendorName: "", items: [makeLine()] }]);
+          }} className="inline-flex h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-semibold hover:bg-muted disabled:opacity-50"><Plus className="size-4" /> Add order allocation</button>
         </div>
         {!data.subhubs.length ? <p className="rounded-md border border-dashed p-6 text-center text-muted-foreground">No active factories are available for allocation.</p> : null}
         {allocations.map((allocation, allocationIndex) => <section key={allocation.id} className="rounded-lg border border-border bg-card">
-          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border p-4">
-            <label className="min-w-[min(100%,24rem)] flex-1 text-sm font-medium">Destination factory
+          <div className="grid gap-4 border-b border-border p-4 sm:grid-cols-2">
+            <label className="text-sm font-medium">Destination factory
               <select required value={allocation.subhubUserId} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, subhubUserId: event.target.value }))} className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3">
-                <option value="">Select factory</option>{data.subhubs.map((hub) => <option key={hub.id} value={hub.id} disabled={usedHubIds.includes(hub.id) && hub.id !== allocation.subhubUserId}>{hub.name}</option>)}
+                <option value="">Select factory</option>{data.subhubs.map((hub) => <option key={hub.id} value={hub.id}>{hub.name}</option>)}
               </select>
             </label>
-            <button type="button" disabled={allocations.length === 1} onClick={() => setAllocations((current) => current.filter((item) => item.id !== allocation.id))} className="h-10 rounded-md px-3 text-sm font-medium text-destructive hover:bg-destructive/5 disabled:opacity-40">Remove factory</button>
+            <div>
+              <div className="mb-1 flex items-center justify-between gap-2"><label htmlFor={`vendor-${allocation.id}`} className="text-sm font-medium">{allocation.addingVendor ? "New vendor" : "Vendor"}</label><button type="button" onClick={() => updateAllocation(allocation.id, (current) => ({ ...current, addingVendor: !current.addingVendor, vendorId: "" }))} className="text-xs font-semibold text-primary hover:underline">{allocation.addingVendor ? "Choose existing" : "+ Add new vendor"}</button></div>
+              {allocation.addingVendor ? <div className="grid gap-2 sm:grid-cols-3">
+                <input aria-label="New vendor name" required value={allocation.newVendorName} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, newVendorName: event.target.value }))} placeholder="Vendor name" maxLength={120} className="h-11 rounded-md border border-input bg-background px-3" />
+                <input aria-label="New vendor phone" value={allocation.newVendorPhone} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, newVendorPhone: event.target.value }))} placeholder="Phone" maxLength={40} className="h-11 rounded-md border border-input bg-background px-3" />
+                <input aria-label="New vendor email" type="email" value={allocation.newVendorEmail} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, newVendorEmail: event.target.value }))} placeholder="Email" maxLength={160} className="h-11 rounded-md border border-input bg-background px-3" />
+              </div> : <select id={`vendor-${allocation.id}`} required value={allocation.vendorId} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, vendorId: event.target.value }))} className="h-11 w-full rounded-md border border-input bg-background px-3">
+                <option value="">Select active vendor</option><option value={MISCELLANEOUS_VENDOR_ID}>Miscellaneous</option>{data.vendors.filter((vendor) => vendor.status === "active").map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}
+              </select>}
+              {!allocation.addingVendor && allocation.vendorId === MISCELLANEOUS_VENDOR_ID ? <input aria-label="Miscellaneous supplier name" value={allocation.miscellaneousVendorName} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, miscellaneousVendorName: event.target.value }))} placeholder="Supplier name (optional)" className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm" /> : null}
+            </div>
+            <div className="flex justify-end sm:col-span-2"><button type="button" disabled={allocations.length === 1} onClick={() => setAllocations((current) => current.filter((item) => item.id !== allocation.id))} className="h-9 rounded-md px-3 text-sm font-medium text-destructive hover:bg-destructive/5 disabled:opacity-40">Remove allocation</button></div>
           </div>
           <div className="space-y-3 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">Materials for {data.subhubs.find((hub) => hub.id === allocation.subhubUserId)?.name ?? `factory ${allocationIndex + 1}`}</h3><p className="text-xs text-muted-foreground">Up to 40 materials per factory. Unit price is optional.</p></div>
@@ -780,7 +796,7 @@ export function ProcurementOrderBuilderPage({
       {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
       <div className="sticky bottom-0 flex flex-wrap justify-end gap-3 border-t border-border bg-background/95 py-4 backdrop-blur">
         <Link to={backTo} className="inline-flex h-11 items-center rounded-md border border-input px-4 text-sm font-semibold hover:bg-muted">Cancel</Link>
-        <button type="submit" disabled={busy || !data.subhubs.length} className="rule-header inline-flex h-11 items-center gap-2 rounded-md px-5 text-sm font-semibold disabled:opacity-50"><Check className="size-4" />{busy ? "Creating orders…" : `Create ${allocations.length} factory order${allocations.length === 1 ? "" : "s"}`}</button>
+        <button type="submit" disabled={busy || !data.subhubs.length} className="rule-header inline-flex h-11 items-center gap-2 rounded-md px-5 text-sm font-semibold disabled:opacity-50"><Check className="size-4" />{busy ? "Creating orders…" : `Create ${allocations.length} purchase order${allocations.length === 1 ? "" : "s"}`}</button>
       </div>
     </form>}
   </Shell>;
@@ -1842,7 +1858,7 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
                 <tr key={order.id} className="border-b border-border/70 last:border-0 hover:bg-muted/40">
                   <td className="px-3 py-3">
                     <Link to="/po/$id" params={{ id: order.id }} search={{ panel }} className="font-semibold text-primary hover:underline">{order.orderNumber}</Link>
-                    {order.bulkOrderId ? <div className="mt-1"><p className="text-[11px] text-muted-foreground">Bulk run {order.bulkOrderId.slice(0, 8)}</p>{panel !== "subhub" ? <button type="button" onClick={() => setBulkSummaryId(order.bulkOrderId!)} className="text-xs font-semibold text-primary underline underline-offset-2">View combined supplier order</button> : null}</div> : null}
+                    {order.bulkOrderId ? <div className="mt-1"><p className="text-[11px] text-muted-foreground">Bulk run {order.bulkOrderId.slice(0, 8)}</p>{panel !== "subhub" ? <button type="button" onClick={() => setBulkSummaryId(order.bulkOrderId!)} className="text-xs font-semibold text-primary underline underline-offset-2">View bulk run summary</button> : null}</div> : null}
                     {panel !== "subhub" ? <p className="mt-1 text-xs text-muted-foreground">{note || "No notes"}</p> : null}
                   </td>
                   {isAdmin ? <td className="px-3 py-3">{order.subhubName}</td> : null}
@@ -1904,15 +1920,19 @@ function BulkProcurementSummaryDrawer({ bulkOrderId, panel, onClose }: { bulkOrd
   function downloadCsv() {
     if (!result?.ok) return;
     const rows = [
-      ["Material", "Code", "Combined quantity", "Combined amount", "Factory allocations"],
-      ...result.summary.materials.map((material) => [
-        material.materialName,
-        material.materialCode,
-        String(material.quantity),
-        material.totalAmount.toFixed(2),
-        material.allocations.map((allocation) => `${allocation.hubName}: ${allocation.quantity}`).join("; "),
+      ["Vendor", "Material", "Code", "Combined quantity", "Combined amount", "Factory allocations"],
+      ...result.summary.vendors.flatMap((vendor) => [
+        ...vendor.materials.map((material) => [
+          vendor.vendorName,
+          material.materialName,
+          material.materialCode,
+          String(material.quantity),
+          material.totalAmount.toFixed(2),
+          material.allocations.map((allocation) => `${allocation.hubName}: ${allocation.quantity}`).join("; "),
+        ]),
+        [vendor.vendorName, "VENDOR TOTAL", "", String(vendor.totalQuantity), vendor.totalAmount.toFixed(2), ""],
       ]),
-      ["TOTAL", "", String(result.summary.totalQuantity), result.summary.totalAmount.toFixed(2), ""],
+      ["", "RUN TOTAL", "", String(result.summary.totalQuantity), result.summary.totalAmount.toFixed(2), ""],
     ];
     const csv = rows.map((row) => row.map((cell) => {
       const safeCell = /^[=+\-@\t\r]/.test(cell) ? `'${cell}` : cell;
@@ -1926,22 +1946,25 @@ function BulkProcurementSummaryDrawer({ bulkOrderId, panel, onClose }: { bulkOrd
     URL.revokeObjectURL(url);
   }
 
-  return <Drawer title="Combined supplier order" subtitle="Consolidated material quantities with the delivery allocation for each factory." onClose={onClose}>
+  return <Drawer title="Bulk run supplier breakdown" subtitle="Each supplier has a separate total with its factory allocations." onClose={onClose}>
     <style>{`@media print { body * { visibility: hidden !important; } .bulk-summary-print, .bulk-summary-print * { visibility: visible !important; } .bulk-summary-print { position: fixed !important; inset: 0 !important; width: 100% !important; max-width: none !important; height: auto !important; overflow: visible !important; padding: 24px !important; background: white !important; color: black !important; box-shadow: none !important; } .bulk-summary-no-print { display: none !important; } }`}</style>
     {!result ? <p>Loading combined supplier order…</p> : !result.ok ? <p role="alert" className="text-destructive">{result.message}</p> : <div className="bulk-summary-print space-y-4">
       <div>
-        <h3 className="text-xl font-semibold">{result.summary.vendorName}</h3>
+        <h3 className="text-xl font-semibold">Supplier order summary</h3>
         <p className="text-sm text-muted-foreground">Bulk run {result.summary.bulkOrderId.slice(0, 8)} · Ordered {formatDate(result.summary.orderDate)} · Expected {formatDate(result.summary.expectedDelivery)}</p>
-        <p className="mt-1 text-sm">{result.summary.orders} factory orders · {num(result.summary.totalQuantity)} total units · {inr(result.summary.totalAmount)}</p>
+        <p className="mt-1 text-sm">{result.summary.orders} factory/vendor orders · {num(result.summary.totalQuantity)} total units · {inr(result.summary.totalAmount)}</p>
         {result.summary.notes.trim() ? <p className="mt-2 text-sm"><strong>Notes:</strong> {result.summary.notes}</p> : null}
       </div>
-      <div className="overflow-x-auto rounded-md border border-border">
+      {result.summary.vendors.map((vendor) => <section key={vendor.vendorId} className="space-y-2">
+        <div className="flex flex-wrap justify-between gap-2"><h4 className="font-semibold">{vendor.vendorName}</h4><p className="text-sm">{vendor.orders} orders · {num(vendor.totalQuantity)} units · {inr(vendor.totalAmount)}</p></div>
+        <div className="overflow-x-auto rounded-md border border-border">
         <table className="w-full min-w-[680px] text-sm">
           <thead className="border-b border-border bg-muted/30 text-left text-xs uppercase text-muted-foreground"><tr><th className="px-3 py-2">Material</th><th className="px-3 py-2">Code</th><th className="px-3 py-2 text-right">Combined qty</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2">Factory split</th></tr></thead>
-          <tbody>{result.summary.materials.map((material) => <tr key={material.materialCode} className="border-b border-border/70"><td className="px-3 py-2 font-medium">{material.materialName}</td><td className="px-3 py-2">{material.materialCode}</td><td className="px-3 py-2 text-right">{num(material.quantity)}</td><td className="px-3 py-2 text-right">{inr(material.totalAmount)}</td><td className="px-3 py-2">{material.allocations.map((allocation) => `${allocation.hubName}: ${num(allocation.quantity)}`).join(" · ")}</td></tr>)}</tbody>
-          <tfoot><tr className="font-semibold"><td colSpan={2} className="px-3 py-2">Supplier total</td><td className="px-3 py-2 text-right">{num(result.summary.totalQuantity)}</td><td className="px-3 py-2 text-right">{inr(result.summary.totalAmount)}</td><td /></tr></tfoot>
+          <tbody>{vendor.materials.map((material) => <tr key={material.materialCode} className="border-b border-border/70"><td className="px-3 py-2 font-medium">{material.materialName}</td><td className="px-3 py-2">{material.materialCode}</td><td className="px-3 py-2 text-right">{num(material.quantity)}</td><td className="px-3 py-2 text-right">{inr(material.totalAmount)}</td><td className="px-3 py-2">{material.allocations.map((allocation) => `${allocation.hubName}: ${num(allocation.quantity)}`).join(" · ")}</td></tr>)}</tbody>
+          <tfoot><tr className="font-semibold"><td colSpan={2} className="px-3 py-2">Vendor total</td><td className="px-3 py-2 text-right">{num(vendor.totalQuantity)}</td><td className="px-3 py-2 text-right">{inr(vendor.totalAmount)}</td><td /></tr></tfoot>
         </table>
-      </div>
+        </div>
+      </section>)}
       <div className="bulk-summary-no-print flex justify-end gap-2">
         <button type="button" onClick={downloadCsv} className="h-10 rounded-md border border-input px-3 text-sm font-semibold">Download CSV</button>
         <button type="button" onClick={() => window.print()} className="h-10 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground">Print supplier order</button>

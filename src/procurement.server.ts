@@ -1302,6 +1302,8 @@ export async function createBulkProcurementOrders(input: {
   newVendor?: NewVendorInput | undefined;
   allocations: Array<{
     subhubUserId: string;
+    vendorId?: string | undefined;
+    newVendor?: NewVendorInput | undefined;
     items: Array<{ materialCode: string; materialName?: string | undefined; quantity: number; unitPrice: number }>;
   }>;
   orderDate: string;
@@ -1327,14 +1329,18 @@ export async function createBulkProcurementOrders(input: {
       _id: { $in: input.allocations.map((allocation) => allocation.subhubUserId) },
       panel: "subhub", role: "subhub", active: true,
     }).toArray();
-    if (new Set(input.allocations.map((allocation) => allocation.subhubUserId)).size !== input.allocations.length) {
-      return { ok: false, message: "Each factory can appear only once in a bulk order." };
-    }
-    if (hubs.length !== input.allocations.length) return { ok: false, message: "One or more selected factories are no longer active." };
+    const requestedHubIds = [...new Set(input.allocations.map((allocation) => allocation.subhubUserId))];
+    if (hubs.length !== requestedHubIds.length) return { ok: false, message: "One or more selected factories are no longer active." };
     const hubById = new Map(hubs.map((hub) => [hub._id, hub]));
     const now = new Date();
     const bulkOrderId = randomUUID().replace(/-/g, "");
-    const validatedAllocations: Array<{ hub: UserDocument; items: ProcurementLineDocument[] }> = [];
+    const validatedAllocations: Array<{
+      hub: UserDocument;
+      items: ProcurementLineDocument[];
+      vendorId?: string;
+      newVendor?: NewVendorInput;
+      vendor?: ProcurementVendor;
+    }> = [];
     for (const allocation of input.allocations) {
       const hub = hubById.get(allocation.subhubUserId)!;
       if (!allocation.items.length || allocation.items.length > 40) {
@@ -1366,27 +1372,46 @@ export async function createBulkProcurementOrders(input: {
           totalAmount: Math.round(line.quantity * line.unitPrice * 100) / 100,
         });
       }
-      validatedAllocations.push({ hub, items });
+      validatedAllocations.push({
+        hub,
+        items,
+        ...(allocation.vendorId ? { vendorId: allocation.vendorId } : {}),
+        ...(allocation.newVendor ? { newVendor: allocation.newVendor } : {}),
+      });
     }
 
-    let vendor: ProcurementVendor | undefined;
-    if (input.vendorId === MISCELLANEOUS_VENDOR_ID) {
-      const miscellaneousVendorName = clean(input.newVendor?.name);
-      if (miscellaneousVendorName) {
-        const escapedName = miscellaneousVendorName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const existingVendor = await db.collection<VendorDocument>("procurement_vendors").findOne({
-          name: { $regex: `^${escapedName}$`, $options: "i" },
-          status: "active",
-        });
-        vendor = existingVendor
-          ? toVendor(existingVendor)
-          : await createVendorRecord(db, user._id, {
-              ...input.newVendor,
-              name: miscellaneousVendorName,
-              categories: [...(input.newVendor?.categories ?? []), "Miscellaneous"],
-            });
-      } else {
-        vendor = {
+    const vendorCache = new Map<string, ProcurementVendor>();
+    const orderVendorKeys = new Set<string>();
+    for (const allocation of validatedAllocations) {
+      const selectedVendorId = allocation.vendorId ?? input.vendorId;
+      const selectedNewVendor = allocation.newVendor ?? (allocation.vendorId === undefined ? input.newVendor : undefined);
+      const newVendorName = clean(selectedNewVendor?.name);
+      const vendorKey = selectedVendorId === MISCELLANEOUS_VENDOR_ID
+        ? `misc:${newVendorName.toLowerCase()}`
+        : selectedVendorId
+          ? `id:${selectedVendorId}`
+          : `new:${newVendorName.toLowerCase()}`;
+      if (!selectedVendorId && (!selectedNewVendor || !newVendorName)) {
+        return { ok: false, message: `Choose a vendor for ${getHubDisplayName(allocation.hub)}.` };
+      }
+
+      let vendor = vendorCache.get(vendorKey);
+      if (!vendor && selectedVendorId === MISCELLANEOUS_VENDOR_ID) {
+        if (newVendorName) {
+          const escapedName = newVendorName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const existingVendor = await db.collection<VendorDocument>("procurement_vendors").findOne({
+            name: { $regex: `^${escapedName}$`, $options: "i" },
+            status: "active",
+          });
+          vendor = existingVendor
+            ? toVendor(existingVendor)
+            : await createVendorRecord(db, user._id, {
+                ...selectedNewVendor,
+                name: newVendorName,
+                categories: [...(selectedNewVendor?.categories ?? []), "Miscellaneous"],
+              });
+        } else {
+          vendor = {
           id: MISCELLANEOUS_VENDOR_ID,
           name: "Miscellaneous",
           contactName: "",
@@ -1402,25 +1427,39 @@ export async function createBulkProcurementOrders(input: {
           notes: "",
           createdAt: "",
           updatedAt: "",
-        };
+          };
+        }
       }
-    } else if (input.vendorId) {
-      const vendorDocument = await db.collection<VendorDocument>("procurement_vendors")
-        .findOne({ _id: input.vendorId, status: "active" });
-      if (vendorDocument) vendor = toVendor(vendorDocument);
-    } else if (input.newVendor) {
-      vendor = await createVendorRecord(db, user._id, input.newVendor);
+      if (!vendor && selectedVendorId) {
+        const vendorDocument = await db.collection<VendorDocument>("procurement_vendors")
+          .findOne({ _id: selectedVendorId, status: "active" });
+        if (vendorDocument) vendor = toVendor(vendorDocument);
+      } else if (!vendor && selectedNewVendor && newVendorName) {
+        const escapedName = newVendorName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const existingVendor = await db.collection<VendorDocument>("procurement_vendors").findOne({
+          name: { $regex: `^${escapedName}$`, $options: "i" },
+          status: "active",
+        });
+        vendor = existingVendor ? toVendor(existingVendor) : await createVendorRecord(db, user._id, selectedNewVendor);
+      }
+      if (!vendor) return { ok: false, message: `Choose an active vendor for ${getHubDisplayName(allocation.hub)}.` };
+      const hubVendorKey = `${allocation.hub._id}:${vendor.id}`;
+      if (orderVendorKeys.has(hubVendorKey)) {
+        return { ok: false, message: `Combine ${vendor.name}'s materials into one allocation for ${getHubDisplayName(allocation.hub)}.` };
+      }
+      orderVendorKeys.add(hubVendorKey);
+      vendorCache.set(vendorKey, vendor);
+      allocation.vendor = vendor;
     }
-    if (!vendor) return { ok: false, message: "Select an active vendor or add a new vendor." };
 
     const orders: ProcurementOrderDocument[] = [];
-    for (const { hub, items } of validatedAllocations) {
+    for (const { hub, items, vendor } of validatedAllocations) {
       orders.push({
         _id: randomUUID().replace(/-/g, ""),
         orderNumber: `PO-${String(Date.now()).slice(-8)}-${orders.length + 1}`,
         bulkOrderId,
-        vendorId: vendor.id,
-        vendorName: vendor.name,
+        vendorId: vendor!.id,
+        vendorName: vendor!.name,
         subhubUserId: hub._id,
         subhubName: getHubDisplayName(hub),
         materialCode: items[0]!.materialCode,
@@ -1453,31 +1492,55 @@ export async function getBulkProcurementOrderSummary(input: { bulkOrderId: strin
     const orders = await db.collection<ProcurementOrderDocument>("procurement_orders")
       .find({ bulkOrderId: input.bulkOrderId }).sort({ subhubName: 1, orderNumber: 1 }).toArray();
     if (!orders.length) return { ok: false as const, message: "Combined order run not found." };
-    const materialTotals = new Map<string, {
-      materialCode: string; materialName: string; quantity: number; totalAmount: number;
-      allocations: Array<{ hubName: string; quantity: number; totalAmount: number }>;
+    const vendorTotals = new Map<string, {
+      vendorId: string;
+      vendorName: string;
+      orders: number;
+      totalQuantity: number;
+      totalAmount: number;
+      materials: Map<string, {
+        materialCode: string;
+        materialName: string;
+        quantity: number;
+        totalAmount: number;
+        allocations: Array<{ hubName: string; quantity: number; totalAmount: number }>;
+      }>;
     }>();
     for (const order of orders) {
+      const vendor = vendorTotals.get(order.vendorId) ?? {
+        vendorId: order.vendorId,
+        vendorName: order.vendorName,
+        orders: 0,
+        totalQuantity: 0,
+        totalAmount: 0,
+        materials: new Map(),
+      };
+      vendor.orders += 1;
+      vendor.totalQuantity += order.quantity;
+      vendor.totalAmount += order.totalAmount;
       for (const item of orderItems(order)) {
-        const total = materialTotals.get(item.materialCode) ?? {
+        const total = vendor.materials.get(item.materialCode) ?? {
           materialCode: item.materialCode, materialName: item.materialName, quantity: 0, totalAmount: 0, allocations: [],
         };
         total.quantity += item.quantity;
         total.totalAmount += item.totalAmount;
         total.allocations.push({ hubName: order.subhubName, quantity: item.quantity, totalAmount: item.totalAmount });
-        materialTotals.set(item.materialCode, total);
+        vendor.materials.set(item.materialCode, total);
       }
+      vendorTotals.set(order.vendorId, vendor);
     }
     return {
       ok: true as const,
       summary: {
         bulkOrderId: input.bulkOrderId,
-        vendorName: orders[0]!.vendorName,
         orderDate: dateOnly(orders[0]!.orderDate),
         expectedDelivery: dateOnly(orders[0]!.expectedDelivery),
         notes: orders[0]!.notes,
         orders: orders.length,
-        materials: [...materialTotals.values()].sort((left, right) => left.materialName.localeCompare(right.materialName)),
+        vendors: [...vendorTotals.values()].map((vendor) => ({
+          ...vendor,
+          materials: [...vendor.materials.values()].sort((left, right) => left.materialName.localeCompare(right.materialName)),
+        })).sort((left, right) => left.vendorName.localeCompare(right.vendorName)),
         totalQuantity: orders.reduce((sum, order) => sum + order.quantity, 0),
         totalAmount: orders.reduce((sum, order) => sum + order.totalAmount, 0),
       },

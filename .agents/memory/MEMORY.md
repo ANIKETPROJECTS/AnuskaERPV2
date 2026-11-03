@@ -11,4 +11,4 @@
 - [HR headcount scope](hr-headcount-scope.md) — one aggregate daily total per SubHub; today's count can be corrected with an audit entry, while past dates stay locked.
 - [Nested route redirects](tanstack-nested-redirects.md) — parent beforeLoad redirects must match the exact legacy URL or nested pages can loop.
 - [Python tooling metadata](python-tooling-metadata.md) — inspect tracked Python manifests before temporary analysis installs; uninstalling can rewrite project dependencies.
-- [Bulk procurement groups](bulk-procurement-groups.md) — keep factory-specific purchase records linked by one run ID; aggregate supplier totals from the group without losing hub allocation.
+- [Bulk procurement groups](bulk-procurement-groups.md) — keep factory-specific orders under one run ID and aggregate summaries by vendor without losing hub allocation.
