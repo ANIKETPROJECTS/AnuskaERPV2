@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowLeftRight,
@@ -190,7 +190,6 @@ export function ProcurementPage({
   const [orderPage, setOrderPage] = useState(1);
   const [orderPageSize, setOrderPageSize] = useState(panel === "subhub" ? 25 : 10);
   const [selectedVendorId, setSelectedVendorId] = useState("");
-  const [showOrderForm, setShowOrderForm] = useState(false);
   const [vendorFormMode, setVendorFormMode] = useState<"create" | "edit" | null>(null);
   const [editingVendor, setEditingVendor] = useState<ProcurementVendor | null>(null);
   const [loading, setLoading] = useState(false);
@@ -556,7 +555,6 @@ export function ProcurementPage({
         />
       ) : null}
 
-      {showOrderForm ? <OrderForm data={data} isAdmin={canManageProcurement} panel={panel as "admin" | "procurement"} onClose={() => setShowOrderForm(false)} onSaved={async (message) => { setShowOrderForm(false); setNotice(message); await reload(); }} /> : null}
       {vendorFormMode ? <VendorForm mode={vendorFormMode} vendor={editingVendor} panel={panel as "admin" | "procurement"} onClose={() => setVendorFormMode(null)} onSaved={async (message) => { setVendorFormMode(null); setNotice(message); await reload(); }} /> : null}
     </div>
   );
@@ -571,13 +569,12 @@ export function ProcurementPage({
       subtitle={showDedicatedView ? undefined : "Live vendor and purchase-order management across Gadsons SubHubs"}
       actions={
         canManageProcurement && activeTab === "orders" ? (
-          <button
-            type="button"
-            onClick={() => setShowOrderForm(true)}
+          <Link
+            to={panel === "admin" ? "/admin/procurement/new-order" : "/procurement-management/new-order"}
             className="rule-header inline-flex min-h-10 items-center gap-2 rounded-md px-4 text-sm font-semibold"
           >
             <PackagePlus className="size-4" /> New procurement order
-          </button>
+          </Link>
         ) : showDedicatedView && activeTab === "vendors" ? (
           <button
             type="button"
@@ -592,6 +589,171 @@ export function ProcurementPage({
       {content}
     </Shell>
   );
+}
+
+type OrderBuilderLine = { id: string; materialCode: string; materialName: string; quantity: string; unitPrice: string };
+type OrderBuilderAllocation = { id: string; subhubUserId: string; items: OrderBuilderLine[] };
+
+export function ProcurementOrderBuilderPage({
+  result,
+  panel,
+  backTo,
+}: {
+  result: ProcurementResult;
+  panel: "admin" | "procurement";
+  backTo: "/admin/procurement/orders" | "/procurement-management/orders";
+}) {
+  const router = useRouter();
+  const materials = useRawMaterials();
+  const data = result.ok ? result.data : emptyData;
+  const nextId = useRef(2);
+  const makeLine = (): OrderBuilderLine => ({
+    id: `line-${nextId.current++}`,
+    materialCode: materials[0]?.code ?? ONE_OFF_MATERIAL_CODE,
+    materialName: "",
+    quantity: "",
+    unitPrice: "",
+  });
+  const [allocations, setAllocations] = useState<OrderBuilderAllocation[]>(() => [{
+    id: "factory-1",
+    subhubUserId: data.subhubs[0]?.id ?? "",
+    items: [{ id: "line-1", materialCode: materials[0]?.code ?? ONE_OFF_MATERIAL_CODE, materialName: "", quantity: "", unitPrice: "" }],
+  }]);
+  const [vendorId, setVendorId] = useState("");
+  const [addingVendor, setAddingVendor] = useState(false);
+  const [newVendorName, setNewVendorName] = useState("");
+  const [newVendorPhone, setNewVendorPhone] = useState("");
+  const [newVendorEmail, setNewVendorEmail] = useState("");
+  const [miscellaneousVendorName, setMiscellaneousVendorName] = useState("");
+  const [orderDate, setOrderDate] = useState(today());
+  const [expectedDelivery, setExpectedDelivery] = useState(dateAfter(7));
+  const [notes, setNotes] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(result.ok ? "" : result.message);
+  const usedHubIds = allocations.map((allocation) => allocation.subhubUserId).filter(Boolean);
+
+  function updateAllocation(id: string, update: (allocation: OrderBuilderAllocation) => OrderBuilderAllocation) {
+    setAllocations((current) => current.map((allocation) => allocation.id === id ? update(allocation) : allocation));
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    if (!result.ok) return setError(result.message);
+    if (!addingVendor && !vendorId) return setError("Choose an active vendor or add a new vendor.");
+    if (addingVendor && !newVendorName.trim()) return setError("Enter the new vendor name.");
+    if (!allocations.length || allocations.some((allocation) => !allocation.subhubUserId)) return setError("Choose a factory for every allocation.");
+    if (new Set(usedHubIds).size !== usedHubIds.length) return setError("Choose a different factory for each allocation.");
+    if (allocations.some((allocation) => !allocation.items.length || allocation.items.some((item) => !Number.isInteger(Number(item.quantity)) || Number(item.quantity) < 1 || !Number.isFinite(Number(item.unitPrice || 0)) || Number(item.unitPrice || 0) < 0))) {
+      return setError("Enter a whole-number quantity of at least 1 and a valid unit price for every material.");
+    }
+    if (allocations.some((allocation) => allocation.items.some((item) => item.materialCode === ONE_OFF_MATERIAL_CODE && !item.materialName.trim()))) {
+      return setError("Enter a name for every one-off material.");
+    }
+    setBusy(true);
+    try {
+      const result = await createBulkProcurementOrdersFn({ data: {
+        panel,
+        vendorId: addingVendor ? undefined : vendorId,
+        newVendor: addingVendor
+          ? { name: newVendorName.trim(), phone: newVendorPhone.trim(), email: newVendorEmail.trim() }
+          : vendorId === MISCELLANEOUS_VENDOR_ID && miscellaneousVendorName.trim()
+            ? { name: miscellaneousVendorName.trim(), categories: ["Miscellaneous"] }
+            : undefined,
+        allocations: allocations.map((allocation) => ({
+          subhubUserId: allocation.subhubUserId,
+          items: allocation.items.map((item) => ({
+            materialCode: item.materialCode,
+            ...(item.materialCode === ONE_OFF_MATERIAL_CODE ? { materialName: item.materialName.trim() } : {}),
+            quantity: Number(item.quantity),
+            unitPrice: Number(item.unitPrice || 0),
+          })),
+        })),
+        orderDate,
+        expectedDelivery,
+        notes,
+      } });
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      await router.invalidate();
+      await router.navigate({ to: backTo });
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "The bulk procurement order could not be created.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return <Shell title="New procurement order" subtitle="Build purchase-order allocations for multiple factories, then submit them together." actions={<Link to={backTo} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-input bg-background px-4 text-sm font-semibold hover:bg-muted"><ArrowLeft className="size-4" /> Back to orders</Link>} mainClassName="flex-1 space-y-5 p-6">
+    {!result.ok ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 p-4 text-destructive">{result.message}</p> : <form onSubmit={(event) => void submit(event)} className="mx-auto max-w-5xl space-y-6">
+      <section className="rounded-lg border border-border bg-card p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div><h2 className="text-lg font-semibold">Supplier and order details</h2><p className="mt-1 text-sm text-muted-foreground">One supplier and delivery schedule apply to all factory orders in this run.</p></div>
+          <div className="text-sm text-muted-foreground">{allocations.length} {allocations.length === 1 ? "factory" : "factories"} selected</div>
+        </div>
+        <div className="mt-5">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-3"><p className="font-medium">{addingVendor ? "New vendor" : "Vendor"}</p><button type="button" onClick={() => { setAddingVendor((value) => !value); setVendorId(""); }} className="font-semibold text-primary hover:underline">{addingVendor ? "Choose existing vendor" : "+ Add new vendor"}</button></div>
+          {addingVendor ? <div className="grid gap-3 sm:grid-cols-3">
+            <label className="text-sm font-medium">Vendor name<input required value={newVendorName} onChange={(event) => setNewVendorName(event.target.value)} maxLength={120} className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3" /></label>
+            <label className="text-sm font-medium">Phone<input value={newVendorPhone} onChange={(event) => setNewVendorPhone(event.target.value)} maxLength={40} className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3" /></label>
+            <label className="text-sm font-medium">Email<input type="email" value={newVendorEmail} onChange={(event) => setNewVendorEmail(event.target.value)} maxLength={160} className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3" /></label>
+          </div> : <>
+            <select required value={vendorId} onChange={(event) => setVendorId(event.target.value)} className="h-11 w-full rounded-md border border-input bg-background px-3">
+              <option value="">Select active vendor</option><option value={MISCELLANEOUS_VENDOR_ID}>Miscellaneous</option>
+              {data.vendors.filter((vendor) => vendor.status === "active").map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}{vendor.categories.length ? ` · ${vendor.categories.join(", ")}` : ""}</option>)}
+            </select>
+            {vendorId === MISCELLANEOUS_VENDOR_ID ? <label className="mt-3 block text-sm font-medium">Miscellaneous supplier name (optional)<input value={miscellaneousVendorName} onChange={(event) => setMiscellaneousVendorName(event.target.value)} className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3" placeholder="Local hardware shop" /></label> : null}
+          </>}
+        </div>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <TextField label="Order date" type="date" required value={orderDate} onChange={setOrderDate} />
+          <TextField label="Expected delivery" type="date" required value={expectedDelivery} onChange={setExpectedDelivery} />
+        </div>
+        <label className="mt-4 block text-sm font-medium">Notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={2} maxLength={500} placeholder="Delivery instructions, quotation reference, or remarks…" className="mt-1 w-full resize-y rounded-md border border-input bg-background px-3 py-2" /></label>
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div><h2 className="text-lg font-semibold">Factory allocations</h2><p className="mt-1 text-sm text-muted-foreground">Each selected factory receives its own linked purchase order.</p></div>
+          <button type="button" disabled={allocations.length >= Math.min(data.subhubs.length, 50)} onClick={() => {
+            const id = `factory-${nextId.current++}`;
+            setAllocations((current) => [...current, { id, subhubUserId: "", items: [makeLine()] }]);
+          }} className="inline-flex h-10 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-semibold hover:bg-muted disabled:opacity-50"><Plus className="size-4" /> Add factory</button>
+        </div>
+        {!data.subhubs.length ? <p className="rounded-md border border-dashed p-6 text-center text-muted-foreground">No active factories are available for allocation.</p> : null}
+        {allocations.map((allocation, allocationIndex) => <section key={allocation.id} className="rounded-lg border border-border bg-card">
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border p-4">
+            <label className="min-w-[min(100%,24rem)] flex-1 text-sm font-medium">Destination factory
+              <select required value={allocation.subhubUserId} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, subhubUserId: event.target.value }))} className="mt-1 h-11 w-full rounded-md border border-input bg-background px-3">
+                <option value="">Select factory</option>{data.subhubs.map((hub) => <option key={hub.id} value={hub.id} disabled={usedHubIds.includes(hub.id) && hub.id !== allocation.subhubUserId}>{hub.name}</option>)}
+              </select>
+            </label>
+            <button type="button" disabled={allocations.length === 1} onClick={() => setAllocations((current) => current.filter((item) => item.id !== allocation.id))} className="h-10 rounded-md px-3 text-sm font-medium text-destructive hover:bg-destructive/5 disabled:opacity-40">Remove factory</button>
+          </div>
+          <div className="space-y-3 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">Materials for {data.subhubs.find((hub) => hub.id === allocation.subhubUserId)?.name ?? `factory ${allocationIndex + 1}`}</h3><p className="text-xs text-muted-foreground">Up to 40 materials per factory. Unit price is optional.</p></div>
+              <button type="button" disabled={allocation.items.length >= 40} onClick={() => updateAllocation(allocation.id, (current) => ({ ...current, items: [...current.items, makeLine()] }))} className="h-9 rounded-md border border-input px-3 text-sm font-semibold hover:bg-muted disabled:opacity-50">+ Add material</button>
+            </div>
+            {allocation.items.map((item, itemIndex) => <div key={item.id} className="grid items-end gap-3 rounded-md border border-border p-3 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(8rem,0.7fr)_auto]">
+              <RawMaterialPicker materials={materials} value={item.materialCode} onChange={(value) => updateAllocation(allocation.id, (current) => ({ ...current, items: current.items.map((row) => row.id === item.id ? { ...row, materialCode: value, materialName: "" } : row) }))} />
+              {item.materialCode === ONE_OFF_MATERIAL_CODE ? <label className="text-sm font-medium">One-off material name<input required value={item.materialName} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, items: current.items.map((row) => row.id === item.id ? { ...row, materialName: event.target.value } : row) }))} maxLength={160} className="mt-1 h-11 w-full rounded-md border border-input px-3" /></label> : null}
+              <label className="text-sm font-medium">Quantity<input required type="number" min="1" step="1" value={item.quantity} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, items: current.items.map((row) => row.id === item.id ? { ...row, quantity: event.target.value } : row) }))} className="mt-1 h-11 w-full rounded-md border border-input px-3" /></label>
+              <label className="text-sm font-medium">Unit price<input type="number" min="0" step="0.01" value={item.unitPrice} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, items: current.items.map((row) => row.id === item.id ? { ...row, unitPrice: event.target.value } : row) }))} placeholder="Optional" className="mt-1 h-11 w-full rounded-md border border-input px-3" /></label>
+              <button type="button" aria-label={`Remove material ${itemIndex + 1}`} disabled={allocation.items.length === 1} onClick={() => updateAllocation(allocation.id, (current) => ({ ...current, items: current.items.filter((row) => row.id !== item.id) }))} className="h-11 rounded-md border border-input px-3 text-sm hover:bg-muted disabled:opacity-40">Remove</button>
+            </div>)}
+          </div>
+        </section>)}
+      </section>
+
+      {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+      <div className="sticky bottom-0 flex flex-wrap justify-end gap-3 border-t border-border bg-background/95 py-4 backdrop-blur">
+        <Link to={backTo} className="inline-flex h-11 items-center rounded-md border border-input px-4 text-sm font-semibold hover:bg-muted">Cancel</Link>
+        <button type="submit" disabled={busy || !data.subhubs.length} className="rule-header inline-flex h-11 items-center gap-2 rounded-md px-5 text-sm font-semibold disabled:opacity-50"><Check className="size-4" />{busy ? "Creating orders…" : `Create ${allocations.length} factory order${allocations.length === 1 ? "" : "s"}`}</button>
+      </div>
+    </form>}
+  </Shell>;
 }
 
 function SectionHeading({

@@ -85,11 +85,25 @@ const statusSchema = z.object({
 });
 const bulkOrderSchema = z.object({
   panel: z.enum(["admin", "procurement"]),
-  vendorId: z.string().min(1),
+  vendorId: z.string().min(1).optional(),
+  newVendor: z.object({
+    name: z.string().min(2).max(120),
+    contactName: z.string().max(120).optional(),
+    phone: z.string().max(40).optional(),
+    email: z.string().max(160).optional(),
+    address: z.string().max(240).optional(),
+    city: z.string().max(80).optional(),
+    state: z.string().max(80).optional(),
+    pincode: z.string().max(20).optional(),
+    paymentTerms: z.string().max(120).optional(),
+    categories: z.array(z.string().max(80)).max(20).optional(),
+    notes: z.string().max(500).optional(),
+  }).optional(),
   allocations: z.array(z.object({
     subhubUserId: z.string().min(1),
     items: z.array(z.object({
       materialCode: z.string().min(1),
+      materialName: z.string().max(160).optional(),
       quantity: z.number().int().positive(),
       unitPrice: z.number().finite().nonnegative(),
     })).min(1).max(40),

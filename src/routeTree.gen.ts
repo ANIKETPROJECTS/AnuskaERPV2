@@ -43,6 +43,7 @@ import { Route as PartCodeRouteImport } from './routes/part.$code'
 import { Route as PoIdRouteImport } from './routes/po.$id'
 import { Route as ProcurementManagementHubStockRouteImport } from './routes/procurement-management.hub-stock'
 import { Route as ProcurementManagementItemRequestsRouteImport } from './routes/procurement-management.item-requests'
+import { Route as ProcurementManagementNewOrderRouteImport } from './routes/procurement-management.new-order'
 import { Route as ProcurementManagementOrdersRouteImport } from './routes/procurement-management.orders'
 import { Route as ProcurementManagementVendorsRouteImport } from './routes/procurement-management.vendors'
 import { Route as ProductionOrdersOrderIdRouteImport } from './routes/production-orders.$orderId'
@@ -57,6 +58,7 @@ import { Route as SubhubRequestItemsRouteImport } from './routes/subhub.request-
 import { Route as WorkerIdRouteImport } from './routes/worker.$id'
 import { Route as AdminProcurementHubStockRouteImport } from './routes/admin.procurement.hub-stock'
 import { Route as AdminProcurementItemRequestsRouteImport } from './routes/admin.procurement.item-requests'
+import { Route as AdminProcurementNewOrderRouteImport } from './routes/admin.procurement.new-order'
 import { Route as AdminProcurementOrdersRouteImport } from './routes/admin.procurement.orders'
 import { Route as AdminProcurementVendorsRouteImport } from './routes/admin.procurement.vendors'
 import { Route as AdminUsersUserIdRouteImport } from './routes/admin.users.$userId'
@@ -244,6 +246,12 @@ const ProcurementManagementItemRequestsRoute =
     path: '/item-requests',
     getParentRoute: () => ProcurementManagementRoute,
   } as any)
+const ProcurementManagementNewOrderRoute =
+  ProcurementManagementNewOrderRouteImport.update({
+    id: '/new-order',
+    path: '/new-order',
+    getParentRoute: () => ProcurementManagementRoute,
+  } as any)
 const ProcurementManagementOrdersRoute =
   ProcurementManagementOrdersRouteImport.update({
     id: '/orders',
@@ -316,6 +324,12 @@ const AdminProcurementItemRequestsRoute =
   AdminProcurementItemRequestsRouteImport.update({
     id: '/item-requests',
     path: '/item-requests',
+    getParentRoute: () => AdminProcurementRoute,
+  } as any)
+const AdminProcurementNewOrderRoute =
+  AdminProcurementNewOrderRouteImport.update({
+    id: '/new-order',
+    path: '/new-order',
     getParentRoute: () => AdminProcurementRoute,
   } as any)
 const AdminProcurementOrdersRoute = AdminProcurementOrdersRouteImport.update({
@@ -430,6 +444,7 @@ export interface FileRoutesByFullPath {
   '/po/$id': typeof PoIdRoute
   '/procurement-management/hub-stock': typeof ProcurementManagementHubStockRoute
   '/procurement-management/item-requests': typeof ProcurementManagementItemRequestsRoute
+  '/procurement-management/new-order': typeof ProcurementManagementNewOrderRoute
   '/procurement-management/orders': typeof ProcurementManagementOrdersRoute
   '/procurement-management/vendors': typeof ProcurementManagementVendorsRoute
   '/production-orders/$orderId': typeof ProductionOrdersOrderIdRoute
@@ -444,6 +459,7 @@ export interface FileRoutesByFullPath {
   '/worker/$id': typeof WorkerIdRoute
   '/admin/procurement/hub-stock': typeof AdminProcurementHubStockRoute
   '/admin/procurement/item-requests': typeof AdminProcurementItemRequestsRoute
+  '/admin/procurement/new-order': typeof AdminProcurementNewOrderRoute
   '/admin/procurement/orders': typeof AdminProcurementOrdersRoute
   '/admin/procurement/vendors': typeof AdminProcurementVendorsRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
@@ -494,6 +510,7 @@ export interface FileRoutesByTo {
   '/po/$id': typeof PoIdRoute
   '/procurement-management/hub-stock': typeof ProcurementManagementHubStockRoute
   '/procurement-management/item-requests': typeof ProcurementManagementItemRequestsRoute
+  '/procurement-management/new-order': typeof ProcurementManagementNewOrderRoute
   '/procurement-management/orders': typeof ProcurementManagementOrdersRoute
   '/procurement-management/vendors': typeof ProcurementManagementVendorsRoute
   '/production-orders/$orderId': typeof ProductionOrdersOrderIdRoute
@@ -508,6 +525,7 @@ export interface FileRoutesByTo {
   '/worker/$id': typeof WorkerIdRoute
   '/admin/procurement/hub-stock': typeof AdminProcurementHubStockRoute
   '/admin/procurement/item-requests': typeof AdminProcurementItemRequestsRoute
+  '/admin/procurement/new-order': typeof AdminProcurementNewOrderRoute
   '/admin/procurement/orders': typeof AdminProcurementOrdersRoute
   '/admin/procurement/vendors': typeof AdminProcurementVendorsRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
@@ -559,6 +577,7 @@ export interface FileRoutesById {
   '/po/$id': typeof PoIdRoute
   '/procurement-management/hub-stock': typeof ProcurementManagementHubStockRoute
   '/procurement-management/item-requests': typeof ProcurementManagementItemRequestsRoute
+  '/procurement-management/new-order': typeof ProcurementManagementNewOrderRoute
   '/procurement-management/orders': typeof ProcurementManagementOrdersRoute
   '/procurement-management/vendors': typeof ProcurementManagementVendorsRoute
   '/production-orders/$orderId': typeof ProductionOrdersOrderIdRoute
@@ -573,6 +592,7 @@ export interface FileRoutesById {
   '/worker/$id': typeof WorkerIdRoute
   '/admin/procurement/hub-stock': typeof AdminProcurementHubStockRoute
   '/admin/procurement/item-requests': typeof AdminProcurementItemRequestsRoute
+  '/admin/procurement/new-order': typeof AdminProcurementNewOrderRoute
   '/admin/procurement/orders': typeof AdminProcurementOrdersRoute
   '/admin/procurement/vendors': typeof AdminProcurementVendorsRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
@@ -625,6 +645,7 @@ export interface FileRouteTypes {
     | '/po/$id'
     | '/procurement-management/hub-stock'
     | '/procurement-management/item-requests'
+    | '/procurement-management/new-order'
     | '/procurement-management/orders'
     | '/procurement-management/vendors'
     | '/production-orders/$orderId'
@@ -639,6 +660,7 @@ export interface FileRouteTypes {
     | '/worker/$id'
     | '/admin/procurement/hub-stock'
     | '/admin/procurement/item-requests'
+    | '/admin/procurement/new-order'
     | '/admin/procurement/orders'
     | '/admin/procurement/vendors'
     | '/admin/users/$userId'
@@ -689,6 +711,7 @@ export interface FileRouteTypes {
     | '/po/$id'
     | '/procurement-management/hub-stock'
     | '/procurement-management/item-requests'
+    | '/procurement-management/new-order'
     | '/procurement-management/orders'
     | '/procurement-management/vendors'
     | '/production-orders/$orderId'
@@ -703,6 +726,7 @@ export interface FileRouteTypes {
     | '/worker/$id'
     | '/admin/procurement/hub-stock'
     | '/admin/procurement/item-requests'
+    | '/admin/procurement/new-order'
     | '/admin/procurement/orders'
     | '/admin/procurement/vendors'
     | '/admin/users/$userId'
@@ -753,6 +777,7 @@ export interface FileRouteTypes {
     | '/po/$id'
     | '/procurement-management/hub-stock'
     | '/procurement-management/item-requests'
+    | '/procurement-management/new-order'
     | '/procurement-management/orders'
     | '/procurement-management/vendors'
     | '/production-orders/$orderId'
@@ -767,6 +792,7 @@ export interface FileRouteTypes {
     | '/worker/$id'
     | '/admin/procurement/hub-stock'
     | '/admin/procurement/item-requests'
+    | '/admin/procurement/new-order'
     | '/admin/procurement/orders'
     | '/admin/procurement/vendors'
     | '/admin/users/$userId'
@@ -1051,6 +1077,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProcurementManagementItemRequestsRouteImport
       parentRoute: typeof ProcurementManagementRoute
     }
+    '/procurement-management/new-order': {
+      id: '/procurement-management/new-order'
+      path: '/new-order'
+      fullPath: '/procurement-management/new-order'
+      preLoaderRoute: typeof ProcurementManagementNewOrderRouteImport
+      parentRoute: typeof ProcurementManagementRoute
+    }
     '/procurement-management/orders': {
       id: '/procurement-management/orders'
       path: '/orders'
@@ -1147,6 +1180,13 @@ declare module '@tanstack/react-router' {
       path: '/item-requests'
       fullPath: '/admin/procurement/item-requests'
       preLoaderRoute: typeof AdminProcurementItemRequestsRouteImport
+      parentRoute: typeof AdminProcurementRoute
+    }
+    '/admin/procurement/new-order': {
+      id: '/admin/procurement/new-order'
+      path: '/new-order'
+      fullPath: '/admin/procurement/new-order'
+      preLoaderRoute: typeof AdminProcurementNewOrderRouteImport
       parentRoute: typeof AdminProcurementRoute
     }
     '/admin/procurement/orders': {
@@ -1322,6 +1362,7 @@ const InventoryRouteWithChildren = InventoryRoute._addFileChildren(
 interface ProcurementManagementRouteChildren {
   ProcurementManagementHubStockRoute: typeof ProcurementManagementHubStockRoute
   ProcurementManagementItemRequestsRoute: typeof ProcurementManagementItemRequestsRoute
+  ProcurementManagementNewOrderRoute: typeof ProcurementManagementNewOrderRoute
   ProcurementManagementOrdersRoute: typeof ProcurementManagementOrdersRoute
   ProcurementManagementVendorsRoute: typeof ProcurementManagementVendorsRoute
   ProcurementManagementVendorHistoryVendorIdRoute: typeof ProcurementManagementVendorHistoryVendorIdRoute
@@ -1331,6 +1372,7 @@ const ProcurementManagementRouteChildren: ProcurementManagementRouteChildren = {
   ProcurementManagementHubStockRoute: ProcurementManagementHubStockRoute,
   ProcurementManagementItemRequestsRoute:
     ProcurementManagementItemRequestsRoute,
+  ProcurementManagementNewOrderRoute: ProcurementManagementNewOrderRoute,
   ProcurementManagementOrdersRoute: ProcurementManagementOrdersRoute,
   ProcurementManagementVendorsRoute: ProcurementManagementVendorsRoute,
   ProcurementManagementVendorHistoryVendorIdRoute:
@@ -1421,6 +1463,7 @@ const SubhubRouteWithChildren =
 interface AdminProcurementRouteChildren {
   AdminProcurementHubStockRoute: typeof AdminProcurementHubStockRoute
   AdminProcurementItemRequestsRoute: typeof AdminProcurementItemRequestsRoute
+  AdminProcurementNewOrderRoute: typeof AdminProcurementNewOrderRoute
   AdminProcurementOrdersRoute: typeof AdminProcurementOrdersRoute
   AdminProcurementVendorsRoute: typeof AdminProcurementVendorsRoute
 }
@@ -1428,6 +1471,7 @@ interface AdminProcurementRouteChildren {
 const AdminProcurementRouteChildren: AdminProcurementRouteChildren = {
   AdminProcurementHubStockRoute: AdminProcurementHubStockRoute,
   AdminProcurementItemRequestsRoute: AdminProcurementItemRequestsRoute,
+  AdminProcurementNewOrderRoute: AdminProcurementNewOrderRoute,
   AdminProcurementOrdersRoute: AdminProcurementOrdersRoute,
   AdminProcurementVendorsRoute: AdminProcurementVendorsRoute,
 }

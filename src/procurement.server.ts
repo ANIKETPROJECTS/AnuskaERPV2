@@ -1298,10 +1298,11 @@ export async function createProcurementOrder(
 }
 
 export async function createBulkProcurementOrders(input: {
-  vendorId: string;
+  vendorId?: string | undefined;
+  newVendor?: NewVendorInput | undefined;
   allocations: Array<{
     subhubUserId: string;
-    items: Array<{ materialCode: string; quantity: number; unitPrice: number }>;
+    items: Array<{ materialCode: string; materialName?: string | undefined; quantity: number; unitPrice: number }>;
   }>;
   orderDate: string;
   expectedDelivery: string;
@@ -1322,14 +1323,10 @@ export async function createBulkProcurementOrders(input: {
     }
     const db = await getProcurementDb();
     const controlDb = await getControlPlaneDatabase();
-    const [vendor, hubs] = await Promise.all([
-      db.collection<VendorDocument>("procurement_vendors").findOne({ _id: input.vendorId, status: "active" }),
-      controlDb.collection<UserDocument>("users").find({
-        _id: { $in: input.allocations.map((allocation) => allocation.subhubUserId) },
-        panel: "subhub", role: "subhub", active: true,
-      }).toArray(),
-    ]);
-    if (!vendor) return { ok: false, message: "Select an active vendor." };
+    const hubs = await controlDb.collection<UserDocument>("users").find({
+      _id: { $in: input.allocations.map((allocation) => allocation.subhubUserId) },
+      panel: "subhub", role: "subhub", active: true,
+    }).toArray();
     if (new Set(input.allocations.map((allocation) => allocation.subhubUserId)).size !== input.allocations.length) {
       return { ok: false, message: "Each factory can appear only once in a bulk order." };
     }
@@ -1337,7 +1334,7 @@ export async function createBulkProcurementOrders(input: {
     const hubById = new Map(hubs.map((hub) => [hub._id, hub]));
     const now = new Date();
     const bulkOrderId = randomUUID().replace(/-/g, "");
-    const orders: ProcurementOrderDocument[] = [];
+    const validatedAllocations: Array<{ hub: UserDocument; items: ProcurementLineDocument[] }> = [];
     for (const allocation of input.allocations) {
       const hub = hubById.get(allocation.subhubUserId)!;
       if (!allocation.items.length || allocation.items.length > 40) {
@@ -1345,7 +1342,14 @@ export async function createBulkProcurementOrders(input: {
       }
       const items: ProcurementLineDocument[] = [];
       for (const line of allocation.items) {
-        const material = subparts.find((part) => part.code === line.materialCode);
+        const customName = clean(line.materialName);
+        const catalogMaterial = subparts.find((part) => part.code === line.materialCode);
+        const material = catalogMaterial ?? (line.materialCode === ONE_OFF_MATERIAL_CODE && customName
+          ? {
+              code: `MISC-${customName.toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 38)}-${randomUUID().slice(0, 6).toUpperCase()}`,
+              name: customName,
+            }
+          : null);
         if (!material) return { ok: false, message: `Select a valid raw material for ${getHubDisplayName(hub)}.` };
         if (!Number.isInteger(line.quantity) || line.quantity < 1) {
           return { ok: false, message: `Enter a whole-number quantity for ${material.name} at ${getHubDisplayName(hub)}.` };
@@ -1362,11 +1366,60 @@ export async function createBulkProcurementOrders(input: {
           totalAmount: Math.round(line.quantity * line.unitPrice * 100) / 100,
         });
       }
+      validatedAllocations.push({ hub, items });
+    }
+
+    let vendor: ProcurementVendor | undefined;
+    if (input.vendorId === MISCELLANEOUS_VENDOR_ID) {
+      const miscellaneousVendorName = clean(input.newVendor?.name);
+      if (miscellaneousVendorName) {
+        const escapedName = miscellaneousVendorName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const existingVendor = await db.collection<VendorDocument>("procurement_vendors").findOne({
+          name: { $regex: `^${escapedName}$`, $options: "i" },
+          status: "active",
+        });
+        vendor = existingVendor
+          ? toVendor(existingVendor)
+          : await createVendorRecord(db, user._id, {
+              ...input.newVendor,
+              name: miscellaneousVendorName,
+              categories: [...(input.newVendor?.categories ?? []), "Miscellaneous"],
+            });
+      } else {
+        vendor = {
+          id: MISCELLANEOUS_VENDOR_ID,
+          name: "Miscellaneous",
+          contactName: "",
+          phone: "",
+          email: "",
+          address: "",
+          city: "",
+          state: "",
+          pincode: "",
+          paymentTerms: "",
+          categories: ["Miscellaneous"],
+          status: "active",
+          notes: "",
+          createdAt: "",
+          updatedAt: "",
+        };
+      }
+    } else if (input.vendorId) {
+      const vendorDocument = await db.collection<VendorDocument>("procurement_vendors")
+        .findOne({ _id: input.vendorId, status: "active" });
+      if (vendorDocument) vendor = toVendor(vendorDocument);
+    } else if (input.newVendor) {
+      vendor = await createVendorRecord(db, user._id, input.newVendor);
+    }
+    if (!vendor) return { ok: false, message: "Select an active vendor or add a new vendor." };
+
+    const orders: ProcurementOrderDocument[] = [];
+    for (const { hub, items } of validatedAllocations) {
       orders.push({
         _id: randomUUID().replace(/-/g, ""),
         orderNumber: `PO-${String(Date.now()).slice(-8)}-${orders.length + 1}`,
         bulkOrderId,
-        vendorId: vendor._id,
+        vendorId: vendor.id,
         vendorName: vendor.name,
         subhubUserId: hub._id,
         subhubName: getHubDisplayName(hub),
