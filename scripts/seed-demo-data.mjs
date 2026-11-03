@@ -229,7 +229,17 @@ async function seedHr(db, user, hubIndex) {
     }),
   );
   await db.collection("hr_attendance").insertMany(attendance);
-  return { employees: employees.length, attendance: attendance.length };
+  const headcountDate = dateOnly(now);
+  await db.collection("hr_headcount").insertOne({
+    _id: `demo-headcount-${hubIndex}-${headcountDate}`,
+    date: headcountDate,
+    presentCount: 7 + (hubIndex % 4),
+    recordedByUserId: user._id,
+    recordedByName: user.name,
+    updatedAt: now,
+    createdAt: now,
+  });
+  return { employees: employees.length, attendance: attendance.length, headcount: 1 };
 }
 
 async function seedInventory(db, user, hubIndex) {
@@ -254,7 +264,26 @@ async function seedInventory(db, user, hubIndex) {
     createdAt: addDays(now, -(materialIndex + 1)),
   }));
   await db.collection("inventory_movements").insertMany(movements);
-  return { items: items.length, movements: movements.length };
+  const qualityCode = rawMaterials[(hubIndex + 3) % rawMaterials.length][0];
+  const qualityMaterial = rawMaterials.find(([code]) => code === qualityCode);
+  const qualityQuantity = 8 + (hubIndex % 5);
+  await db.collection("quality_logs").insertOne({
+    _id: `demo-quality-${hubIndex + 1}`,
+    subhubUserId: user._id,
+    subhubName: user.subhubName,
+    code: qualityCode,
+    product: qualityMaterial[1],
+    category: "Raw Material",
+    issue: hubIndex % 2 === 0 ? "Faulty" : "Damaged",
+    quantity: qualityQuantity,
+    beforeQuantity: items.find((item) => item._id === qualityCode).quantity + qualityQuantity,
+    afterQuantity: items.find((item) => item._id === qualityCode).quantity,
+    notes: "Seeded quality inspection record for preview.",
+    recordedBy: user._id,
+    recordedByName: user.name,
+    createdAt: addDays(now, -1),
+  });
+  return { items: items.length, movements: movements.length, qualityLogs: 1 };
 }
 
 async function seedProduction(controlDb, workspaceDb, user, hubIndex, adminUser) {
@@ -405,7 +434,31 @@ async function seedProcurement(controlDb, subhubs, adminUser) {
     });
   }
   await controlDb.collection("procurement_orders").insertMany(orders);
-  return { vendors: vendorDocuments.length, orders: orders.length };
+  const requestStatuses = ["Pending", "Approved", "Declined", "Pending"];
+  const requests = subhubs.flatMap((subhub, hubIndex) =>
+    Array.from({ length: 2 }, (_, requestIndex) => {
+      const material = rawMaterials[(hubIndex * 2 + requestIndex) % rawMaterials.length];
+      const status = requestStatuses[(hubIndex + requestIndex) % requestStatuses.length];
+      return {
+        _id: `demo-item-request-${hubIndex + 1}-${requestIndex + 1}`,
+        subhubUserId: subhub._id,
+        subhubName: subhub.subhubName,
+        itemName: material[1],
+        quantity: 250 + hubIndex * 50 + requestIndex * 100,
+        notes: "Seeded request for procurement preview.",
+        status,
+        response: status === "Approved"
+          ? "Approved for the next supplier purchase."
+          : status === "Declined"
+            ? "Please confirm the remaining stock before requesting again."
+            : "",
+        createdAt: addDays(now, -(hubIndex + requestIndex + 1)),
+        updatedAt: now,
+      };
+    }),
+  );
+  await controlDb.collection("procurement_item_requests").insertMany(requests);
+  return { vendors: vendorDocuments.length, orders: orders.length, itemRequests: requests.length };
 }
 
 async function seedReassignments(controlDb, subhubs, adminUser) {
@@ -427,6 +480,7 @@ async function seedReassignments(controlDb, subhubs, adminUser) {
 }
 
 async function main() {
+  const existingUsersOnly = process.argv.includes("--existing-users-only");
   const client = new MongoClient(mongoUri, { serverSelectionTimeoutMS: 10_000 });
   await client.connect();
   try {
@@ -439,11 +493,18 @@ async function main() {
     if (!adminUser) throw new Error("No active Admin or Master Admin user exists.");
 
     const existingSubhubCount = await controlDb.collection("users").countDocuments({ panel: "subhub", role: "subhub", active: true });
-    await ensureDemoUsers(controlDb);
+    if (!existingUsersOnly) await ensureDemoUsers(controlDb);
     const subhubs = await controlDb.collection("users")
-      .find({ panel: "subhub", role: "subhub", active: true, subhubName: { $exists: true } })
+      .find({
+        panel: "subhub",
+        role: "subhub",
+        active: true,
+        subhubName: { $exists: true, $ne: "" },
+        databaseName: { $exists: true, $ne: "" },
+      })
       .sort({ subhubName: 1, name: 1 })
       .toArray();
+    if (!subhubs.length) throw new Error("No active SubHub users are available; no data was reset.");
 
     await clearOperationalCollections(controlDb);
     for (const subhub of subhubs) {
@@ -456,8 +517,10 @@ async function main() {
       subhubs: subhubs.length,
       employees: 0,
       attendance: 0,
+      headcount: 0,
       inventoryItems: 0,
       inventoryMovements: 0,
+      qualityLogs: 0,
       productionOrders: 0,
       productionReports: 0,
       productionActivities: 0,
@@ -471,8 +534,10 @@ async function main() {
       const production = await seedProduction(controlDb, workspaceDb, subhub, hubIndex, adminUser);
       totals.employees += hr.employees;
       totals.attendance += hr.attendance;
+      totals.headcount += hr.headcount;
       totals.inventoryItems += inventory.items;
       totals.inventoryMovements += inventory.movements;
+      totals.qualityLogs += inventory.qualityLogs;
       totals.productionOrders += production.orders;
       totals.productionReports += production.reports;
       totals.productionActivities += production.activities;
@@ -486,7 +551,7 @@ async function main() {
       previousActiveSubhubs: existingSubhubCount,
       ...totals,
       procurement,
-      demoLogin: {
+      demoLogin: existingUsersOnly ? undefined : {
         emailPattern: "demo.subhub.01@gadsons.demo through demo.subhub.10@gadsons.demo",
         password: demoPassword,
       },
