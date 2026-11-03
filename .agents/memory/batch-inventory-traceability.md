@@ -20,3 +20,9 @@ Batch codes use the item-name initials, creation date as `YYYYMMDD`, and a stabl
 **Why:** Operators need to recognize the item and batch date directly from the code, while source IDs still need collision-safe uniqueness.
 
 **How to apply:** Preserve the format when adding new batch sources or migrating historical batch codes; update movement and quality-log snapshots when a legacy code is converted.
+
+Repair duplicate historical batch codes before creating the unique `batchCode` index, and update all stored batch-code snapshots when a code changes.
+
+**Why:** MongoDB refuses to build the unique index while duplicates remain, which can block inventory reads; stale transfer or production snapshots would also break traceability after a repair.
+
+**How to apply:** Create supporting non-unique indexes first, run an idempotent collision repair and propagate the new code to movement, quality, production-allocation, and transfer records, then create the unique index.

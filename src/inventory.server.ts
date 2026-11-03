@@ -237,17 +237,25 @@ const batchIndexesPromises = new Map<string, Promise<void>>();
 async function ensureBatchIndexes(db: Db) {
   let promise = batchIndexesPromises.get(db.databaseName);
   if (!promise) {
-    promise = Promise.all([
-    db.collection<InventoryBatchDocument>("inventory_batches").createIndex({ sourceId: 1 }, { unique: true }),
-    db.collection<InventoryBatchDocument>("inventory_batches").createIndex({ itemCode: 1, availableQuantity: 1, createdAt: 1 }),
-    db.collection<InventoryBatchDocument>("inventory_batches").createIndex({ batchCode: 1 }, { unique: true }),
-    db.collection<BatchMovementDocument>("inventory_batch_movements").createIndex({ sourceEventId: 1 }, { unique: true }),
-    db.collection<BatchMovementDocument>("inventory_batch_movements").createIndex({ batchId: 1, createdAt: -1 }),
-    db.collection<BatchLineageDocument>("inventory_batch_lineage").createIndex({ sourceEventId: 1 }, { unique: true }),
-    ]).then(() => undefined);
+    promise = (async () => {
+      await Promise.all([
+        db.collection<InventoryBatchDocument>("inventory_batches").createIndex({ sourceId: 1 }, { unique: true }),
+        db.collection<InventoryBatchDocument>("inventory_batches").createIndex({ itemCode: 1, availableQuantity: 1, createdAt: 1 }),
+        db.collection<BatchMovementDocument>("inventory_batch_movements").createIndex({ sourceEventId: 1 }, { unique: true }),
+        db.collection<BatchMovementDocument>("inventory_batch_movements").createIndex({ batchId: 1, createdAt: -1 }),
+        db.collection<BatchLineageDocument>("inventory_batch_lineage").createIndex({ sourceEventId: 1 }, { unique: true }),
+      ]);
+      await migrateBatchCodesOnce(db);
+      await db.collection<InventoryBatchDocument>("inventory_batches").createIndex({ batchCode: 1 }, { unique: true });
+    })();
     batchIndexesPromises.set(db.databaseName, promise);
   }
-  await promise;
+  try {
+    await promise;
+  } catch (error) {
+    batchIndexesPromises.delete(db.databaseName);
+    throw error;
+  }
 }
 
 type ProductionReportDocument = {
@@ -474,8 +482,10 @@ export async function ensureLegacyBatches(db: Db, actor: string) {
 }
 
 async function migrateBatchCodes(db: Db) {
-  await ensureBatchIndexes(db);
   const batches = await db.collection<InventoryBatchDocument>("inventory_batches").find().sort({ createdAt: 1, _id: 1 }).toArray();
+  const codeCounts = new Map<string, number>();
+  for (const batch of batches) codeCounts.set(batch.batchCode, (codeCounts.get(batch.batchCode) ?? 0) + 1);
+  const duplicateCodes = new Set([...codeCounts].filter(([, count]) => count > 1).map(([code]) => code));
   const numericCode = /^([A-Z0-9]+)-(\d{8})-(\d+)$/;
   for (const batch of batches) {
     const client = await getMongoClient();
@@ -489,7 +499,7 @@ async function migrateBatchCodes(db: Db) {
         const expectedDate = batchDate(current.createdAt);
         let sequence = current.batchSequence;
         if (!sequence && match?.[1] === expectedInitials && match[2] === expectedDate) sequence = Number(match[3]);
-        if (sequence && match?.[1] === expectedInitials && match[2] === expectedDate && match[3] === String(sequence)) {
+        if (sequence && match?.[1] === expectedInitials && match[2] === expectedDate && match[3] === String(sequence) && !duplicateCodes.has(current.batchCode)) {
           await ensureBatchSequenceAtLeast(db, current.itemCode, current.createdAt, sequence, session);
           if (!current.batchSequence) {
             await db.collection<InventoryBatchDocument>("inventory_batches").updateOne(
@@ -539,6 +549,16 @@ async function migrateBatchCodes(db: Db) {
           { $set: { "allocations.$[allocation].batchCode": desiredCode } },
           { arrayFilters: [{ "allocation.batchId": current._id }], session },
         );
+        await db.collection<InventoryTransferDocument>("inventory_transfers").updateMany(
+          { "items.batches.sourceBatchId": current._id },
+          { $set: { "items.$[].batches.$[batch].sourceBatchCode": desiredCode } },
+          { arrayFilters: [{ "batch.sourceBatchId": current._id }], session },
+        );
+        await db.collection<InventoryTransferDocument>("inventory_transfers").updateMany(
+          { "items.batches.destinationBatchId": current._id },
+          { $set: { "items.$[].batches.$[batch].destinationBatchCode": desiredCode } },
+          { arrayFilters: [{ "batch.destinationBatchId": current._id }], session },
+        );
       });
     } finally {
       await session.endSession();
@@ -549,14 +569,14 @@ async function migrateBatchCodes(db: Db) {
 const batchCodeMigrationPromises = new Map<string, Promise<void>>();
 async function migrateBatchCodesOnce(db: Db) {
   const markerCollection = db.collection<{ _id: string; completedAt: Date }>("inventory_maintenance");
-  if (await markerCollection.findOne({ _id: "batch-codes-v1" })) return;
+  if (await markerCollection.findOne({ _id: "batch-codes-v2" })) return;
   let promise = batchCodeMigrationPromises.get(db.databaseName);
   if (!promise) {
     promise = (async () => {
-      if (await markerCollection.findOne({ _id: "batch-codes-v1" })) return;
+      if (await markerCollection.findOne({ _id: "batch-codes-v2" })) return;
       await migrateBatchCodes(db);
       await markerCollection.updateOne(
-        { _id: "batch-codes-v1" },
+        { _id: "batch-codes-v2" },
         { $set: { completedAt: new Date() } },
         { upsert: true },
       );
@@ -1230,13 +1250,13 @@ export async function syncWorkspaceInventoryForUser(user: UserDocument, workspac
   const latestState = inventorySyncStates.get(key);
   if (!options.force && latestState && Date.now() - latestState.completedAt < INVENTORY_SYNC_CACHE_MS) return latestState.warnings;
   const promise = (async () => {
+    await ensureBatchIndexes(workspaceDb);
     const warnings = [
       ...await syncDeliveredProcurementOrders(user, workspaceDb),
       ...await syncMoldedProduction(user, workspaceDb, excludedReportId),
       ...await syncFloatProduction(user, workspaceDb, excludedReportId),
       ...await ensureLegacyBatches(workspaceDb, user._id),
     ];
-    await migrateBatchCodesOnce(workspaceDb);
     return [...new Set(warnings)];
   })();
   inventorySyncStates.set(key, { completedAt: 0, warnings: [], inFlight: promise });
