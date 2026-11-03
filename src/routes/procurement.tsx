@@ -736,13 +736,43 @@ export function ProcurementOrderBuilderPage({
             <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-semibold">Materials for {data.subhubs.find((hub) => hub.id === allocation.subhubUserId)?.name ?? `factory ${allocationIndex + 1}`}</h3><p className="text-xs text-muted-foreground">Up to 40 materials per factory. Unit price is optional.</p></div>
               <button type="button" disabled={allocation.items.length >= 40} onClick={() => updateAllocation(allocation.id, (current) => ({ ...current, items: [...current.items, makeLine()] }))} className="h-9 rounded-md border border-input px-3 text-sm font-semibold hover:bg-muted disabled:opacity-50">+ Add material</button>
             </div>
-            {allocation.items.map((item, itemIndex) => <div key={item.id} className="grid items-end gap-3 rounded-md border border-border p-3 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(8rem,0.7fr)_auto]">
-              <RawMaterialPicker materials={materials} value={item.materialCode} onChange={(value) => updateAllocation(allocation.id, (current) => ({ ...current, items: current.items.map((row) => row.id === item.id ? { ...row, materialCode: value, materialName: "" } : row) }))} />
-              {item.materialCode === ONE_OFF_MATERIAL_CODE ? <label className="text-sm font-medium">One-off material name<input required value={item.materialName} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, items: current.items.map((row) => row.id === item.id ? { ...row, materialName: event.target.value } : row) }))} maxLength={160} className="mt-1 h-11 w-full rounded-md border border-input px-3" /></label> : null}
-              <label className="text-sm font-medium">Quantity<input required type="number" min="1" step="1" value={item.quantity} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, items: current.items.map((row) => row.id === item.id ? { ...row, quantity: event.target.value } : row) }))} className="mt-1 h-11 w-full rounded-md border border-input px-3" /></label>
-              <label className="text-sm font-medium">Unit price<input type="number" min="0" step="0.01" value={item.unitPrice} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, items: current.items.map((row) => row.id === item.id ? { ...row, unitPrice: event.target.value } : row) }))} placeholder="Optional" className="mt-1 h-11 w-full rounded-md border border-input px-3" /></label>
-              <button type="button" aria-label={`Remove material ${itemIndex + 1}`} disabled={allocation.items.length === 1} onClick={() => updateAllocation(allocation.id, (current) => ({ ...current, items: current.items.filter((row) => row.id !== item.id) }))} className="h-11 rounded-md border border-input px-3 text-sm hover:bg-muted disabled:opacity-40">Remove</button>
-            </div>)}
+            <div className="overflow-x-auto rounded-md border border-border">
+              <table className="w-full min-w-[920px] border-collapse text-sm">
+                <thead className="bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th scope="col" className="w-[30%] border border-border px-3 py-3">Raw material</th>
+                    <th scope="col" className="w-[25%] border border-border px-3 py-3">Material name / details</th>
+                    <th scope="col" className="w-[15%] border border-border px-3 py-3">Quantity</th>
+                    <th scope="col" className="w-[15%] border border-border px-3 py-3">Unit price</th>
+                    <th scope="col" className="w-24 border border-border px-3 py-3 text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allocation.items.map((item, itemIndex) => {
+                    const selectedMaterial = materials.find((material) => material.code === item.materialCode);
+                    return <tr key={item.id} className="bg-card align-middle hover:bg-muted/20">
+                      <td className="border border-border p-2">
+                        <RawMaterialPicker materials={materials} value={item.materialCode} onChange={(value) => updateAllocation(allocation.id, (current) => ({ ...current, items: current.items.map((row) => row.id === item.id ? { ...row, materialCode: value, materialName: "" } : row) }))} />
+                      </td>
+                      <td className="border border-border p-2">
+                        {item.materialCode === ONE_OFF_MATERIAL_CODE
+                          ? <input aria-label={`One-off material name for row ${itemIndex + 1}`} required value={item.materialName} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, items: current.items.map((row) => row.id === item.id ? { ...row, materialName: event.target.value } : row) }))} maxLength={160} placeholder="Enter material name" className="h-11 w-full rounded-md border border-input bg-background px-3" />
+                          : <span className="font-medium">{selectedMaterial?.name ?? "Select a material"}</span>}
+                      </td>
+                      <td className="border border-border p-2">
+                        <input aria-label={`Quantity for material row ${itemIndex + 1}`} required type="number" min="1" step="1" value={item.quantity} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, items: current.items.map((row) => row.id === item.id ? { ...row, quantity: event.target.value } : row) }))} placeholder="Quantity" className="h-11 w-full rounded-md border border-input bg-background px-3" />
+                      </td>
+                      <td className="border border-border p-2">
+                        <input aria-label={`Unit price for material row ${itemIndex + 1}`} type="number" min="0" step="0.01" value={item.unitPrice} onChange={(event) => updateAllocation(allocation.id, (current) => ({ ...current, items: current.items.map((row) => row.id === item.id ? { ...row, unitPrice: event.target.value } : row) }))} placeholder="Optional" className="h-11 w-full rounded-md border border-input bg-background px-3" />
+                      </td>
+                      <td className="border border-border p-2 text-center">
+                        <button type="button" aria-label={`Remove material ${itemIndex + 1}`} disabled={allocation.items.length === 1} onClick={() => updateAllocation(allocation.id, (current) => ({ ...current, items: current.items.filter((row) => row.id !== item.id) }))} className="h-10 rounded-md border border-input px-3 text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40">Remove</button>
+                      </td>
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>)}
       </section>
