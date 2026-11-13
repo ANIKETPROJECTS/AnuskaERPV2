@@ -1086,39 +1086,40 @@ async function applySourcedQuantity(input: {
 async function syncDeliveredProcurementOrders(user: UserDocument, workspaceDb: Db) {
   const warnings: string[] = [];
   const controlDb = await getControlPlaneDatabase();
-  const orders = await controlDb.collection<DeliveredProcurementDocument & { subhubUserId: string; status: string }>("procurement_orders")
-    .find({ subhubUserId: user._id, status: "Delivery done" })
+  const orders = await controlDb.collection<DeliveredProcurementDocument & {
+    subhubUserId: string;
+    status: string;
+    allocations?: Array<{ allocationId: string; subhubUserId: string; vendorName: string; items: Array<{ lineId?: string; materialCode: string; materialName: string; quantity: number; unitPrice: number }> }>;
+  }>("procurement_orders")
+    .find({ status: "Delivery done", $or: [{ subhubUserId: user._id }, { "allocations.subhubUserId": user._id }] })
     .toArray();
 
   for (const order of orders) {
-    const items = order.items?.length
-      ? order.items.map((item, index) => ({
-          ...item,
-          sourceId: `procurement:${order._id}:${item.lineId ?? `${index}-${item.materialCode}`}`,
-        }))
-      : [{
-          materialCode: order.materialCode,
-          materialName: order.materialName,
-          quantity: order.quantity,
-          unitPrice: order.unitPrice,
-          sourceId: `procurement:${order._id}`,
-        }];
-    for (const item of items) {
-      const part = masterPart(item.materialCode);
-      warnings.push(...await applySourcedQuantity({
-        db: workspaceDb,
-        sourceId: item.sourceId,
-        sourceType: "procurement",
-        code: item.materialCode,
-        product: item.materialName || part?.name || item.materialCode,
-        category: "Raw Material",
-        price: item.unitPrice || part?.rate || 0,
-        desiredQuantity: item.quantity,
-        reason: `Procurement receipt · ${order.orderNumber}`,
-        notes: "Added automatically when the procurement order reached Delivery done.",
-        updatedBy: user._id,
-        batchMetadata: { poNumber: order.orderNumber, vendor: (order as DeliveredProcurementDocument & { vendorName?: string }).vendorName ?? "", orderDate: (order as DeliveredProcurementDocument & { orderDate?: Date }).orderDate?.toISOString() ?? "" },
+    const allocations = order.allocations?.length
+      ? order.allocations.filter((allocation) => allocation.subhubUserId === user._id)
+      : [{ allocationId: order._id, subhubUserId: order.subhubUserId, vendorName: (order as DeliveredProcurementDocument & { vendorName?: string }).vendorName ?? "", items: order.items ?? [{ materialCode: order.materialCode, materialName: order.materialName, quantity: order.quantity, unitPrice: order.unitPrice }] }];
+    for (const allocation of allocations) {
+      const items = allocation.items.map((item, index) => ({
+        ...item,
+        sourceId: `procurement:${order._id}:${allocation.allocationId}:${item.lineId ?? `${index}-${item.materialCode}`}`,
       }));
+      for (const item of items) {
+        const part = masterPart(item.materialCode);
+        warnings.push(...await applySourcedQuantity({
+          db: workspaceDb,
+          sourceId: item.sourceId,
+          sourceType: "procurement",
+          code: item.materialCode,
+          product: item.materialName || part?.name || item.materialCode,
+          category: "Raw Material",
+          price: item.unitPrice || part?.rate || 0,
+          desiredQuantity: item.quantity,
+          reason: `Procurement receipt · ${order.orderNumber}`,
+          notes: "Added automatically when the procurement order reached Delivery done.",
+          updatedBy: user._id,
+          batchMetadata: { poNumber: order.orderNumber, vendor: allocation.vendorName, orderDate: (order as DeliveredProcurementDocument & { orderDate?: Date }).orderDate?.toISOString() ?? "" },
+        }));
+      }
     }
   }
   return warnings;

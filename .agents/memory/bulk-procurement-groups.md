@@ -3,8 +3,8 @@ name: Bulk procurement groups
 description: Preserve factory-level purchase-order assignment while providing a consolidated supplier view for multi-factory runs.
 ---
 
-A bulk run remains a set of hub-scoped purchase orders linked by a shared run ID. Each order belongs to one vendor and one factory; supplier totals are grouped by vendor across the run, while factory allocations stay attached to their own orders.
+A bulk submission is one master procurement order record with a single order number and nested factory/vendor/material allocations. Its status is shared across every allocation, while inventory receipts still fan out to each destination factory.
 
-**Why:** Hub material-need calculations, permissions, and delivery tracking assume each order has one destination. Combining records into a single hub-scoped order would misattribute stock and disrupt those flows.
+**Why:** Users need one order ID for one bulk submission, but stock, shortage, and receipt calculations still need the exact vendor, material, and factory allocation.
 
-**How to apply:** When adding bulk-order features, aggregate by shared run ID and vendor for supplier-facing summaries, but keep per-factory quantities and status records intact unless all hub-scoped queries and access rules are redesigned together.
+**How to apply:** Keep one database order record and one shared status; use nested allocations for vendor/factory-level calculations and receipt source identities. Remove legacy procurement order records only in the explicitly authorized one-time cutover, leaving vendors and inventory ledgers intact.

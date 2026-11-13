@@ -98,7 +98,22 @@ function VendorHistoryPage() {
     );
   }
 
-  const orders = result.data.orders.filter((order) => order.vendorId === vendor.id);
+  const orders = result.data.orders.flatMap((order) => {
+    const allocations = order.allocations.filter((allocation) => allocation.vendorId === vendor.id);
+    if (!allocations.length) return [];
+    const items = allocations.flatMap((allocation) => allocation.items);
+    return [{
+      ...order,
+      vendorId: vendor.id,
+      vendorName: vendor.name,
+      subhubUserId: allocations.length === 1 ? allocations[0]!.subhubUserId : "",
+      subhubName: [...new Set(allocations.map((allocation) => allocation.subhubName))].join(", "),
+      items,
+      allocations,
+      quantity: allocations.reduce((sum, allocation) => sum + allocation.quantity, 0),
+      totalAmount: allocations.reduce((sum, allocation) => sum + allocation.totalAmount, 0),
+    }];
+  });
   return (
     <>
       {refreshError ? (

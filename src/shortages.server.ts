@@ -38,6 +38,14 @@ type ProcurementOrderDocument = {
     changedAt: Date;
   }>;
   createdAt: Date;
+  allocations?: Array<{
+    allocationId: string;
+    vendorName: string;
+    subhubUserId: string;
+    subhubName: string;
+    items: Array<{ materialCode: string; materialName: string; quantity: number }>;
+  }>;
+  items?: Array<{ materialCode: string; materialName: string; quantity: number }>;
 };
 
 export type ShortageHub = {
@@ -224,20 +232,29 @@ export async function getShortageData(): Promise<
         .map(([hubId]) => `${hubId}:${row.code}`),
     ),
   );
-  const actions: ShortageAction[] = procurementOrders
-    .filter((order) => shortageByHubAndPart.has(`${order.subhubUserId}:${order.materialCode}`))
-    .map((order) => ({
-      id: order._id,
-      type: "Procurement" as const,
-      item: order.materialName,
-      itemCode: order.materialCode,
-      hubName: order.subhubName,
-      quantity: order.quantity,
-      status: order.status,
-      note: `${order.orderNumber} · ${order.vendorName} · ETA ${formatDate(order.expectedDelivery)}`,
-      actor: order.statusHistory?.at(-1)?.changedByName ?? "Procurement",
-      createdAt: order.createdAt.toISOString(),
-    }));
+  const actions: ShortageAction[] = procurementOrders.flatMap((order) => {
+    const allocations = order.allocations?.length ? order.allocations : [{
+      allocationId: order._id,
+      vendorName: order.vendorName,
+      subhubUserId: order.subhubUserId,
+      subhubName: order.subhubName,
+      items: order.items?.length ? order.items : [{ materialCode: order.materialCode, materialName: order.materialName, quantity: order.quantity }],
+    }];
+    return allocations.flatMap((allocation) => allocation.items
+      .filter((item) => shortageByHubAndPart.has(`${allocation.subhubUserId}:${item.materialCode}`))
+      .map((item) => ({
+        id: `${order._id}:${allocation.allocationId}:${item.materialCode}`,
+        type: "Procurement" as const,
+        item: item.materialName,
+        itemCode: item.materialCode,
+        hubName: allocation.subhubName,
+        quantity: item.quantity,
+        status: order.status,
+        note: `${order.orderNumber} · ${allocation.vendorName} · ETA ${formatDate(order.expectedDelivery)}`,
+        actor: order.statusHistory?.at(-1)?.changedByName ?? "Procurement",
+        createdAt: order.createdAt.toISOString(),
+      })));
+  });
 
   return {
     ok: true,

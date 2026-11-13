@@ -67,6 +67,19 @@ type ProcurementLineDocument = {
   totalAmount: number;
 };
 
+type ProcurementAllocationDocument = {
+  allocationId: string;
+  vendorId: string;
+  vendorName: string;
+  subhubUserId: string;
+  subhubName: string;
+  materialCode: string;
+  materialName: string;
+  items: ProcurementLineDocument[];
+  quantity: number;
+  totalAmount: number;
+};
+
 type ProcurementOrderDocument = {
   _id: string;
   orderNumber: string;
@@ -78,6 +91,7 @@ type ProcurementOrderDocument = {
   materialCode: string;
   materialName: string;
   items?: ProcurementLineDocument[];
+  allocations?: ProcurementAllocationDocument[];
   quantity: number;
   unitPrice: number;
   totalAmount: number;
@@ -134,6 +148,7 @@ export type ProcurementOrder = {
   materialCode: string;
   materialName: string;
   items: ProcurementLineDocument[];
+  allocations: ProcurementAllocationDocument[];
   quantity: number;
   unitPrice: number;
   totalAmount: number;
@@ -309,34 +324,51 @@ function toVendor(document: VendorDocument): ProcurementVendor {
 }
 
 function toOrder(document: ProcurementOrderDocument, redactFinancials = false): ProcurementOrder {
-  const sourceItems = document.items?.length
-    ? document.items
-    : [
-        {
-          materialCode: document.materialCode,
-          materialName: document.materialName,
-          quantity: document.quantity,
-          unitPrice: document.unitPrice,
-          totalAmount: document.totalAmount,
-        },
-      ];
-  const items = redactFinancials
-    ? sourceItems.map((item) => ({ ...item, unitPrice: 0, totalAmount: 0 }))
-    : sourceItems;
-  return {
-    id: document._id,
-    orderNumber: document.orderNumber,
-    ...(document.bulkOrderId ? { bulkOrderId: document.bulkOrderId } : {}),
+  const sourceAllocations = document.allocations?.length ? document.allocations : [{
+    allocationId: document._id,
     vendorId: document.vendorId,
     vendorName: document.vendorName,
     subhubUserId: document.subhubUserId,
     subhubName: document.subhubName,
     materialCode: document.materialCode,
     materialName: document.materialName,
+    items: document.items?.length ? document.items : [{
+      materialCode: document.materialCode,
+      materialName: document.materialName,
+      quantity: document.quantity,
+      unitPrice: document.unitPrice,
+      totalAmount: document.totalAmount,
+    }],
+    quantity: document.quantity,
+    totalAmount: document.totalAmount,
+  }];
+  const allocations = sourceAllocations.map((allocation) => ({
+    ...allocation,
+    items: redactFinancials
+      ? allocation.items.map((item) => ({ ...item, unitPrice: 0, totalAmount: 0 }))
+      : allocation.items,
+    totalAmount: redactFinancials ? 0 : allocation.totalAmount,
+  }));
+  const items = allocations.flatMap((allocation) => allocation.items);
+  const vendors = [...new Map(allocations.map((allocation) => [allocation.vendorId, allocation.vendorName])).entries()];
+  const hubs = [...new Map(allocations.map((allocation) => [allocation.subhubUserId, allocation.subhubName])).entries()];
+  const allItemsQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+  const totalAmount = allocations.reduce((sum, allocation) => sum + allocation.totalAmount, 0);
+  return {
+    id: document._id,
+    orderNumber: document.orderNumber,
+    ...(document.bulkOrderId ? { bulkOrderId: document.bulkOrderId } : {}),
+    vendorId: vendors.length === 1 ? vendors[0]![0] : "",
+    vendorName: vendors.length === 1 ? vendors[0]![1] : "Multiple vendors",
+    subhubUserId: hubs.length === 1 ? hubs[0]![0] : "",
+    subhubName: hubs.length === 1 ? hubs[0]![1] : "Multiple factories",
+    materialCode: items.length === 1 ? items[0]!.materialCode : "MULTIPLE",
+    materialName: items.length === 1 ? items[0]!.materialName : `${items.length} material lines`,
     items,
-    quantity: items.reduce((sum, item) => sum + item.quantity, 0),
-    unitPrice: redactFinancials ? 0 : document.unitPrice,
-    totalAmount: redactFinancials ? 0 : document.totalAmount,
+    allocations,
+    quantity: allItemsQuantity,
+    unitPrice: redactFinancials || items.length !== 1 ? 0 : items[0]!.unitPrice,
+    totalAmount: redactFinancials ? 0 : totalAmount,
     orderDate: dateOnly(document.orderDate),
     expectedDelivery: dateOnly(document.expectedDelivery),
     notes: document.notes,
@@ -392,6 +424,23 @@ function emptyData(): ProcurementData {
   };
 }
 
+async function clearLegacyProcurementOrdersOnce(db: Db) {
+  const markerId = "single-record-orders-cutover-v1";
+  const markers = db.collection<{ _id: string; token?: string; completedAt?: Date }>("procurement_maintenance");
+  const token = randomUUID();
+  const claim = await markers.findOneAndUpdate(
+    { _id: markerId },
+    { $setOnInsert: { token } },
+    { upsert: true, returnDocument: "after" },
+  );
+  if (claim?.token !== token) return;
+  const { deletedCount } = await db.collection("procurement_orders").deleteMany({});
+  await markers.updateOne(
+    { _id: markerId, token },
+    { $set: { completedAt: new Date(), deletedCount }, $unset: { token: "" } },
+  );
+}
+
 function currentUserRequired(user: Awaited<ReturnType<typeof getCurrentUserRecord>>, panel: Panel) {
   if (!user || user.panel !== panel || !user.active) {
     throw new Error(
@@ -408,30 +457,33 @@ function currentUserRequired(user: Awaited<ReturnType<typeof getCurrentUserRecor
 function calculatePerformance(orders: ProcurementOrder[]): VendorPerformance[] {
   const byVendor = new Map<string, VendorPerformance>();
   for (const order of orders) {
-    const row = byVendor.get(order.vendorId) ?? {
-      vendorId: order.vendorId,
-      vendorName: order.vendorName,
-      orders: 0,
-      totalQuantity: 0,
-      spend: 0,
-      pendingOrders: 0,
-      completedOrders: 0,
-      onTimeRate: null,
-    };
-    row.orders += 1;
-    row.totalQuantity += order.items.reduce((sum, item) => sum + item.quantity, 0);
-    row.spend += order.totalAmount;
-    if (order.status === "Delivery done") row.completedOrders += 1;
-    else row.pendingOrders += 1;
-    byVendor.set(order.vendorId, row);
+    for (const allocation of order.allocations) {
+      const row = byVendor.get(allocation.vendorId) ?? {
+        vendorId: allocation.vendorId,
+        vendorName: allocation.vendorName,
+        orders: 0,
+        totalQuantity: 0,
+        spend: 0,
+        pendingOrders: 0,
+        completedOrders: 0,
+        onTimeRate: null,
+      };
+      row.orders += 1;
+      row.totalQuantity += allocation.quantity;
+      row.spend += allocation.totalAmount;
+      if (order.status === "Delivery done") row.completedOrders += 1;
+      else row.pendingOrders += 1;
+      byVendor.set(allocation.vendorId, row);
+    }
   }
 
   return [...byVendor.values()]
     .map((row) => {
-      const vendorOrders = orders.filter(
-        (order) => order.vendorId === row.vendorId && order.status === "Delivery done",
-      );
-      const onTime = vendorOrders.filter((order) => {
+      const vendorAllocations = orders.flatMap((order) =>
+        order.status === "Delivery done"
+          ? order.allocations.filter((allocation) => allocation.vendorId === row.vendorId).map(() => order)
+          : []);
+      const onTime = vendorAllocations.filter((order) => {
         const delivered = order.statusHistory.find((entry) => entry.status === "Delivery done");
         return delivered
           ? dateOnly(new Date(delivered.changedAt)) <= order.expectedDelivery
@@ -439,24 +491,35 @@ function calculatePerformance(orders: ProcurementOrder[]): VendorPerformance[] {
       }).length;
       return {
         ...row,
-        onTimeRate: vendorOrders.length ? Math.round((onTime / vendorOrders.length) * 100) : null,
+        onTimeRate: vendorAllocations.length ? Math.round((onTime / vendorAllocations.length) * 100) : null,
       };
     })
     .sort((a, b) => b.spend - a.spend);
 }
 
+function orderAllocations(order: ProcurementOrderDocument): ProcurementAllocationDocument[] {
+  return order.allocations?.length ? order.allocations : [{
+    allocationId: order._id,
+    vendorId: order.vendorId,
+    vendorName: order.vendorName,
+    subhubUserId: order.subhubUserId,
+    subhubName: order.subhubName,
+    materialCode: order.materialCode,
+    materialName: order.materialName,
+    items: order.items?.length ? order.items : [{
+      materialCode: order.materialCode,
+      materialName: order.materialName,
+      quantity: order.quantity,
+      unitPrice: order.unitPrice,
+      totalAmount: order.totalAmount,
+    }],
+    quantity: order.quantity,
+    totalAmount: order.totalAmount,
+  }];
+}
+
 function orderItems(order: ProcurementOrderDocument): ProcurementLineDocument[] {
-  return order.items?.length
-    ? order.items
-    : [
-        {
-          materialCode: order.materialCode,
-          materialName: order.materialName,
-          quantity: order.quantity,
-          unitPrice: order.unitPrice,
-          totalAmount: order.totalAmount,
-        },
-      ];
+  return orderAllocations(order).flatMap((allocation) => allocation.items);
 }
 
 async function calculateHubMaterialNeeds(
@@ -480,9 +543,11 @@ async function calculateHubMaterialNeeds(
 
   for (const order of procurementOrders) {
     if (order.status === "Delivery done") continue;
-    for (const item of orderItems(order)) {
-      const key = `${order.subhubUserId}:${item.materialCode}`;
-      onOrder.set(key, (onOrder.get(key) ?? 0) + item.quantity);
+    for (const allocation of orderAllocations(order)) {
+      for (const item of allocation.items) {
+        const key = `${allocation.subhubUserId}:${item.materialCode}`;
+        onOrder.set(key, (onOrder.get(key) ?? 0) + item.quantity);
+      }
     }
   }
 
@@ -605,7 +670,7 @@ export async function getHubTransferOptions(input: {
     const sourceIds = sourceHubs.map((hub) => hub._id);
     const orders = sourceIds.length
       ? await db.collection<ProcurementOrderDocument>("procurement_orders")
-          .find({ subhubUserId: { $in: sourceIds } })
+          .find({ $or: [{ subhubUserId: { $in: sourceIds } }, { "allocations.subhubUserId": { $in: sourceIds } }] })
           .toArray()
       : [];
     const sourceNeeds = await calculateHubMaterialNeeds(db, sourceHubs, orders);
@@ -712,7 +777,7 @@ export async function createHubInventoryTransfer(input: {
     const destinationHub = hubById.get(input.destinationHubId);
     if (!sourceHub || !destinationHub) return { ok: false, message: "The source or destination hub is no longer active." };
     const orders = await db.collection<ProcurementOrderDocument>("procurement_orders")
-      .find({ subhubUserId: { $in: hubIds } })
+      .find({ $or: [{ subhubUserId: { $in: hubIds } }, { "allocations.subhubUserId": { $in: hubIds } }] })
       .toArray();
     const currentNeeds = await calculateHubMaterialNeeds(db, [destinationHub], orders);
 
@@ -767,6 +832,7 @@ export async function getProcurementData(
     if (!user) return { ok: false, data: emptyData(), message: "Sign in to view Procurement." };
     currentUserRequired(user, panel);
     const db = await getProcurementDb();
+    if (panel !== "subhub") await clearLegacyProcurementOrdersOnce(db);
     const [vendorDocuments, orderDocuments, subhubDocuments] = await Promise.all([
       db
         .collection<VendorDocument>("procurement_vendors")
@@ -775,7 +841,7 @@ export async function getProcurementData(
         .toArray(),
       db
         .collection<ProcurementOrderDocument>("procurement_orders")
-        .find(panel === "subhub" ? { subhubUserId: user._id } : {})
+        .find(panel === "subhub" ? { $or: [{ subhubUserId: user._id }, { "allocations.subhubUserId": user._id }] } : {})
         .sort({ orderDate: -1, createdAt: -1 })
         .toArray(),
       panel !== "subhub"
@@ -792,7 +858,12 @@ export async function getProcurementData(
       .sort({ createdAt: -1 })
       .toArray();
     const vendors = panel === "subhub" ? [] : vendorDocuments.map(toVendor);
-    const orders = orderDocuments.map((order) => toOrder(order, panel === "subhub"));
+    const orders = orderDocuments.map((order) => toOrder(
+      panel === "subhub" && order.allocations?.length
+        ? { ...order, allocations: order.allocations.filter((allocation) => allocation.subhubUserId === user._id) }
+        : order,
+      panel === "subhub",
+    ));
     const completedOrders = orders.filter((order) => order.status === "Delivery done");
     const pendingOrders = orders.length - completedOrders.length;
     const deliveredOnTime = completedOrders.filter((order) => {
@@ -801,20 +872,22 @@ export async function getProcurementData(
     }).length;
     const subhubMap = new Map<string, SubhubProcurementSummary>();
     for (const order of orders) {
-      const row = subhubMap.get(order.subhubUserId) ?? {
-        subhubName: order.subhubName,
-        orders: 0,
-        quantity: 0,
-        spend: 0,
-        pendingOrders: 0,
-        completedOrders: 0,
-      };
-      row.orders += 1;
-      row.quantity += order.quantity;
-      row.spend += order.totalAmount;
-      if (order.status === "Delivery done") row.completedOrders += 1;
-      else row.pendingOrders += 1;
-      subhubMap.set(order.subhubUserId, row);
+      for (const allocation of order.allocations) {
+        const row = subhubMap.get(allocation.subhubUserId) ?? {
+          subhubName: allocation.subhubName,
+          orders: 0,
+          quantity: 0,
+          spend: 0,
+          pendingOrders: 0,
+          completedOrders: 0,
+        };
+        row.orders += 1;
+        row.quantity += allocation.quantity;
+        row.spend += allocation.totalAmount;
+        if (order.status === "Delivery done") row.completedOrders += 1;
+        else row.pendingOrders += 1;
+        subhubMap.set(allocation.subhubUserId, row);
+      }
     }
     return {
       ok: true,
@@ -1075,7 +1148,7 @@ export async function deleteOrArchiveVendor(
     if (!vendor) return { ok: false, message: "Vendor not found." };
     const orderCount = await db
       .collection<ProcurementOrderDocument>("procurement_orders")
-      .countDocuments({ vendorId: id });
+      .countDocuments({ $or: [{ vendorId: id }, { "allocations.vendorId": id }] });
     if (orderCount > 0) {
       await db
         .collection<VendorDocument>("procurement_vendors")
@@ -1321,7 +1394,7 @@ export async function createBulkProcurementOrders(input: {
       return { ok: false, message: "Enter valid dates; expected delivery cannot be before the order date." };
     }
     if (!input.allocations.length || input.allocations.length > 50) {
-      return { ok: false, message: "Select at least one and no more than 50 factories." };
+      return { ok: false, message: "Add at least one and no more than 50 factory/vendor allocations." };
     }
     const db = await getProcurementDb();
     const controlDb = await getControlPlaneDatabase();
@@ -1452,34 +1525,47 @@ export async function createBulkProcurementOrders(input: {
       allocation.vendor = vendor;
     }
 
-    const orders: ProcurementOrderDocument[] = [];
-    for (const { hub, items, vendor } of validatedAllocations) {
-      orders.push({
-        _id: randomUUID().replace(/-/g, ""),
-        orderNumber: `PO-${String(Date.now()).slice(-8)}-${orders.length + 1}`,
-        bulkOrderId,
-        vendorId: vendor!.id,
-        vendorName: vendor!.name,
-        subhubUserId: hub._id,
-        subhubName: getHubDisplayName(hub),
-        materialCode: items[0]!.materialCode,
-        materialName: items[0]!.materialName,
-        items,
-        quantity: items.reduce((sum, item) => sum + item.quantity, 0),
-        unitPrice: items[0]!.unitPrice,
-        totalAmount: items.reduce((sum, item) => sum + item.totalAmount, 0),
-        orderDate,
-        expectedDelivery,
-        notes: clean(input.notes),
-        status: "Order placed",
-        statusHistory: [{ status: "Order placed", changedAt: now, changedBy: user._id, changedByName: user.name }],
-        createdAt: now,
-        updatedAt: now,
-        createdBy: user._id,
-      });
-    }
-    await db.collection<ProcurementOrderDocument>("procurement_orders").insertMany(orders, { ordered: true });
-    return { ok: true, bulkOrderId, orders: orders.map((order) => toOrder(order)) };
+    const allocations: ProcurementAllocationDocument[] = validatedAllocations.map(({ hub, items, vendor }) => ({
+      allocationId: randomUUID().replace(/-/g, ""),
+      vendorId: vendor!.id,
+      vendorName: vendor!.name,
+      subhubUserId: hub._id,
+      subhubName: getHubDisplayName(hub),
+      materialCode: items[0]!.materialCode,
+      materialName: items[0]!.materialName,
+      items,
+      quantity: items.reduce((sum, item) => sum + item.quantity, 0),
+      totalAmount: items.reduce((sum, item) => sum + item.totalAmount, 0),
+    }));
+    const allItems = allocations.flatMap((allocation) => allocation.items);
+    const vendorGroups = new Map(allocations.map((allocation) => [allocation.vendorId, allocation.vendorName]));
+    const hubGroups = new Map(allocations.map((allocation) => [allocation.subhubUserId, allocation.subhubName]));
+    const order: ProcurementOrderDocument = {
+      _id: bulkOrderId,
+      orderNumber: `PO-${String(Date.now()).slice(-8)}-${bulkOrderId.slice(0, 4).toUpperCase()}`,
+      bulkOrderId,
+      vendorId: vendorGroups.size === 1 ? [...vendorGroups.keys()][0]! : "",
+      vendorName: vendorGroups.size === 1 ? [...vendorGroups.values()][0]! : "Multiple vendors",
+      subhubUserId: hubGroups.size === 1 ? [...hubGroups.keys()][0]! : "",
+      subhubName: hubGroups.size === 1 ? [...hubGroups.values()][0]! : "Multiple factories",
+      materialCode: allItems.length === 1 ? allItems[0]!.materialCode : "MULTIPLE",
+      materialName: allItems.length === 1 ? allItems[0]!.materialName : `${allItems.length} material lines`,
+      items: allItems,
+      allocations,
+      quantity: allocations.reduce((sum, allocation) => sum + allocation.quantity, 0),
+      unitPrice: allItems.length === 1 ? allItems[0]!.unitPrice : 0,
+      totalAmount: allocations.reduce((sum, allocation) => sum + allocation.totalAmount, 0),
+      orderDate,
+      expectedDelivery,
+      notes: clean(input.notes),
+      status: "Order placed",
+      statusHistory: [{ status: "Order placed", changedAt: now, changedBy: user._id, changedByName: user.name }],
+      createdAt: now,
+      updatedAt: now,
+      createdBy: user._id,
+    };
+    await db.collection<ProcurementOrderDocument>("procurement_orders").insertOne(order);
+    return { ok: true, bulkOrderId, orders: [toOrder(order)] };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : "Bulk procurement order could not be created." };
   }
@@ -1507,27 +1593,29 @@ export async function getBulkProcurementOrderSummary(input: { bulkOrderId: strin
       }>;
     }>();
     for (const order of orders) {
-      const vendor = vendorTotals.get(order.vendorId) ?? {
-        vendorId: order.vendorId,
-        vendorName: order.vendorName,
-        orders: 0,
-        totalQuantity: 0,
-        totalAmount: 0,
-        materials: new Map(),
-      };
-      vendor.orders += 1;
-      vendor.totalQuantity += order.quantity;
-      vendor.totalAmount += order.totalAmount;
-      for (const item of orderItems(order)) {
-        const total = vendor.materials.get(item.materialCode) ?? {
-          materialCode: item.materialCode, materialName: item.materialName, quantity: 0, totalAmount: 0, allocations: [],
+      for (const allocation of orderAllocations(order)) {
+        const vendor = vendorTotals.get(allocation.vendorId) ?? {
+          vendorId: allocation.vendorId,
+          vendorName: allocation.vendorName,
+          orders: 0,
+          totalQuantity: 0,
+          totalAmount: 0,
+          materials: new Map(),
         };
-        total.quantity += item.quantity;
-        total.totalAmount += item.totalAmount;
-        total.allocations.push({ hubName: order.subhubName, quantity: item.quantity, totalAmount: item.totalAmount });
-        vendor.materials.set(item.materialCode, total);
+        vendor.orders += 1;
+        vendor.totalQuantity += allocation.quantity;
+        vendor.totalAmount += allocation.totalAmount;
+        for (const item of allocation.items) {
+          const total = vendor.materials.get(item.materialCode) ?? {
+            materialCode: item.materialCode, materialName: item.materialName, quantity: 0, totalAmount: 0, allocations: [],
+          };
+          total.quantity += item.quantity;
+          total.totalAmount += item.totalAmount;
+          total.allocations.push({ hubName: allocation.subhubName, quantity: item.quantity, totalAmount: item.totalAmount });
+          vendor.materials.set(item.materialCode, total);
+        }
+        vendorTotals.set(allocation.vendorId, vendor);
       }
-      vendorTotals.set(order.vendorId, vendor);
     }
     return {
       ok: true as const,
@@ -1614,6 +1702,7 @@ export async function reassignProcurementOrder(input: {
     ]);
     if (!order) return { ok: false, message: "Order not found in your procurement workspace." };
     if (!destination?.subhubName) return { ok: false, message: "Select an active destination SubHub." };
+    if (order.allocations?.length && order.allocations.length > 1) return { ok: false, message: "A consolidated multi-factory order cannot be reassigned as a whole." };
     if (destination._id === order.subhubUserId) return { ok: false, message: "Choose a different destination SubHub." };
     if (order.status === "Delivery done") return { ok: false, message: "Delivered orders cannot be reassigned." };
     const now = new Date();
@@ -1627,10 +1716,19 @@ export async function reassignProcurementOrder(input: {
       changedByName: user.name,
       reason,
     };
+    const reassignmentSet: Record<string, unknown> = {
+      subhubUserId: destination._id,
+      subhubName: destination.subhubName,
+      updatedAt: now,
+    };
+    if (order.allocations?.length === 1) {
+      reassignmentSet["allocations.0.subhubUserId"] = destination._id;
+      reassignmentSet["allocations.0.subhubName"] = destination.subhubName;
+    }
     const update = await db.collection<ProcurementOrderDocument>("procurement_orders").updateOne(
       { _id: order._id, status: { $ne: "Delivery done" } },
       {
-        $set: { subhubUserId: destination._id, subhubName: destination.subhubName, updatedAt: now },
+        $set: reassignmentSet,
         $push: { assignmentHistory: assignment },
       },
     );
@@ -1652,9 +1750,14 @@ export async function getProcurementOrder(
     const db = await getProcurementDb();
     const order = await db
       .collection<ProcurementOrderDocument>("procurement_orders")
-      .findOne(panel === "subhub" ? { _id: id, subhubUserId: user._id } : { _id: id });
+      .findOne(panel === "subhub" ? { _id: id, $or: [{ subhubUserId: user._id }, { "allocations.subhubUserId": user._id }] } : { _id: id });
     return order
-      ? { ok: true, order: toOrder(order, panel === "subhub") }
+      ? { ok: true, order: toOrder(
+          panel === "subhub" && order.allocations?.length
+            ? { ...order, allocations: order.allocations.filter((allocation) => allocation.subhubUserId === user._id) }
+            : order,
+          panel === "subhub",
+        ) }
       : { ok: false, message: "Procurement order not found." };
   } catch (error) {
     return {

@@ -179,7 +179,7 @@ function PurchaseDetail() {
             <Detail label="Created" value={formatTimestamp(order.createdAt)} />
           </dl>
         </section>
-        {(panel === "admin" || panel === "procurement") && order.status !== "Delivery done" ? (
+        {(panel === "admin" || panel === "procurement") && order.status !== "Delivery done" && order.allocations.length <= 1 ? (
           <section className="lg:col-span-2">
             <DetailSectionHeading title="Move order to another SubHub" description="This changes the order destination and keeps an audit trail. Delivered orders cannot be moved." />
             <form onSubmit={moveOrder} className="grid gap-3 border-b border-border py-4 sm:grid-cols-[1fr_1fr_auto]">
@@ -202,10 +202,22 @@ function PurchaseDetail() {
             </div> : null}
           </section>
         ) : null}
-        <section>
-          <DetailSectionHeading title="Materials in this order" />
-          <div className="divide-y divide-border border-b border-border">
-            {order.items.map((item) => <div key={`${item.materialCode}:${item.materialName}`} className="flex items-center gap-4 px-2 py-4 text-base"><div className="min-w-0 flex-1"><p className="truncate font-semibold">{item.materialName}</p><p className="text-sm text-muted-foreground">{item.materialCode}</p></div><div className="text-right"><p className="tabular font-semibold">{item.quantity.toLocaleString("en-IN")} units</p></div></div>)}
+        <section className="lg:col-span-2">
+          <DetailSectionHeading title="Factory and supplier allocations" description="This bulk order has one shared status across all allocations." />
+          <div className="space-y-3">
+            {order.allocations.map((allocation) => <section key={allocation.allocationId} className="overflow-hidden rounded-md border border-border">
+              <div className="grid gap-2 border-b border-border bg-muted/20 px-4 py-3 sm:grid-cols-3">
+                <Detail label="Factory" value={allocation.subhubName} />
+                <Detail label="Vendor" value={allocation.vendorName} />
+                <Detail label="Allocation quantity" value={`${allocation.quantity.toLocaleString("en-IN")} units`} />
+              </div>
+              <div className="divide-y divide-border">
+                {allocation.items.map((item, index) => <div key={`${allocation.allocationId}-${item.lineId ?? index}`} className="flex items-center gap-4 px-4 py-3 text-base">
+                  <div className="min-w-0 flex-1"><p className="truncate font-semibold">{item.materialName}</p><p className="text-sm text-muted-foreground">{item.materialCode}</p></div>
+                  <div className="text-right"><p className="tabular font-semibold">{item.quantity.toLocaleString("en-IN")} units</p></div>
+                </div>)}
+              </div>
+            </section>)}
           </div>
         </section>
         <section className="lg:col-span-2">
@@ -216,7 +228,7 @@ function PurchaseDetail() {
     </div>
   );
   const title = `Purchase ${order.orderNumber}`;
-  const subtitle = `${order.items.length === 1 ? order.materialName : `${order.items.length} materials`} · ${order.vendorName} · ${order.subhubName}`;
+  const subtitle = `${order.allocations.length} factory/vendor allocations · ${order.items.length} material lines`;
   const backLinkClassName =
     "inline-flex min-h-12 items-center gap-2 rounded-md border border-input bg-background px-4 text-base font-semibold hover:bg-muted";
   const actions = (

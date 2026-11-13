@@ -232,10 +232,10 @@ export function ProcurementPage({
     const normalized = query.trim().toLowerCase();
     return data.orders
       .filter((order) => {
-        const searchable = [order.orderNumber, order.vendorName, order.materialName, order.materialCode, ...order.items.map((item) => `${item.materialName} ${item.materialCode}`), order.subhubName, order.notes].join(" ").toLowerCase();
+        const searchable = [order.orderNumber, order.vendorName, order.materialName, order.materialCode, ...order.items.map((item) => `${item.materialName} ${item.materialCode}`), ...order.allocations.map((allocation) => `${allocation.vendorName} ${allocation.subhubName}`), order.subhubName, order.notes].join(" ").toLowerCase();
         const matchesQuery = !normalized || searchable.includes(normalized);
-        const matchesVendor = vendorFilter === "all" || order.vendorId === vendorFilter;
-        const matchesSubhub = subhubFilter === "all" || order.subhubUserId === subhubFilter;
+        const matchesVendor = vendorFilter === "all" || order.allocations.some((allocation) => allocation.vendorId === vendorFilter);
+        const matchesSubhub = subhubFilter === "all" || order.allocations.some((allocation) => allocation.subhubUserId === subhubFilter);
         const matchesStatus = statusFilter === "all" || order.status === statusFilter;
         const matchesFrom = !fromDate || order.orderDate >= fromDate;
         const matchesTo = !toDate || order.orderDate <= toDate;
@@ -307,7 +307,7 @@ export function ProcurementPage({
   }, [vendorCategoryFilter, vendorQuery, vendorStatusFilter]);
 
   const selectedVendor = data.vendors.find((vendor) => vendor.id === selectedVendorId);
-  const selectedVendorOrders = selectedVendorId ? data.orders.filter((order) => order.vendorId === selectedVendorId) : [];
+  const selectedVendorOrders = selectedVendorId ? data.orders.filter((order) => order.allocations.some((allocation) => allocation.vendorId === selectedVendorId)) : [];
   const hasFilters = Boolean(query || vendorFilter !== "all" || subhubFilter !== "all" || statusFilter !== "all" || fromDate || toDate);
 
   function clearFilters() {
@@ -341,7 +341,7 @@ export function ProcurementPage({
   }
 
   async function removeVendor(vendor: ProcurementVendor) {
-    const hasHistory = data.orders.some((order) => order.vendorId === vendor.id);
+    const hasHistory = data.orders.some((order) => order.allocations.some((allocation) => allocation.vendorId === vendor.id));
     const actionLabel = hasHistory ? "Archive" : "Delete";
     const actionDescription = hasHistory
       ? "Its order history will remain available for reporting."
@@ -721,7 +721,7 @@ export function ProcurementOrderBuilderPage({
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div><h2 className="text-lg font-semibold">Factory and supplier orders</h2><p className="mt-1 text-sm text-muted-foreground">Each allocation creates one factory purchase order for its selected supplier. A factory can have multiple suppliers.</p></div>
+          <div><h2 className="text-lg font-semibold">Factory and supplier allocations</h2><p className="mt-1 text-sm text-muted-foreground">Each allocation groups materials for one factory and vendor inside this single order. A factory can have multiple vendors.</p></div>
           <button type="button" disabled={allocations.length >= 50} onClick={() => {
             const id = `factory-${nextId.current++}`;
             setAllocations((current) => [...current, { id, subhubUserId: "", vendorId: "", addingVendor: false, newVendorName: "", newVendorPhone: "", newVendorEmail: "", miscellaneousVendorName: "", items: [makeLine()] }]);
@@ -796,7 +796,7 @@ export function ProcurementOrderBuilderPage({
       {error ? <p role="alert" className="rounded-md border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
       <div className="sticky bottom-0 flex flex-wrap justify-end gap-3 border-t border-border bg-background/95 py-4 backdrop-blur">
         <Link to={backTo} className="inline-flex h-11 items-center rounded-md border border-input px-4 text-sm font-semibold hover:bg-muted">Cancel</Link>
-        <button type="submit" disabled={busy || !data.subhubs.length} className="rule-header inline-flex h-11 items-center gap-2 rounded-md px-5 text-sm font-semibold disabled:opacity-50"><Check className="size-4" />{busy ? "Creating orders…" : `Create ${allocations.length} purchase order${allocations.length === 1 ? "" : "s"}`}</button>
+        <button type="submit" disabled={busy || !data.subhubs.length} className="rule-header inline-flex h-11 items-center gap-2 rounded-md px-5 text-sm font-semibold disabled:opacity-50"><Check className="size-4" />{busy ? "Creating order…" : "Create one order"}</button>
       </div>
     </form>}
   </Shell>;
@@ -1390,7 +1390,8 @@ function MassProcurementOrderForm({ data, needs, panel, onClose, onSaved }: { da
       setBusy(false);
       return;
     }
-    await onSaved(`Bulk run ${result.bulkOrderId.slice(0, 8)} created ${result.orders.length} factory orders for ${result.orders.reduce((sum, order) => sum + order.items.length, 0)} material lines.`);
+    const createdOrder = result.orders[0];
+    await onSaved(`${createdOrder?.orderNumber ?? "Bulk order"} created with ${createdOrder?.allocations.length ?? 0} factory/vendor allocations and ${createdOrder?.items.length ?? 0} material lines.`);
     setBusy(false);
   }
 
@@ -1861,11 +1862,11 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
                     {order.bulkOrderId ? <div className="mt-1"><p className="text-[11px] text-muted-foreground">Bulk run {order.bulkOrderId.slice(0, 8)}</p>{panel !== "subhub" ? <button type="button" onClick={() => setBulkSummaryId(order.bulkOrderId!)} className="text-xs font-semibold text-primary underline underline-offset-2">View bulk run summary</button> : null}</div> : null}
                     {panel !== "subhub" ? <p className="mt-1 text-xs text-muted-foreground">{note || "No notes"}</p> : null}
                   </td>
-                  {isAdmin ? <td className="px-3 py-3">{order.subhubName}</td> : null}
-                  {panel !== "subhub" ? <td className="px-3 py-3 font-semibold">{order.vendorName}</td> : null}
+                  {isAdmin ? <td className="px-3 py-3">{[...new Set(order.allocations.map((allocation) => allocation.subhubName))].join(", ")}</td> : null}
+                  {panel !== "subhub" ? <td className="px-3 py-3 font-semibold">{[...new Set(order.allocations.map((allocation) => allocation.vendorName))].join(", ")}</td> : null}
                   <td className="px-3 py-3">
-                    {order.items.map((item) => (
-                      <div key={`${item.materialCode}:${item.materialName}`} className="mb-1 last:mb-0">
+                    {order.items.map((item, itemIndex) => (
+                      <div key={`${order.id}:${item.lineId ?? itemIndex}`} className="mb-1 last:mb-0">
                         <p className="font-semibold">{item.materialName}</p>
                         <p className="tabular text-xs font-normal text-muted-foreground">{item.materialCode}</p>
                       </div>
@@ -1952,7 +1953,7 @@ function BulkProcurementSummaryDrawer({ bulkOrderId, panel, onClose }: { bulkOrd
       <div>
         <h3 className="text-xl font-semibold">Supplier order summary</h3>
         <p className="text-sm text-muted-foreground">Bulk run {result.summary.bulkOrderId.slice(0, 8)} · Ordered {formatDate(result.summary.orderDate)} · Expected {formatDate(result.summary.expectedDelivery)}</p>
-        <p className="mt-1 text-sm">{result.summary.orders} factory/vendor orders · {num(result.summary.totalQuantity)} total units · {inr(result.summary.totalAmount)}</p>
+        <p className="mt-1 text-sm">{result.summary.orders} master order · {result.summary.vendors.length} vendors · {num(result.summary.totalQuantity)} total units · {inr(result.summary.totalAmount)}</p>
         {result.summary.notes.trim() ? <p className="mt-2 text-sm"><strong>Notes:</strong> {result.summary.notes}</p> : null}
       </div>
       {result.summary.vendors.map((vendor) => <section key={vendor.vendorId} className="space-y-2">
