@@ -1838,14 +1838,11 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
   return (
     <>
       <div className="overflow-x-auto border-y border-border">
-        <table className={`w-full text-sm ${panel === "subhub" ? "min-w-[760px]" : "min-w-[1120px]"}`}>
+        <table className={`w-full text-sm ${panel === "subhub" ? "min-w-[850px]" : "min-w-[1050px]"}`}>
           <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="px-4 py-3 font-semibold">Order</th>
-              {isAdmin ? <th className="px-4 py-3 font-semibold">SubHub</th> : null}
-              {panel !== "subhub" ? <th className="px-4 py-3 font-semibold">Vendor</th> : null}
-              <th className="px-4 py-3 font-semibold">Materials</th>
-              <th className="px-4 py-3 text-right font-semibold">Qty</th>
+              <th className="px-4 py-3 font-semibold">Factory, material &amp; allocated quantity</th>
               <th className="px-4 py-3 font-semibold">Ordered</th>
               <th className="px-4 py-3 font-semibold">Expected</th>
               <th className="px-4 py-3 font-semibold">Status</th>
@@ -1862,17 +1859,36 @@ function OrderTable({ orders, total, page, pageSize, onPageChange, onPageSizeCha
                     {order.bulkOrderId ? <div className="mt-1"><p className="text-[11px] text-muted-foreground">Bulk run {order.bulkOrderId.slice(0, 8)}</p>{panel !== "subhub" ? <button type="button" onClick={() => setBulkSummaryId(order.bulkOrderId!)} className="text-xs font-semibold text-primary underline underline-offset-2">View bulk run summary</button> : null}</div> : null}
                     {panel !== "subhub" ? <p className="mt-1 text-xs text-muted-foreground">{note || "No notes"}</p> : null}
                   </td>
-                  {isAdmin ? <td className="px-3 py-3">{[...new Set(order.allocations.map((allocation) => allocation.subhubName))].join(", ")}</td> : null}
-                  {panel !== "subhub" ? <td className="px-3 py-3 font-semibold">{[...new Set(order.allocations.map((allocation) => allocation.vendorName))].join(", ")}</td> : null}
                   <td className="px-3 py-3">
-                    {order.items.map((item, itemIndex) => (
-                      <div key={`${order.id}:${item.lineId ?? itemIndex}`} className="mb-1 last:mb-0">
-                        <p className="font-semibold">{item.materialName}</p>
-                        <p className="tabular text-xs font-normal text-muted-foreground">{item.materialCode}</p>
-                      </div>
-                    ))}
+                    <div className="overflow-hidden rounded-md border border-border">
+                      <table className="w-full text-xs">
+                        <thead className="bg-muted/60 text-left text-[10px] uppercase tracking-wide text-muted-foreground">
+                          <tr>
+                            <th className="border-b border-r border-border px-2 py-1.5">Factory{panel !== "subhub" ? " / vendor" : ""}</th>
+                            <th className="border-b border-r border-border px-2 py-1.5">Raw material</th>
+                            <th className="border-b border-border px-2 py-1.5 text-right">Assigned qty</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {order.allocations.flatMap((allocation) =>
+                            allocation.items.map((item, itemIndex) => (
+                              <tr key={`${order.id}:${allocation.allocationId}:${item.lineId ?? itemIndex}`} className="last:[&>td]:border-b-0">
+                                <td className="border-b border-r border-border px-2 py-2 align-top">
+                                  <p className="font-semibold text-foreground">{allocation.subhubName}</p>
+                                  {panel !== "subhub" ? <p className="mt-0.5 text-muted-foreground">{allocation.vendorName}</p> : null}
+                                </td>
+                                <td className="border-b border-r border-border px-2 py-2 align-top">
+                                  <p className="font-medium text-foreground">{item.materialName}</p>
+                                  <p className="mt-0.5 text-muted-foreground">{item.materialCode}</p>
+                                </td>
+                                <td className="tabular border-b border-border px-2 py-2 text-right align-top font-semibold">{num(item.quantity)}</td>
+                              </tr>
+                            )),
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </td>
-                  <td className="tabular px-3 py-3 text-right">{num(order.quantity)}</td>
                   <td className="tabular whitespace-nowrap px-3 py-3">{formatDate(order.orderDate)}</td>
                   <td className="tabular whitespace-nowrap px-3 py-3">{formatDate(order.expectedDelivery)}</td>
                   <td className="px-3 py-3">
